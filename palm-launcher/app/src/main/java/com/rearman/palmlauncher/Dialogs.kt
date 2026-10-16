@@ -19,6 +19,14 @@ fun pickSize(act: MainActivity, title: String, current: Size, onPick: (Size) -> 
 	d.show()
 }
 
+// Single-choice list of the grid view column counts; `current` is selected. Calls onPick(columns).
+fun pickColumns(act: MainActivity, current: Int, onPick: (Int) -> Unit) {
+	val d = PalmDialog(act, "Grid Columns")
+	for (n in listOf(3, 4)) d.item("$n", n == current) { d.dismiss(); onPick(n) }
+	d.button("Cancel") { d.dismiss() }
+	d.show()
+}
+
 // A list of `apps` in the given order. A tap closes the form and calls onPick(app).
 fun pickApp(act: MainActivity, apps: List<AppEntry>, title: String, onPick: (AppEntry) -> Unit) {
 	val d = PalmDialog(act, title)

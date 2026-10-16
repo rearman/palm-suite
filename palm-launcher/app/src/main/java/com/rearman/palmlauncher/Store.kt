@@ -40,6 +40,7 @@ object Store {
 			.put("viewMode", s.viewMode.name)
 			.put("textSize", s.textSize.name)
 			.put("iconSize", s.iconSize.name)
+			.put("gridColumns", s.gridColumns)
 			.put("wallpaper", s.wallpaper)
 		ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, o.toString()).apply()
 	}
@@ -72,7 +73,8 @@ object Store {
 			}
 		}
 
-		// opt*: state saved by older builds has no "textSize", "iconSize" or "wallpaper" key, and get* would throw.
+		// opt*: state saved by older builds has no "textSize", "iconSize", "gridColumns" or "wallpaper" key,
+		// and get* would throw.
 		// optString gives "" for a missing key, and Size.of("") gives NORMAL.
 		// A "palmFont" key from older builds is ignored: the Palm OS font is always on.
 		// A "green" key from older builds is ignored: the screen is always Green LCD.
@@ -85,6 +87,7 @@ object Store {
 		).apply {
 			textSize = Size.of(o.optString("textSize"))
 			iconSize = Size.of(o.optString("iconSize"))
+			gridColumns = if (o.optInt("gridColumns", 4) == 3) 3 else 4
 			wallpaper = o.optBoolean("wallpaper", false)
 		}
 	}

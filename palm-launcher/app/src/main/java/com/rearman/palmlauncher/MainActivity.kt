@@ -318,6 +318,13 @@ class MainActivity : Activity() {
 				save()
 				render()
 			},
+			MenuItem("Grid Columns...") {
+				pickColumns(this, state.gridColumns) { n ->
+					state.gridColumns = n
+					save()
+					render(keepScroll = true)
+				}
+			},
 			MenuItem(if (state.wallpaper) "✓ Wallpaper" else "Wallpaper") {
 				state.wallpaper = !state.wallpaper
 				save()
@@ -368,7 +375,7 @@ class MainActivity : Activity() {
 
 	private fun appArea(): ScrollView {
 		val grid = state.viewMode == ViewMode.GRID
-		val cols = if (grid) 4 else 2
+		val cols = if (grid) state.gridColumns else 2
 		val shown = state.filter(apps, { it.component }, { it.label })
 		val cells = shown.map { e ->
 			cellCache.getOrPut(e.component) { cell(e) }.also { v -> (v.parent as? ViewGroup)?.removeView(v) }

@@ -35,4 +35,4 @@ The function of the Palm III Applications screen: one A to Z list of all apps, f
 - **`Apps.kt`** loads the `MAIN`/`LAUNCHER` activities and launches them. The `<queries>` element in the manifest is required for that query on Android 11 and later. `REQUEST_DELETE_PACKAGES` is required for the Delete (uninstall) menu item.
 - **Wallpaper:** with the option on, `render()` sets `FLAG_SHOW_WALLPAPER` and a transparent root and window background. The top bar and dock keep `paper()` and `dockColor()`. Change Wallpaper... opens the system wallpaper picker (`ACTION_SET_WALLPAPER`), which sets the home and lock screen wallpapers.
 - **`Dialogs.kt`** has the category and size pickers and the Edit Categories dialogs, built on `PalmDialog`.
-- Grid view has 4 columns, list view has 2. Both fill across, then down. In list view each column is as wide as its widest entry, and the two columns together are centered (`columnWidths`).
+- Grid view has 3 or 4 columns (the Grid Columns option, `gridColumns`), list view has 2. Both fill across, then down. In list view each column is as wide as its widest entry, and the two columns together are centered (`columnWidths`).
