@@ -12,10 +12,13 @@ import android.os.Build
 class AppEntry(val component: String, val packageName: String, val label: String, val icon: Drawable)
 
 object Apps {
-	// Lists every launcher activity except our own. Unsorted; the caller sorts through LauncherState.filter.
-	fun load(ctx: Context): List<AppEntry> {
+	// Lists every launcher activity except our own, or with `pkg` only those of that package
+	// (after a package change, so the other icons stay loaded). Unsorted; the caller sorts
+	// through LauncherState.filter.
+	fun load(ctx: Context, pkg: String? = null): List<AppEntry> {
 		val pm = ctx.packageManager
 		val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+		if (pkg != null) intent.setPackage(pkg)
 		return pm.queryIntentActivities(intent, 0)
 			.filter { it.activityInfo.packageName != ctx.packageName }
 			.map { ri ->
@@ -42,11 +45,12 @@ object Apps {
 		}
 	}
 
+	// Calls onChange with the package name of each added, changed or removed package.
 	// The caller must unregister the returned receiver.
-	fun watch(ctx: Context, onChange: () -> Unit): BroadcastReceiver {
+	fun watch(ctx: Context, onChange: (pkg: String?) -> Unit): BroadcastReceiver {
 		val r = object : BroadcastReceiver() {
 			override fun onReceive(context: Context, intent: Intent) {
-				onChange()
+				onChange(intent.data?.schemeSpecificPart)
 			}
 		}
 		val filter = IntentFilter().apply {

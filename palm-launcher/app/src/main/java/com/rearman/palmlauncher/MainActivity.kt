@@ -67,7 +67,7 @@ class MainActivity : Activity() {
 		Palm.intoCutout = true
 		state = Store.load(this)
 		reload()
-		receiver = Apps.watch(this) { reload(); showApps(keepScroll = true); showDock() }
+		receiver = Apps.watch(this) { pkg -> reload(pkg); showApps(keepScroll = true); showDock() }
 		render()
 		window.hideStatusBar()
 	}
@@ -127,10 +127,11 @@ class MainActivity : Activity() {
 	override fun onBackPressed() {
 	}
 
-	fun reload() {
-		apps = Apps.load(this)
-		cellCache.clear()
-		cellWidth.clear()
+	// Loads all apps, or with `pkg` only the apps of that package (a package was added, changed or removed).
+	fun reload(pkg: String? = null) {
+		apps = if (pkg == null) Apps.load(this) else apps.filter { it.packageName != pkg } + Apps.load(this, pkg)
+		if (pkg == null) cellCache.clear() else cellCache.keys.removeAll { it.startsWith("$pkg/") }
+		cellWidth.keys.retainAll(cellCache.keys)
 		if (apps.isNotEmpty()) {
 			state.prune(apps.map { it.component }.toSet())
 			save()
