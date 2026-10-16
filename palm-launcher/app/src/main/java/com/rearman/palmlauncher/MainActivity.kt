@@ -426,6 +426,8 @@ class MainActivity : Activity() {
 			font(bold = false)
 			if (grid) {
 				gravity = Gravity.CENTER_HORIZONTAL
+				// Two lines always, so each row has the same height.
+				minLines = 2
 				maxLines = 2
 			} else {
 				setSingleLine(true)
