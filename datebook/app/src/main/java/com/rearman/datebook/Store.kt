@@ -427,4 +427,23 @@ class Prefs(ctx: Context) {
     var lastView: Int get() = int("lastView", 0); set(v) = setInt("lastView", v)
 
     var lastFired: Long get() = p.getLong("lastFired", 0); set(v) = p.edit().putLong("lastFired", v).apply()
+
+    // ShortCuts: a JSON array of {"name","text"}. No saved list (or bad data) gives the Palm defaults.
+    var shortCuts: List<ShortCut>
+        get() {
+            val json = p.getString("shortCuts", null) ?: return ShortCuts.defaults
+            return try {
+                val a = JSONArray(json)
+                List(a.length()) { i ->
+                    a.getJSONObject(i).let { ShortCut(it.getString("name"), it.getString("text")) }
+                }
+            } catch (e: Exception) {
+                ShortCuts.defaults
+            }
+        }
+        set(v) {
+            val a = JSONArray()
+            v.forEach { a.put(JSONObject().put("name", it.name).put("text", it.text)) }
+            p.edit().putString("shortCuts", a.toString()).apply()
+        }
 }

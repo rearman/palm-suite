@@ -105,3 +105,7 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
   Delete can save an archive copy of the record first.
 - The Palm OS font and the Green LCD color on all screens. All screens use
   the proportions of the Palm IIIxe, 160 Palm pixels wide.
+- ShortCuts: type ^ or press Ctrl+Space, then a ShortCut name. When the
+  letters after ^ match a full name, the ^ and the name change to the
+  ShortCut text. For example, ^me gives Meeting. Options > ShortCuts...
+  edits the list. Export Backup does not include ShortCuts.

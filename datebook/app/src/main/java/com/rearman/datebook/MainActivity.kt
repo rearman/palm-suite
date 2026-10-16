@@ -39,6 +39,7 @@ import android.widget.ScrollView
 import android.widget.TextClock
 import android.widget.TextView
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.temporal.WeekFields
 import kotlin.math.abs
 
@@ -106,6 +107,9 @@ open class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         store = Store.get(this)
         prefs = Prefs(this)
+        ShortCuts.list = prefs.shortCuts
+        ShortCuts.date = { Fmt.shortDate(LocalDate.now().toEpochDay()) }
+        ShortCuts.time = { LocalTime.now().let { Fmt.time(it.hour * 60 + it.minute) } }
         mode = if (isMemoApp) MEMO else if (isTodoApp) TODO else prefs.lastView
         root = TypingRoot(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1242,17 +1246,20 @@ open class MainActivity : Activity() {
             MenuItem("Font...", 'F') { showFont() },
             MenuItem("Preferences...", 'R') { showMemoPreferences() },
             MenuItem("Edit Categories...") { showEditCategories(1) },
+            MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About Memo Pad") { showMemoAbout() }
         ) else if (todo) listOf(
             MenuItem("Font...", 'F') { showFont() },
             MenuItem("Edit Categories...") { showEditCategories() },
+            MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About To Do List") { showAbout(true) }
         ) else listOf(
             MenuItem("Font...", 'F') { showFont() },
             MenuItem("Preferences...", 'R') { showPreferences() },
             MenuItem("Display Options...", 'Y') { showDisplayOptions() },
+            MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About Date Book") { showAbout(false) }
         )

@@ -4,6 +4,7 @@ import com.rearman.palmui.*
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.text.InputFilter
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -360,6 +361,55 @@ private fun MainActivity.renameCategory(cat: Category?, app: Int, after: () -> U
     }
     d.button("Cancel", 37) { d.dismiss() }
     d.show()
+}
+
+/** ShortCuts list, sorted by name. A tap opens the ShortCut Entry form. "New" starts a new one. */
+fun MainActivity.showShortCuts() {
+    val d = PalmDialog(this, "ShortCuts", height = 156)
+    val list = ShortCuts.list.sortedBy { it.name }
+    if (list.isEmpty()) d.message("No ShortCuts.")
+    for (sc in list) {
+        d.item("${sc.name}: ${sc.text}") { d.dismiss(); editShortCut(sc) }
+    }
+    d.button("Done", 37) { d.dismiss() }
+    d.button("New", 37) { d.dismiss(); editShortCut(null) }
+    d.show()
+}
+
+/** ShortCut Entry form. A null [sc] makes a new ShortCut. OK and Cancel return to the list. */
+private fun MainActivity.editShortCut(sc: ShortCut?) {
+    val d = PalmDialog(this, "ShortCut Entry", height = 84)
+    val nameField = field(sc?.name ?: "", "ShortCut name")
+    nameField.filters = arrayOf<InputFilter>(InputFilter.LengthFilter(ShortCuts.NAME_MAX))
+    val textField = field(sc?.text ?: "", "ShortCut text")
+    textField.filters = arrayOf<InputFilter>(InputFilter.LengthFilter(ShortCuts.TEXT_MAX))
+    d.row("ShortCut Name:", nameField, labelEnd = 64)
+    d.row("ShortCut Text:", textField, labelEnd = 64)
+    d.button("OK", 22) {
+        val name = nameField.text.toString().trim()
+        when {
+            name.isEmpty() -> toast("Enter a ShortCut name.")
+            name.any { it.isWhitespace() || it == '^' } -> toast("A ShortCut name has no spaces and no ^.")
+            ShortCuts.list.any { it.name == name && it != sc } -> toast("That ShortCut name is in use.")
+            else -> {
+                d.dismiss()
+                saveShortCuts(ShortCuts.list.filter { it != sc } + ShortCut(name, textField.text.toString()))
+                showShortCuts()
+            }
+        }
+    }
+    d.button("Cancel", 37) { d.dismiss(); showShortCuts() }
+    if (sc != null) d.button("Delete", 37) {
+        d.dismiss()
+        saveShortCuts(ShortCuts.list.filter { it != sc })
+        showShortCuts()
+    }
+    d.show()
+}
+
+private fun MainActivity.saveShortCuts(list: List<ShortCut>) {
+    prefs.shortCuts = list
+    ShortCuts.list = list
 }
 
 fun MainActivity.showPurgeEvents() {

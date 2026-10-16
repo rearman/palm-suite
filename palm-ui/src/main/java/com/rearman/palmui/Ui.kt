@@ -243,6 +243,7 @@ fun Context.field(text: String, hint: String = "", multiLine: Boolean = false): 
 		inputType = if (multiLine)
 			InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
 		else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+		palmShortCuts()
 	}
 
 fun Context.numberField(value: Int): EditText = field(value.toString()).apply {
@@ -419,6 +420,8 @@ open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, heigh
  */
 class BackEdit(ctx: Context) : EditText(ctx) {
 	var onEmptyBack: (() -> Unit)? = null
+
+	init { palmShortCuts() }
 
 	private fun emptyBack(): Boolean {
 		val f = onEmptyBack ?: return false
