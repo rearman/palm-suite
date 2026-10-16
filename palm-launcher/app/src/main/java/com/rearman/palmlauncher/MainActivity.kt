@@ -1,5 +1,6 @@
 package com.rearman.palmlauncher
 
+import com.rearman.palmui.*
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
@@ -7,16 +8,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
-import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Bundle
 import android.provider.Settings
-import android.text.SpannableString
-import android.text.Spanned
 import android.text.TextUtils
-import android.text.style.RelativeSizeSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
@@ -46,26 +43,24 @@ class MainActivity : Activity() {
 		override fun onReceive(c: Context, i: Intent) = readBattery(i)
 	}
 
-	// Damien Guard's Palm OS font, the same files as in Datebook (assets/fonts).
-	private val palmRegular by lazy { Typeface.createFromAsset(assets, "fonts/palm-os.ttf") }
-	private val palmBold by lazy { Typeface.createFromAsset(assets, "fonts/palm-os-bold.ttf") }
-
 	private val match = ViewGroup.LayoutParams.MATCH_PARENT
 	private val wrap = ViewGroup.LayoutParams.WRAP_CONTENT
 
 	fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-	// The screen is always Green LCD: the paper color of the Datebook app, and a darker green for the dock.
-	internal fun paper() = 0xFFC9D3A8.toInt()
+	// The screen is always Green LCD: Palm.paper, and a darker green for the dock.
+	internal fun paper() = Palm.paper
 	private fun dockColor() = 0xFFB5BF94.toInt()
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+		// The launcher header covers the status bar area, so its windows draw into the camera cutout.
+		Palm.intoCutout = true
 		state = Store.load(this)
 		reload()
 		receiver = Apps.watch(this) { reload(); render(keepScroll = true) }
 		render()
-		hideStatusBar()
+		window.hideStatusBar()
 	}
 
 	override fun onDestroy() {
@@ -95,7 +90,7 @@ class MainActivity : Activity() {
 	override fun onWindowFocusChanged(focus: Boolean) {
 		super.onWindowFocusChanged(focus)
 		hasFocus = focus
-		if (focus) hideStatusBar()
+		if (focus) window.hideStatusBar()
 	}
 
 	override fun onNewIntent(intent: Intent) {
@@ -135,6 +130,8 @@ class MainActivity : Activity() {
 
 	// keepScroll: stay at the same place in the app list (an edit of one app); else go to the top.
 	fun render(keepScroll: Boolean = false) {
+		// All Palm text (launcher, dialogs, menus) uses the Text Size option.
+		Palm.text = state.textSize.palmPx
 		val y = if (keepScroll) scroll?.scrollY ?: 0 else 0
 		// Wallpaper: the system wallpaper shows behind the app list; the top bar and dock keep their colors.
 		val back = if (state.wallpaper) Color.TRANSPARENT else paper()
@@ -165,22 +162,13 @@ class MainActivity : Activity() {
 
 	private fun rule() = View(this).apply { setBackgroundColor(Color.BLACK) }
 
-	// Sets the Palm OS font and size of launcher text; call it after the text is set. All text uses the
-	// Datebook sizes: Text Size gives 13, 16 or 20 Palm px, where the shorter screen side is 160 Palm px
-	// (Palm IIIxe).
+	// Sets the Palm OS font and the Text Size of launcher text; call it after the text is set. Glyphs the
+	// font does not have (▼, ✓) shrink to 0.6, as in Datebook (symbols).
 	internal fun TextView.font(bold: Boolean) {
-		val dm = resources.displayMetrics
-		setTextSize(TypedValue.COMPLEX_UNIT_PX, state.textSize.palmPx * minOf(dm.widthPixels, dm.heightPixels) / 160f)
-		typeface = if (bold) palmBold else palmRegular
+		setTextSize(TypedValue.COMPLEX_UNIT_PX, ppf(Palm.text))
+		typeface = Palm.typeface(this@MainActivity, bold)
 		includeFontPadding = false
-		// The Palm OS font has no ▾ or ✓ glyph, so Android draws them from the system font, which draws
-		// them larger. As in Datebook, this shrinks each one to 0.6 of the text size.
-		if (text.none { it == '▾' || it == '✓' }) return
-		val s = SpannableString(text)
-		text.forEachIndexed { i, ch ->
-			if (ch == '▾' || ch == '✓') s.setSpan(RelativeSizeSpan(0.6f), i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-		}
-		text = s
+		text = symbols(text)
 	}
 
 	// Palm title row, as in Datebook: a black tab with the current time (a tap opens the menu), the battery
@@ -201,7 +189,7 @@ class MainActivity : Activity() {
 			setOnClickListener { showMenu() }
 		}
 		val category = TextView(this).apply {
-			text = "▾ " + state.categoryName(state.selected)
+			text = "▼ " + state.categoryName(state.selected)
 			font(bold = true)
 			setPadding(pp(1f), pp(1f), pp(2f), pp(1f))
 			setOnClickListener { categoryMenu(it) }
@@ -292,7 +280,7 @@ class MainActivity : Activity() {
 		// Item indexes are positions in ids; the last item is "Edit Categories...".
 		val ids = listOf(ALL) + state.categories.map { it.id }
 		val items = ids.map { state.categoryName(it) } + "Edit Categories..."
-		popupList(anchor, items, setOf(ids.indexOf(state.selected))) { i ->
+		popupList(anchor, items, ids.indexOf(state.selected)) { i ->
 			if (i == ids.size) {
 				editCategories(this, state) { save(); render() }
 			} else {
@@ -369,7 +357,7 @@ class MainActivity : Activity() {
 
 	private fun appMenu(anchor: View, e: AppEntry) {
 		val labels = listOf("Category...", "Dock 1", "Dock 2", "Dock 3", "Dock 4", "Info", "Delete")
-		popupList(anchor, labels) { i ->
+		popupList(anchor, labels, -1) { i ->
 			when (i) {
 				0 -> changeCategory(e)
 				1, 2, 3, 4 -> {
@@ -426,7 +414,7 @@ class MainActivity : Activity() {
 	}
 
 	private fun dockMenu(anchor: View, i: Int) {
-		popupList(anchor, listOf("Clear")) {
+		popupList(anchor, listOf("Clear"), -1) {
 			state.dock[i] = null
 			save()
 			render(keepScroll = true)

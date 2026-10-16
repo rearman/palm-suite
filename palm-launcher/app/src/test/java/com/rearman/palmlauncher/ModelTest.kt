@@ -226,15 +226,4 @@ class ModelTest {
 		assertFalse(swipeDown(30f, 50f, 48f))
 		assertFalse(swipeDown(0f, -60f, 48f))
 	}
-
-	@Test
-	fun commandFindsLetterInAnyMenuAndCase() {
-		val menus = listOf(
-			"App" to listOf(MenuItem("Delete...", 'D') {}, MenuItem("Other") {}),
-			"Options" to listOf(MenuItem("Info...", 'I') {}, MenuItem("Second", 'D') {}),
-		)
-		assertEquals("Info...", menus.command('i')?.name)
-		assertEquals("Delete...", menus.command('D')?.name)
-		assertNull(menus.command('Q'))
-	}
 }

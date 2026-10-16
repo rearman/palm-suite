@@ -8,7 +8,7 @@ One jj repository (colocated with git, remote `rearman/palm-suite`) with one Gra
 
 | Folder           | Gradle project       | Contents                                                            | Package                    | Indentation |
 | ---------------- | -------------------- | ------------------------------------------------------------------- | -------------------------- | ----------- |
-| `palm-ui/`       | `:palm-ui`           | Android library: the shared Palm OS look (see below)                | `com.rearman.palmui`       | tabs        |
+| `palm-ui/`       | `:palm-ui`           | Android library: the shared Palm OS look                            | `com.rearman.palmui`       | tabs        |
 | `datebook/`      | `:datebook:app`      | Date Book, To Do List and Memo Pad (three launcher icons, one APK)  | `com.rearman.datebook`     | 4 spaces    |
 | `palm-launcher/` | `:palm-launcher:app` | Home-screen launcher after the Palm III Applications screen         | `com.rearman.palmlauncher` | tabs        |
 
@@ -23,3 +23,10 @@ Run Gradle from the repository root. Keep the indentation style of the file you 
 - CI (`.github/workflows/build-apk.yml`) builds and tests both apps on each push and uploads `datebook.apk` and `palm-launcher.apk`. A tag `datebook-v*` or `launcher-v*` attaches that one app's APK to the GitHub Release of the tag.
 - Code that both apps use belongs in `palm-ui`. Do not copy it into an app.
 - User-facing text follows Palm OS wording.
+
+## palm-ui
+
+- `Ui.kt`: `Palm` (the colors, `Palm.text` in Palm px, `Palm.intoCutout`, the Palm OS font from the palm-ui assets through `Palm.typeface`), `pp()`/`ppf()` (the shorter screen side is 160 Palm px), the view builders (`label`, `hbox`, `vbox`, `box`, `palmButton`, `popupTrigger`, `checkBox`, `field`, `PushGroup`), `PalmDialog` (the base of all forms), `popupList`, `ask`, `palmAlert`, `IconView`, `symbols` and `Window.hideStatusBar()`.
+- `Menu.kt`: the Palm III menu bar (`MenuBar`), `MenuItem`, `command()` and `commandKey()`.
+- Each app sets `Palm.text` from its own text size option before it draws. The launcher sets `Palm.intoCutout`.
+- Each window (activity, `PalmDialog`, `MenuBar`) calls `Window.hideStatusBar()`; a new window type must call it too.

@@ -1,41 +1,13 @@
 package com.rearman.palmlauncher
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Context
 import android.os.Build
 import android.view.MotionEvent
 import android.view.RoundedCorner
-import android.view.View
-import android.view.Window
 import android.view.WindowInsets
-import android.view.WindowInsetsController
-import android.view.WindowManager
 import android.widget.FrameLayout
 import kotlin.math.sqrt
-
-fun Activity.hideStatusBar() = window.hideStatusBar()
-
-// Hides the status bar in this window. A swipe from the top edge shows it for a moment, as in
-// full-screen apps. The window also draws into the camera cutout, so the Palm header covers the
-// status bar area. Call it after setContentView, for each window that shows (the activity, the menu
-// bar and the dialogs), and again on each activity focus: Android 10 and earlier clear the flags.
-fun Window.hideStatusBar() {
-	if (Build.VERSION.SDK_INT >= 28) {
-		attributes = attributes.apply {
-			layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-		}
-	}
-	if (Build.VERSION.SDK_INT >= 30) {
-		insetsController?.let {
-			it.hide(WindowInsets.Type.statusBars())
-			it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-		}
-	} else {
-		@Suppress("DEPRECATION")
-		decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-	}
-}
 
 // Opens the notification shade. StatusBarManager.expandNotificationsPanel is a hidden API, called
 // through reflection as other launchers do, with the EXPAND_STATUS_BAR permission. Limit: a device

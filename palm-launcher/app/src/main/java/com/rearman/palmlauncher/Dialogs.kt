@@ -1,5 +1,6 @@
 package com.rearman.palmlauncher
 
+import com.rearman.palmui.PalmDialog
 import android.widget.Toast
 
 // Single-choice list of state.categories (no All); `current` is selected. Calls onPick(id).

@@ -125,10 +125,3 @@ class LauncherState(
 		}
 	}
 }
-
-// One menu command: its name, its Palm command letter (null for none) and its action.
-class MenuItem(val name: String, val key: Char? = null, val action: () -> Unit)
-
-// The first command in these menus with the command letter `key`, in any case, or null.
-fun List<Pair<String, List<MenuItem>>>.command(key: Char): MenuItem? =
-	asSequence().flatMap { it.second.asSequence() }.firstOrNull { it.key?.equals(key, ignoreCase = true) == true }

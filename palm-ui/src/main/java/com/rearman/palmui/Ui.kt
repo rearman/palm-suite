@@ -72,13 +72,13 @@ object Palm {
 
 /**
  * The Palm OS font has no arrow glyphs, so these come from the system font, which draws them
- * larger. This shrinks each one to 0.6 of the text size.
+ * larger. This shrinks each arrow and the check mark to 0.6 of the text size.
  */
 fun symbols(s: CharSequence): CharSequence {
-	if (s.none { it == '◀' || it == '▶' || it == '▼' || it == '▲' }) return s
+	if (s.none { it == '◀' || it == '▶' || it == '▼' || it == '▲' || it == '✓' }) return s
 	val sp = SpannableString(s)
 	s.forEachIndexed { i, ch ->
-		if (ch == '◀' || ch == '▶' || ch == '▼' || ch == '▲')
+		if (ch == '◀' || ch == '▶' || ch == '▼' || ch == '▲' || ch == '✓')
 			sp.setSpan(RelativeSizeSpan(0.6f), i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
 	}
 	return sp
@@ -374,6 +374,35 @@ open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, heigh
 		val b = c.palmButton(text, width, onClick)
 		buttons.addView(b, lp().apply { marginEnd = c.pp(6) })
 		return b
+	}
+
+	/** A message in the body (the launcher forms). */
+	fun message(s: String) {
+		body.addView(c.label(s).apply { setPadding(c.pp(2), c.pp(2), c.pp(2), c.pp(2)) }, lp(MATCH))
+	}
+
+	/** A list row in the body. The [selected] row is inverted, as in a Palm list. */
+	fun item(s: String, selected: Boolean = false, onClick: () -> Unit) {
+		body.addView(c.label(s, bold = selected).apply {
+			setPadding(c.pp(2), c.pp(1), c.pp(2), c.pp(1))
+			if (selected) {
+				setBackgroundColor(Palm.INK)
+				setTextColor(Palm.paper)
+			}
+			setOnClickListener { onClick() }
+		}, lp(MATCH))
+	}
+
+	/** A one-line text field in the body, with the cursor at the end. The keyboard opens with the form. */
+	fun field(s: String): EditText {
+		val ed = c.field(s)
+		ed.setSelection(ed.text.length)
+		body.addView(ed, LP(MATCH, WRAP).apply { topMargin = c.pp(2) })
+		window?.setSoftInputMode(
+			WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+		)
+		ed.requestFocus()
+		return ed
 	}
 }
 
