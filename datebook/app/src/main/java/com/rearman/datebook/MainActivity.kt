@@ -844,9 +844,11 @@ open class MainActivity : Activity() {
         // "Dec '95 - Jan '96" when the week spans two months, else one "Oct '26".
         tab(h, if (wd.month == we.month) short(wd) else "${short(wd)} - ${short(we)}")
         h.addView(arrow(true) { stepDate(-1) }.apply { gravity = Gravity.CENTER; layoutParams = LP(pp(14), pp(13)) })
-        // 35 px label, 2 px from each arrow.
+        // A one-line label at least 35 px wide, 2 px from each arrow. It grows to fit the text.
         h.addView(label("Week  ${wd.get(WeekFields.SUNDAY_START.weekOfWeekBasedYear())}").apply {
-            layoutParams = LP(pp(35), WRAP).apply { marginStart = pp(2); marginEnd = pp(2) }
+            setSingleLine(true)
+            minWidth = pp(35)
+            layoutParams = LP(WRAP, WRAP).apply { marginStart = pp(2); marginEnd = pp(2) }
         })
         h.addView(arrow(false) { stepDate(1) }.apply { gravity = Gravity.CENTER; layoutParams = LP(pp(14), pp(13)) })
 
@@ -938,8 +940,8 @@ open class MainActivity : Activity() {
         val ld = Fmt.ld(day)
         h.addView(arrow(true) { stepDate(-1) }.apply { gravity = Gravity.CENTER }, LP(pp(12), pp(13)))
         h.addView(label("${Fmt.dowShort[Recur.dow(ld)]}, ${Fmt.monthShort[ld.monthValue - 1]} ${ld.dayOfMonth}", bold = true)
-            .apply { gravity = Gravity.CENTER; maxLines = 1; setOnClickListener { goDay(day, null) } },
-            LP(pp(54), pp(12)).apply { topMargin = pp(1); marginStart = pp(1) })
+            .apply { gravity = Gravity.CENTER; setSingleLine(true); minWidth = pp(54); setOnClickListener { goDay(day, null) } },
+            LP(WRAP, pp(12)).apply { topMargin = pp(1); marginStart = pp(1) })
         h.addView(arrow(false) { stepDate(1) }.apply { gravity = Gravity.CENTER }, LP(pp(11), pp(13)))
 
         val col = vbox()

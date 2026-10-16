@@ -132,7 +132,7 @@ fun Context.box(fill: Int, stroke: Int, strokePp: Float, radiusPp: Float, dashed
 
 /**
  * Rounded Palm command button in the regular font, 12 px high. Inverts while pressed.
- * [width] is the Palm width. 0 gives the button at least 16 px wide.
+ * [width] is the least Palm width (0 gives 16 px). A longer text grows the button on one line.
  */
 fun Context.palmButton(text: CharSequence, width: Int = 0, onClick: () -> Unit): TextView =
 	label(text, bold = false).apply {
@@ -152,7 +152,8 @@ fun Context.palmButton(text: CharSequence, width: Int = 0, onClick: () -> Unit):
 		setPadding(pp(2), 0, pp(2), 0)
 		minHeight = pp(12)
 		minimumHeight = pp(12)
-		if (width > 0) setWidth(pp(width)) else minWidth = pp(16)
+		setSingleLine(true)
+		minWidth = pp(if (width > 0) width else 16)
 		setOnClickListener { onClick() }
 	}
 

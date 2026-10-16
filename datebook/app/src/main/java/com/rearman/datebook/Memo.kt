@@ -184,7 +184,8 @@ private fun MainActivity.showMemoDetails(m: Memo) {
     }, labelEnd = 52)
     // Palm: the "Private:" label starts at form x 13 and the box at x 58 (body x 54). The box has no padding.
     val privRow = hbox().apply {
-        addView(label("Private:", bold = true), LP(pp(45), WRAP).apply { marginStart = pp(9) })
+        addView(label("Private:", bold = true).apply { setSingleLine(true); minWidth = pp(45) },
+            LP(WRAP, WRAP).apply { marginStart = pp(9) })
         addView(checkBox("", m.isPrivate) { b -> priv = b }.apply { setPadding(0, 0, 0, 0) }, LP(WRAP, WRAP))
     }
     d.add(privRow, 0)
