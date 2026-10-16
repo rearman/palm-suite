@@ -33,6 +33,15 @@ class MainActivity : Activity() {
 	var receiver: BroadcastReceiver? = null
 	var hasFocus = false
 	private var scroll: ScrollView? = null
+	// The parts of the screen that change without a full render(): the app list holder, the category
+	// trigger and the dock holder.
+	private var appHolder: FrameLayout? = null
+	private var categoryText: TextView? = null
+	private var dockHolder: FrameLayout? = null
+	// App cells by component, with their measured widths for list view. A category change reuses them.
+	// render() and a package change clear them. Limit: the cells of all apps stay in memory, as when All shows.
+	private val cellCache = HashMap<String, View>()
+	private val cellWidth = HashMap<String, Int>()
 	// The battery gauge in the header and its last reading (ACTION_BATTERY_CHANGED, while resumed).
 	private var battery: BatteryGauge? = null
 	// The last gauge margin after the clock tab. A new header starts with it, so the gauge does not jump.
@@ -58,7 +67,7 @@ class MainActivity : Activity() {
 		Palm.intoCutout = true
 		state = Store.load(this)
 		reload()
-		receiver = Apps.watch(this) { reload(); render(keepScroll = true) }
+		receiver = Apps.watch(this) { reload(); showApps(keepScroll = true); showDock() }
 		render()
 		window.hideStatusBar()
 	}
@@ -100,7 +109,7 @@ class MainActivity : Activity() {
 			(intent.flags and Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT) == 0) {
 			state.selected = state.nextCategory(apps.map { it.component })
 			save()
-			render()
+			showApps()
 		}
 	}
 
@@ -120,6 +129,8 @@ class MainActivity : Activity() {
 
 	fun reload() {
 		apps = Apps.load(this)
+		cellCache.clear()
+		cellWidth.clear()
 		if (apps.isNotEmpty()) {
 			state.prune(apps.map { it.component }.toSet())
 			save()
@@ -128,11 +139,14 @@ class MainActivity : Activity() {
 
 	fun save() = Store.save(this, state)
 
-	// keepScroll: stay at the same place in the app list (an edit of one app); else go to the top.
+	// Builds the whole screen. keepScroll: stay at the same place in the app list; else go to the top.
 	fun render(keepScroll: Boolean = false) {
 		// All Palm text (launcher, dialogs, menus) uses the Text Size option.
 		Palm.text = state.textSize.palmPx
 		val y = if (keepScroll) scroll?.scrollY ?: 0 else 0
+		// Options change the cell layout, so cells are built again.
+		cellCache.clear()
+		cellWidth.clear()
 		// Wallpaper: the system wallpaper shows behind the app list; the top bar and dock keep their colors.
 		val back = if (state.wallpaper) Color.TRANSPARENT else paper()
 		if (state.wallpaper) window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
@@ -141,21 +155,44 @@ class MainActivity : Activity() {
 			orientation = LinearLayout.VERTICAL
 			setBackgroundColor(back)
 		}
-		val area = appArea()
-		scroll = area
 		root.addView(topBar(), lp(match, wrap))
 		// The 2 Palm px title line, as in Datebook.
 		root.addView(rule(), lp(match, pp(2f)))
-		root.addView(area, lp(match, 0, 1f))
+		root.addView(FrameLayout(this).also { appHolder = it }, lp(match, 0, 1f))
 		root.addView(rule(), lp(match, dp(1)))
-		root.addView(dock(), lp(match, wrap))
+		root.addView(FrameLayout(this).also { dockHolder = it }, lp(match, wrap))
 		// A swipe down on the header, or on the app list at its top, opens the notification shade.
 		val frame = SwipeDownFrame(this, { (scroll?.scrollY ?: 0) == 0 }) { expandNotifications() }
 		frame.addView(root, FrameLayout.LayoutParams(match, match))
 		setContentView(frame)
 		window.decorView.setBackgroundColor(back)
+		showDock()
+		showApps()
+		if (y > 0) scroll?.let { s -> s.post { s.scrollTo(0, y) } }
+	}
+
+	// Shows the apps of the selected category and its name in the trigger. keepScroll: stay at the same
+	// place in the list (an edit of one app); else go to the top.
+	private fun showApps(keepScroll: Boolean = false) {
+		val holder = appHolder ?: return
+		val y = if (keepScroll) scroll?.scrollY ?: 0 else 0
+		val area = appArea()
+		holder.removeAllViews()
+		holder.addView(area, FrameLayout.LayoutParams(match, match))
+		scroll = area
+		categoryText?.apply {
+			text = "▼ " + state.categoryName(state.selected)
+			font(bold = true)
+		}
 		// The new list has no height until layout, so scroll after it.
 		if (y > 0) area.post { area.scrollTo(0, y) }
+	}
+
+	// Shows the dock again (a slot changed).
+	private fun showDock() {
+		val holder = dockHolder ?: return
+		holder.removeAllViews()
+		holder.addView(dock(), FrameLayout.LayoutParams(match, wrap))
 	}
 
 	private fun lp(w: Int, h: Int, weight: Float = 0f) = LinearLayout.LayoutParams(w, h, weight)
@@ -193,6 +230,7 @@ class MainActivity : Activity() {
 			font(bold = true)
 			setPadding(pp(1f), pp(1f), pp(2f), pp(1f))
 			setOnClickListener { categoryMenu(it) }
+			categoryText = this
 		}
 		// The gauge is a local val too: a mutable property does not smart-cast to non-null for addView.
 		val gauge = BatteryGauge(this, { pp(it).toFloat() }, paper()).also { it.set(batteryLevel, batteryCharging) }
@@ -286,7 +324,7 @@ class MainActivity : Activity() {
 			} else {
 				state.selected = ids[i]
 				save()
-				render()
+				showApps()
 			}
 		}
 	}
@@ -294,12 +332,17 @@ class MainActivity : Activity() {
 	private fun appArea(): ScrollView {
 		val grid = state.viewMode == ViewMode.GRID
 		val cols = if (grid) 4 else 2
-		val cells = state.filter(apps, { it.component }, { it.label }).map { cell(it) }
+		val shown = state.filter(apps, { it.component }, { it.label })
+		val cells = shown.map { e ->
+			cellCache.getOrPut(e.component) { cell(e) }.also { v -> (v.parent as? ViewGroup)?.removeView(v) }
+		}
 		// List view: the two columns together are centered on the screen (null widths: equal columns).
 		// Limit: it measures against the full screen width, so in split-screen mode the columns can be cut off.
 		val widths = if (grid) null else {
 			val spec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-			columnWidths(cells.map { it.measure(spec, spec); it.measuredWidth }, cols, resources.displayMetrics.widthPixels)
+			columnWidths(shown.mapIndexed { i, e ->
+				cellWidth.getOrPut(e.component) { cells[i].measure(spec, spec); cells[i].measuredWidth }
+			}, cols, resources.displayMetrics.widthPixels)
 		}
 		val list = LinearLayout(this).apply {
 			orientation = LinearLayout.VERTICAL
@@ -363,7 +406,7 @@ class MainActivity : Activity() {
 				1, 2, 3, 4 -> {
 					state.dock[i - 1] = e.component
 					save()
-					render(keepScroll = true)
+					showDock()
 				}
 				5 -> showInfo(e)
 				6 -> deleteApp(e)
@@ -374,7 +417,7 @@ class MainActivity : Activity() {
 	private fun changeCategory(e: AppEntry) = pickCategory(this, state, state.categoryOf(e.component)) { id ->
 		state.assign(e.component, id)
 		save()
-		render(keepScroll = true)
+		showApps(keepScroll = true)
 	}
 
 	private fun showInfo(e: AppEntry) = startSafely(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -417,7 +460,7 @@ class MainActivity : Activity() {
 		popupList(anchor, listOf("Clear"), -1) {
 			state.dock[i] = null
 			save()
-			render(keepScroll = true)
+			showDock()
 		}
 	}
 }
