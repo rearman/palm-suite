@@ -41,12 +41,12 @@ internal fun MainActivity.visibleMemos(): List<Memo> {
  */
 internal fun MainActivity.buildMemoList(h: LinearLayout, content: FrameLayout, cmds: LinearLayout) {
     tab(h, "Memo")
-    // Palm: a 26 px trigger at the right edge. The header has a 1 px right padding, so the margin cancels it.
-    val trigger = popupTrigger(categoryLabel(prefs.memoCategory)) { tv ->
+    // As in To Do: a 13 px high trigger at the right edge. The name grows the trigger to the left. The
+    // header has 1 px of right padding, so a -1 px end margin puts the right edge at x 160.
+    h.addView(popupTrigger(categoryLabel(prefs.memoCategory)) { tv ->
         endEdit()
         pickCategory(tv, prefs.memoCategory, includeAll = true, app = 1) { id -> prefs.memoCategory = id; render() }
-    }.apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
-    h.addView(trigger, LP(pp(26), WRAP).apply { marginEnd = -pp(1) })
+    }.apply { minWidth = pp(17) }, LP(WRAP, pp(13)).apply { marginEnd = -pp(1) })
 
     val manual = prefs.memoSort == 0
     val items = visibleMemos()
