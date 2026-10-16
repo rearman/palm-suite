@@ -46,5 +46,6 @@ android {
 }
 
 dependencies {
+    implementation(project(":palm-ui"))
     testImplementation("junit:junit:4.13.2")
 }

@@ -14,5 +14,6 @@ dependencyResolutionManagement {
 	}
 }
 
-rootProject.name = "Palm Launcher"
-include(":app")
+rootProject.name = "Palm Suite"
+// The shared Palm OS look, and the two apps that use it.
+include(":palm-ui", ":datebook:app", ":palm-launcher:app")

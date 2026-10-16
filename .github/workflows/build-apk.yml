@@ -1,0 +1,78 @@
+name: Build APKs
+
+# Builds and tests both apps. A tag datebook-v* or launcher-v* also releases that one app.
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'datebook-v*', 'launcher-v*' ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to create the release on a tag build
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build APKs
+        run: gradle assembleDebug testDebugUnitTest --stacktrace
+
+      # A tag build names the APK of its app after the tag, for example datebook-v1.2.apk.
+      - name: Rename APKs
+        id: apk
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          db=datebook.apk
+          pl=palm-launcher.apk
+          case "$TAG" in
+            datebook-v*) db="$TAG.apk" ;;
+            launcher-v*) pl="palm-$TAG.apk" ;;
+          esac
+          mv datebook/app/build/outputs/apk/debug/app-debug.apk "$db"
+          mv palm-launcher/app/build/outputs/apk/debug/app-debug.apk "$pl"
+          echo "datebook=$db" >> "$GITHUB_OUTPUT"
+          echo "launcher=$pl" >> "$GITHUB_OUTPUT"
+          case "$TAG" in
+            datebook-v*) echo "release=$db" >> "$GITHUB_OUTPUT" ;;
+            launcher-v*) echo "release=$pl" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      # archive: false uploads the file itself and accepts only one file, so each APK has its own step.
+      - name: Upload Date Book APK
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.apk.outputs.datebook }}
+          archive: false
+
+      - name: Upload launcher APK
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.apk.outputs.launcher }}
+          archive: false
+
+      # On a release tag, attach the APK of that app to the GitHub Release of the tag. A rerun replaces it.
+      - name: Attach APK to release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK: ${{ steps.apk.outputs.release }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$APK" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$APK" --title "$GITHUB_REF_NAME" --generate-notes
+          fi
