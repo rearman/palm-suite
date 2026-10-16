@@ -1,5 +1,6 @@
 package com.rearman.datebook
 
+import com.rearman.palmui.*
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -514,7 +515,8 @@ open class MainActivity : Activity() {
 
     fun render() {
         eventBox?.dismiss(); eventBox = null
-        Palm.apply(prefs)
+        // The Font option: small, normal or large Palm text.
+        Palm.text = when (prefs.font) { 0 -> 13f; 2 -> 20f; else -> 16f }
         Fmt.h24 = DateFormat.is24HourFormat(this)
         root.removeAllViews()
         root.setBackgroundColor(Palm.paper)

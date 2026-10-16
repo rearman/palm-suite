@@ -1,5 +1,6 @@
 package com.rearman.datebook
 
+import com.rearman.palmui.*
 /**
  * The Memo Pad app. It has its own icon and task, as on the Palm,
  * and it uses the same records file as the Date Book and To Do List apps.

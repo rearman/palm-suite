@@ -1,5 +1,6 @@
 package com.rearman.datebook
 
+import com.rearman.palmui.*
 import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
