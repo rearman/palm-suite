@@ -1,0 +1,3 @@
+The Palm OS fonts in this folder are by Damien Guard, a recreation of the Palm OS system fonts:
+https://damieng.com/typography/palmos-font/. The license is Creative Commons Attribution-ShareAlike 3.0
+(https://creativecommons.org/licenses/by-sa/3.0/). The font files are not changed.

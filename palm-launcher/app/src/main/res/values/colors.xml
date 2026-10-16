@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<!-- The Green LCD paper color (MainActivity.paper), so the launcher starts without a white flash. -->
+	<color name="paper">#FFC9D3A8</color>
+</resources>
