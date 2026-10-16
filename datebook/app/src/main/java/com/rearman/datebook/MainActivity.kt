@@ -28,9 +28,7 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.CheckBox
 import android.widget.EditText
@@ -43,21 +41,6 @@ import android.widget.TextView
 import java.time.LocalDate
 import java.time.temporal.WeekFields
 import kotlin.math.abs
-
-/**
- * The root view. When [editor] is true it is a text editor, so that the keyboard can stay
- * open when no field is selected. Keys typed into it are discarded.
- */
-private class RootBox(ctx: Context) : LinearLayout(ctx) {
-    var editor = false
-    override fun onCheckIsTextEditor() = editor
-    override fun onCreateInputConnection(out: EditorInfo): InputConnection? {
-        if (!editor) return null
-        out.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-        out.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_NO_FULLSCREEN
-        return BaseInputConnection(this, false)
-    }
-}
 
 /** The Date Book app. [TodoActivity] is the To Do List app; both use the same records. */
 open class MainActivity : Activity() {
@@ -93,7 +76,7 @@ open class MainActivity : Activity() {
     /** Private records the user chose to see while records are masked ("e12", "t5"). */
     val revealed = mutableSetOf<String>()
 
-    private lateinit var root: RootBox
+    private lateinit var root: TypingRoot
     private var selected: Occ? = null
     private var selectedTodo: Todo? = null
     private var focusKey: String? = null
@@ -115,7 +98,7 @@ open class MainActivity : Activity() {
      * until a field is selected.
      */
     private val keepKeyboard: Boolean
-        get() = resources.displayMetrics.let { it.heightPixels > it.widthPixels * 5 / 4 }
+        get() = isTallScreen
 
     // ---------------- lifecycle ----------------
 
@@ -124,7 +107,7 @@ open class MainActivity : Activity() {
         store = Store.get(this)
         prefs = Prefs(this)
         mode = if (isMemoApp) MEMO else if (isTodoApp) TODO else prefs.lastView
-        root = RootBox(this).apply {
+        root = TypingRoot(this).apply {
             orientation = LinearLayout.VERTICAL
             isFocusableInTouchMode = true
             editor = keepKeyboard

@@ -226,4 +226,12 @@ class ModelTest {
 		assertFalse(swipeDown(30f, 50f, 48f))
 		assertFalse(swipeDown(0f, -60f, 48f))
 	}
+
+	@Test
+	fun firstStartingWithFindsLetterInAnyCase() {
+		val labels = listOf("Calculator", "camera", "Date Book")
+		assertEquals(0, firstStartingWith(labels, 'c'))
+		assertEquals(2, firstStartingWith(labels, 'D'))
+		assertEquals(-1, firstStartingWith(labels, 'x'))
+	}
 }

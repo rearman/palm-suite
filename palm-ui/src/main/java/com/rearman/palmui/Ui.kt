@@ -31,6 +31,7 @@ import android.view.Window
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputConnectionWrapper
@@ -615,3 +616,25 @@ fun Context.ditherPaint(): Paint {
 	}
 	return Paint().apply { shader = BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT) }
 }
+
+/**
+ * The root view of a screen. When [editor] is true it is a text editor, so that the keyboard can
+ * stay open when no field is selected. Typed keys reach the activity as key events.
+ */
+class TypingRoot(ctx: Context) : LinearLayout(ctx) {
+	var editor = false
+	override fun onCheckIsTextEditor() = editor
+	override fun onCreateInputConnection(out: EditorInfo): InputConnection? {
+		if (!editor) return null
+		out.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+		out.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_NO_FULLSCREEN
+		return BaseInputConnection(this, false)
+	}
+}
+
+/**
+ * True on a screen taller than wide (more than 5 to 4). The apps then keep the keyboard open below
+ * the screen, and adjustResize fits the screen into the area above it.
+ */
+val Context.isTallScreen: Boolean
+	get() = resources.displayMetrics.let { it.heightPixels > it.widthPixels * 5 / 4 }

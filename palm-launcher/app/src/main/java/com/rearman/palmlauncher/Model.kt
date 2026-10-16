@@ -28,6 +28,11 @@ fun columnWidths(entryWidths: List<Int>, cols: Int, max: Int): IntArray? {
 // far down as sideways.
 fun swipeDown(dx: Float, dy: Float, min: Float): Boolean = dy >= min && dy > 2 * kotlin.math.abs(dx)
 
+// The index of the first label that starts with `ch`, in any case, or -1. Palm: a letter written in the
+// Applications screen scrolls the list to the first app with that letter.
+fun firstStartingWith(labels: List<String>, ch: Char): Int =
+	labels.indexOfFirst { it.startsWith(ch, ignoreCase = true) }
+
 data class Category(val id: Int, val name: String)
 
 class LauncherState(

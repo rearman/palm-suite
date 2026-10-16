@@ -19,6 +19,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -33,6 +34,8 @@ class MainActivity : Activity() {
 	var receiver: BroadcastReceiver? = null
 	var hasFocus = false
 	private var scroll: ScrollView? = null
+	// The screen root. On a tall screen it keeps the keyboard open (TypingRoot.editor).
+	private var typingRoot: TypingRoot? = null
 	// The parts of the screen that change without a full render(): the app list holder, the category
 	// trigger and the dock holder.
 	private var appHolder: FrameLayout? = null
@@ -100,6 +103,7 @@ class MainActivity : Activity() {
 		super.onWindowFocusChanged(focus)
 		hasFocus = focus
 		if (focus) window.hideStatusBar()
+		if (focus && isTallScreen) showKeyboard()
 	}
 
 	override fun onNewIntent(intent: Intent) {
@@ -117,6 +121,18 @@ class MainActivity : Activity() {
 	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
 		if (event.action == KeyEvent.ACTION_DOWN && event.isCtrlPressed && event.repeatCount == 0) {
 			commandKey(event.keyCode)?.let { k -> menus().command(k) }?.let { it.action(); return true }
+		}
+		// Palm: a letter written in the Applications screen scrolls to the first app with that letter.
+		val typed = when (event.action) {
+			KeyEvent.ACTION_DOWN -> event.unicodeChar.takeIf { it != 0 && event.repeatCount == 0 }
+				?.let { String(Character.toChars(it)) }
+			KeyEvent.ACTION_MULTIPLE -> event.characters
+			else -> null
+		}
+		val ch = typed?.trim()?.firstOrNull()
+		if (ch != null && ch.isLetterOrDigit() && currentFocus === typingRoot) {
+			scrollToLetter(ch)
+			return true
 		}
 		return super.dispatchKeyEvent(event)
 	}
@@ -152,10 +168,13 @@ class MainActivity : Activity() {
 		val back = if (state.wallpaper) Color.TRANSPARENT else paper()
 		if (state.wallpaper) window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
 		else window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-		val root = LinearLayout(this).apply {
+		val root = TypingRoot(this).apply {
 			orientation = LinearLayout.VERTICAL
 			setBackgroundColor(back)
+			isFocusableInTouchMode = true
+			editor = isTallScreen
 		}
+		typingRoot = root
 		root.addView(topBar(), lp(match, wrap))
 		// The 2 Palm px title line, as in Datebook.
 		root.addView(rule(), lp(match, pp(2f)))
@@ -170,6 +189,23 @@ class MainActivity : Activity() {
 		showDock()
 		showApps()
 		if (y > 0) scroll?.let { s -> s.post { s.scrollTo(0, y) } }
+		if (isTallScreen) showKeyboard()
+	}
+
+	// On a tall screen the keyboard stays open below the launcher, as in Datebook.
+	private fun showKeyboard() {
+		val root = typingRoot ?: return
+		root.requestFocus()
+		root.post { getSystemService(InputMethodManager::class.java).showSoftInput(root, 0) }
+	}
+
+	// Scrolls the app list so the row of the first shown app that starts with `ch` is at the top.
+	private fun scrollToLetter(ch: Char) {
+		val shown = state.filter(apps, { it.component }, { it.label })
+		val i = firstStartingWith(shown.map { it.label }, ch)
+		if (i < 0) return
+		val row = cellCache[shown[i].component]?.parent as? View ?: return
+		scroll?.smoothScrollTo(0, row.top)
 	}
 
 	// Shows the apps of the selected category and its name in the trigger. keepScroll: stay at the same
