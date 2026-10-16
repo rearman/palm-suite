@@ -119,12 +119,7 @@ internal fun MainActivity.buildMemoEdit(h: LinearLayout, content: FrameLayout, c
         }
     })
 
-    val done = {
-        endEdit()
-        if (m.text.isBlank() && m.id != 0L) store.delete(m)
-        memoOpen = null
-        render()
-    }
+    val done = { closeMemo(m) }
     val ed = BackEdit(this).apply {
         onEmptyBack = done // Backspace in an empty memo closes and deletes it.
         typeface = Palm.typeface(context, false)
@@ -160,6 +155,14 @@ internal fun MainActivity.buildMemoEdit(h: LinearLayout, content: FrameLayout, c
     cmd(cmds, "Done", gap = 0, onClick = done)
     cmd(cmds, "Details") { showMemoDetails(m) }
     cmds.addView(View(this), LP(0, 1, 1f))
+}
+
+/** Done (and Back) in the Memo view: ends the edit, deletes [m] when it is empty, and shows the Memo List. */
+internal fun MainActivity.closeMemo(m: Memo) {
+    endEdit()
+    if (m.text.isBlank() && m.id != 0L) store.delete(m)
+    memoOpen = null
+    render()
 }
 
 /**

@@ -182,7 +182,9 @@ open class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        val m = memoOpen
         when (mode) {
+            MEMO -> if (m != null) closeMemo(m) else super.onBackPressed()
             TODO, DAY -> super.onBackPressed()
             else -> { mode = DAY; render() }
         }
