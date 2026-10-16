@@ -26,7 +26,7 @@ Run Gradle from the repository root. Keep the indentation style of the file you 
 
 ## palm-ui
 
-- `Ui.kt`: `Palm` (the colors, `Palm.text` in Palm px, `Palm.intoCutout`, the Palm OS font from the palm-ui assets through `Palm.typeface`), `pp()`/`ppf()` (the shorter screen side is 160 Palm px), the view builders (`label`, `hbox`, `vbox`, `box`, `palmButton`, `popupTrigger`, `checkBox`, `field`, `PushGroup`), `PalmDialog` (the base of all forms), `popupList`, `ask`, `palmAlert`, `IconView`, `symbols` and `Window.hideStatusBar()`.
+- `Ui.kt`: `Palm` (the colors, `Palm.text` in Palm px, `Palm.intoCutout`, the Palm OS font from the palm-ui assets through `Palm.typeface`), `pp()`/`ppf()` (the shorter screen side is 160 Palm px), the view builders (`label`, `hbox`, `vbox`, `box`, `palmButton`, `popupTrigger`, `checkBox`, `field`, `PushGroup`), `PalmDialog` (the base of all forms), `popupList`, `ask`, `palmAlert`, `IconView`, `symbols`, `Window.hideStatusBar()` and `ditherPaint()` (the Palm 50% gray).
 - `Menu.kt`: the Palm III menu bar (`MenuBar`), `MenuItem`, `command()` and `commandKey()`.
 - Each app sets `Palm.text` from its own text size option before it draws. The launcher sets `Palm.intoCutout`.
 - Each window (activity, `PalmDialog`, `MenuBar`) calls `Window.hideStatusBar()`; a new window type must call it too.

@@ -49,6 +49,8 @@ class WeekGrid(
         pathEffect = DashPathEffect(floatArrayOf(ctx.ppf(1f), ctx.ppf(1f)), 0f)
     }
     private val fill = Paint().apply { color = Palm.GRAY }
+    /** The Palm 50% gray of an event box. */
+    private val dither = ctx.ditherPaint()
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Palm.INK; textSize = ctx.ppf(Palm.text); typeface = Palm.typeface(ctx, true); textAlign = Paint.Align.RIGHT
     }
@@ -139,12 +141,14 @@ class WeekGrid(
                 val lane = laneOf[o] ?: 0
                 val l = gutter + i * cw + context.ppf(1f) + lane * lw
                 val r = RectF(l, yOf(e.start) + 1, l + lw - 1, yOf(end) - 1)
-                fill.color = when {
-                    act.isMasked(e) -> Palm.LIGHT
-                    o == selected -> Palm.INK
-                    else -> Palm.GRAY
+                // As in Palm OS, an event box is the 50% gray dither in a 1 px black line. The
+                // selected event is black, and a masked event is light gray.
+                val p = when {
+                    act.isMasked(e) -> fill.apply { color = Palm.LIGHT }
+                    o == selected -> fill.apply { color = Palm.INK }
+                    else -> dither
                 }
-                c.drawRect(r, fill)
+                c.drawRect(r, p)
                 c.drawRect(r, stroke)
                 boxes.add(r to o)
             }

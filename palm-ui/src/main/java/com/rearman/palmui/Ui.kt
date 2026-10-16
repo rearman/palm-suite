@@ -3,12 +3,15 @@ package com.rearman.palmui
 import android.app.Dialog
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
@@ -595,4 +598,20 @@ fun Window.hideStatusBar() {
 		@Suppress("DEPRECATION")
 		decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 	}
+}
+
+/**
+ * A paint that fills with the Palm 50% gray: a checkerboard of black and paper Palm px. The pattern
+ * starts at the canvas origin, so all shapes in one view share one grid.
+ */
+fun Context.ditherPaint(): Paint {
+	val u = pp(1)
+	val bmp = Bitmap.createBitmap(2 * u, 2 * u, Bitmap.Config.ARGB_8888)
+	Canvas(bmp).apply {
+		drawColor(Palm.paper)
+		val ink = Paint().apply { color = Palm.INK }
+		drawRect(0f, 0f, u.toFloat(), u.toFloat(), ink)
+		drawRect(u.toFloat(), u.toFloat(), 2f * u, 2f * u, ink)
+	}
+	return Paint().apply { shader = BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT) }
 }

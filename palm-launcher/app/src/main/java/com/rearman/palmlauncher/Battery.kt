@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.view.View
+import com.rearman.palmui.ditherPaint
 import kotlin.math.roundToInt
 
 // The Palm OS 3.5 battery gauge of the Palm IIIxe Applications screen, drawn on the Palm px grid: a
@@ -31,6 +32,7 @@ class BatteryGauge(ctx: Context, private val pp: (Float) -> Float, private val p
 	private var level = 100 // percent, 0 to 100
 	private var charging = false
 	private val paint = Paint().apply { style = Paint.Style.FILL }
+	private val dither = ctx.ditherPaint()
 
 	fun set(level: Int, charging: Boolean) {
 		val l = level.coerceIn(0, 100)
@@ -62,7 +64,7 @@ class BatteryGauge(ctx: Context, private val pp: (Float) -> Float, private val p
 		px(BODY_W + NUB_W - 1, nubTop + 1, 1, NUB_H - 2)
 		// The charge, then the empty part in a 50% dither.
 		if (fill > 0) px(1, 1, fill, inH)
-		for (x in 1 + fill..inW) for (y in 1..inH) if ((x + y) % 2 == 0) px(x, y)
+		if (fill < inW) c.drawRect((1 + fill) * s, s, (1 + inW) * s, (1 + inH) * s, dither)
 		paint.color = paper
 		px(BODY_W + 1, nubTop + 1, NUB_W - 2, NUB_H - 2)
 		if (fill > 1) px(1, HIGHLIGHT_ROW, fill - 1, 1)
