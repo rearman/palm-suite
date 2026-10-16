@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
+import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.BatteryManager
@@ -165,7 +166,10 @@ class MainActivity : Activity() {
 		cellCache.clear()
 		cellWidth.clear()
 		// Wallpaper: the system wallpaper shows behind the app list; the top bar and dock keep their colors.
+		// The window must be translucent: an opaque window (the theme default) does not clear the
+		// transparent area, which shows black and keeps old frames on a scroll.
 		val back = if (state.wallpaper) Color.TRANSPARENT else paper()
+		window.setFormat(if (state.wallpaper) PixelFormat.TRANSLUCENT else PixelFormat.OPAQUE)
 		if (state.wallpaper) window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
 		else window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
 		val root = TypingRoot(this).apply {
