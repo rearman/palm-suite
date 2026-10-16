@@ -362,7 +362,10 @@ class MainActivity : Activity() {
 				list.addView(row, lp(match, wrap))
 			}
 		}
-		return ScrollView(this).apply { addView(list) }
+		return ScrollView(this).apply {
+			addView(list)
+			isVerticalScrollBarEnabled = false
+		}
 	}
 
 	private fun cell(e: AppEntry): View {
