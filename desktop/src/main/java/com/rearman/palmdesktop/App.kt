@@ -17,6 +17,15 @@ object App {
 	/** Shows the private records. Saved as the Settings key "showPrivate". */
 	var showPrivate: Boolean = Settings.getBool("showPrivate", false)
 
+	/** Set while Shift+Delete runs, so confirmDelete does not ask. */
+	var noConfirm = false
+
+	/** Runs when a view changes its selection or count. The main window sets it to show AppView.position(). */
+	var onPosition: () -> Unit = {}
+
+	/** A view calls this when its selection or count changes. */
+	fun positionChanged() = onPosition()
+
 	private val listeners = mutableListOf<() -> Unit>()
 
 	fun onRefresh(listener: () -> Unit) {
@@ -44,4 +53,7 @@ interface AppView {
 	fun deleteSelected()
 	fun select(record: Any)
 	fun printLines(): Pair<String, List<String>>
+
+	/** Status bar text such as "3 of 12", or empty. */
+	fun position(): String = ""
 }
