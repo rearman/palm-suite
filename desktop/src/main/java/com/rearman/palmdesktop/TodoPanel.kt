@@ -17,6 +17,7 @@ import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 import javax.swing.*
+import javax.swing.border.BevelBorder
 import javax.swing.border.EmptyBorder
 import javax.swing.border.LineBorder
 import javax.swing.table.AbstractTableModel
@@ -156,7 +157,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 		val scroll = JScrollPane(table)
 		scroll.viewport.background = Color.WHITE
-		scroll.border = BorderFactory.createSunkenBevelBorder()
+		scroll.border = BorderFactory.createBevelBorder(BevelBorder.LOWERED)
 
 		val showButton = JButton("Show...")
 		showButton.mnemonic = KeyEvent.VK_W
@@ -243,7 +244,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		addRow("To Do:", 'T', todoText, JScrollPane(todoText))
 
 		val prio = JPanel(GridLayout(1, 5, 0, 0))
-		prio.border = BorderFactory.createSunkenBevelBorder()
+		prio.border = BorderFactory.createBevelBorder(BevelBorder.LOWERED)
 		for (r in radios) {
 			group.add(r)
 			prio.add(r)
@@ -254,7 +255,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		dueBox.selectedIndex = -1
 		dueField.isEditable = false
 		dueField.font = Theme.font
-		dueField.border = BorderFactory.createSunkenBevelBorder()
+		dueField.border = BorderFactory.createBevelBorder(BevelBorder.LOWERED)
 		due.add(dueBox, BorderLayout.WEST)
 		due.add(dueField, BorderLayout.CENTER)
 		addRow("Due:", 'u', dueBox, due)
