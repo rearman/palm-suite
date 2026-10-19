@@ -241,7 +241,9 @@ object SyncDialog {
 		val sync = App.sync
 		val d = dialog(owner, "Sync Setup")
 		val server = JTextField(sync.server, 24).withFont()
-		val token = HintPasswordField(if (sync.isOn) "saved" else "").withFont()
+		// An empty Token field keeps the token saved on this computer, if there is one.
+		val savedToken = Settings.get("token", "")
+		val token = HintPasswordField(if (savedToken.isNotEmpty()) "saved" else "").withFont()
 		val pass = JPasswordField(24).withFont()
 		val status = label(syncStatus())
 		val okBtn = button("OK").apply { isEnabled = false }
@@ -252,7 +254,8 @@ object SyncDialog {
 
 		// OK needs both a token and a passphrase, and stays off while setup runs.
 		fun refreshOk() {
-			okBtn.isEnabled = !busy && token.document.length > 0 && pass.document.length > 0
+			val hasToken = token.document.length > 0 || savedToken.isNotEmpty()
+			okBtn.isEnabled = !busy && hasToken && pass.document.length > 0
 		}
 		val watch = object : DocumentListener {
 			override fun insertUpdate(e: DocumentEvent) = refreshOk()
@@ -266,7 +269,8 @@ object SyncDialog {
 			busy = true
 			refreshOk()
 			status.text = "Please wait."
-			sync.setUp(server.text.trim(), String(token.password).trim(), pass.password) { err ->
+			val typed = String(token.password).trim()
+			sync.setUp(server.text.trim(), typed.ifEmpty { savedToken }, pass.password) { err ->
 				busy = false
 				if (err == null) {
 					d.dispose()
