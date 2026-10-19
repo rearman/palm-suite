@@ -28,7 +28,7 @@ import javax.swing.border.BevelBorder
 import javax.swing.border.EmptyBorder
 import javax.swing.border.LineBorder
 
-/** The Palm Desktop date dialog: Select Day, Select Week or Select Month. */
+/** The Palm Desktop date dialog: Select Date, Select Week or Select Month. */
 object DatePicker {
 	/** Shows a modal dialog for [mode] ("day", "week" or "month") and returns the chosen epoch day, or null on Cancel. */
 	fun pick(owner: Component, mode: String, day: Long): Long? = Picker(owner, mode, day).choose()
@@ -40,7 +40,7 @@ private class Picker(private val owner: Component, private val mode: String, day
 	private var result: Long? = null
 	private val dialog = JDialog(
 		SwingUtilities.getWindowAncestor(owner),
-		when (mode) { "week" -> "Select Week"; "month" -> "Select Month"; else -> "Select Day" },
+		when (mode) { "week" -> "Select Week"; "month" -> "Select Month"; else -> "Select Date" },
 		Dialog.ModalityType.APPLICATION_MODAL
 	)
 	private val yearLabel = JLabel("", SwingConstants.CENTER).apply {
@@ -78,7 +78,8 @@ private class Picker(private val owner: Component, private val mode: String, day
 		bindKeys()
 		refresh()
 		dialog.pack()
-		dialog.setSize(maxOf(dialog.width, 210), maxOf(dialog.height, 250))
+		// Month mode has no day calendar, so it keeps the packed height.
+		dialog.setSize(maxOf(dialog.width, 210), maxOf(dialog.height, if (mode == "month") 0 else 250))
 		dialog.setLocationRelativeTo(owner)
 		dialog.isVisible = true // A modal dialog returns here after dispose.
 		return result
@@ -93,10 +94,10 @@ private class Picker(private val owner: Component, private val mode: String, day
 		val months = JPanel(GridLayout(2, 6, 2, 2)).apply {
 			monthButtons.forEach { add(it) }
 		}
-		val calendar = JPanel(GridLayout(7, 7)).apply {
+		val calendar = if (mode == "month") null else JPanel(GridLayout(7, 7)).apply {
 			border = LineBorder(Theme.grid)
-			for (h in listOf("S", "M", "T", "W", "T", "F", "S")) {
-				add(JLabel(h, SwingConstants.CENTER).apply { font = Theme.bold })
+			for (c in 0..6) {
+				add(JLabel(Fmt.dowLetter[dowIndex(c)], SwingConstants.CENTER).apply { font = Theme.bold })
 			}
 			dayCells.forEach { add(it) }
 		}
@@ -117,7 +118,7 @@ private class Picker(private val owner: Component, private val mode: String, day
 		}
 		val body = JPanel(BorderLayout(0, 6)).apply {
 			add(months, BorderLayout.NORTH)
-			add(calendar, BorderLayout.CENTER)
+			if (calendar != null) add(calendar, BorderLayout.CENTER)
 		}
 		return JPanel(BorderLayout(0, 6)).apply {
 			border = EmptyBorder(6, 6, 6, 6)
@@ -131,13 +132,6 @@ private class Picker(private val owner: Component, private val mode: String, day
 		"week" -> "This Week"
 		"month" -> "This Month"
 		else -> "Today"
-	}
-
-	private fun arrow(text: String, act: () -> Unit): JButton = JButton(text).apply {
-		font = Theme.font
-		margin = Insets(0, 2, 0, 2)
-		isFocusPainted = false
-		addActionListener { act() }
 	}
 
 	private fun bindKeys() {
@@ -182,8 +176,8 @@ private class Picker(private val owner: Component, private val mode: String, day
 			b.foreground = if (on) Color.WHITE else Color.BLACK
 		}
 		val first = sel.withDayOfMonth(1)
-		val start = first.minusDays((first.dayOfWeek.value % 7).toLong())
-		val weekStart = sel.minusDays((sel.dayOfWeek.value % 7).toLong())
+		val start = first.minusDays(((first.dayOfWeek.value % 7 - DateSettings.weekBegins + 7) % 7).toLong())
+		val weekStart = LocalDate.ofEpochDay(weekStartOf(sel.toEpochDay()))
 		for (i in dayCells.indices) {
 			val d = start.plusDays(i.toLong())
 			val picked = when (mode) {

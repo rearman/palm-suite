@@ -22,7 +22,7 @@ object Theme {
 	val dateRed: Color = Color(255, 0, 0)
 	val select: Color = Color(0, 120, 215)
 	val grid: Color = Color(160, 160, 160)
-	val otherMonth: Color = Color(240, 240, 240)
+	val otherMonth: Color = Color(192, 192, 192)
 	/** The Day view fill of an event: the Palm Desktop checkerboard of yellow and white pixels, #FFFF88 on average. */
 	val eventFill: Paint by lazy {
 		val img = BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB)

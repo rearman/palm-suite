@@ -15,7 +15,6 @@ import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.GridLayout
 import java.awt.Insets
-import java.awt.Paint
 import java.awt.Point
 import java.awt.Rectangle
 import java.awt.event.FocusAdapter
@@ -30,15 +29,15 @@ import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
 import javax.swing.DefaultListModel
-import javax.swing.Icon
 import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
-import javax.swing.JOptionPane
+import javax.swing.JMenuItem
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
 import javax.swing.JScrollPane
 import javax.swing.JTextField
 import javax.swing.JToggleButton
@@ -59,9 +58,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		const val TIME_W = 52        // width of the time column
 		const val UNTIMED_H = 18     // height of one untimed row
 		const val HALF = 19          // pixels per half hour (Palm Desktop: 38 px per hour)
-		const val BAR_W = 9          // width of the gray bar on the right edge of an event
-		const val SEL_H = 4          // height of the blue bar under a selected event
 		const val PANE_W = 240       // width of the right pane
+		const val CHANGE_TEXT = "Apply the changes to the current event only or to all occurrences?"
 	}
 
 	private val cards = CardLayout()
@@ -71,6 +69,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private val titleLabel = JLabel("", SwingConstants.CENTER)
 	private val grid = DayGrid(false)
 	private val dayHeader = DayGrid(true)
+	private val dayScroll = JScrollPane(grid)
 	private val editBtn = button("Edit...") { editSelected() }.apply { mnemonic = KeyEvent.VK_I }
 	private val yearLabel = JLabel("", SwingConstants.CENTER)
 	private val monthButtons = List(12) { i -> JButton(Fmt.monthShort[i]) }
@@ -93,13 +92,24 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private var occs: List<Occ> = emptyList()
 	private var untimedH = UNTIMED_H   // height of the untimed rows: one row for each untimed event, at least one
 	private var selectedId: Long? = null
+	private var mode = "day"                 // the view shown: "day", "week" or "month"
 	private var typing: JTextField? = null   // the field of a new event typed into an empty hour
 	private var typingMin = 0               // start of that hour, in minutes after midnight
 	private var typingDay = 0L              // the day the field was opened on
-	private val repeatIcon: Icon by lazy { Icons.repeat() }
-	private val alarmIcon: Icon by lazy { Icons.alarm() }
-	private val noteIcon: Icon by lazy { Icons.note() }
-	private val privateIcon: Icon by lazy { Icons.privateRecord() }
+	private var typingUntimed = false       // true when the field types an untimed event in the header
+	private var titleEdit: JTextField? = null   // the in-place title editor of a box
+	private var titleOcc: Occ? = null          // the occurrence that editor changes
+	private var drag: Drag? = null          // the box being moved or resized by the mouse
+	private var suppressClick = false       // true after a drag, so its release does not also click
+
+	/** A press on a box: the box moves to a new time or day, or its end is resized. [moved] after 4 px. */
+	private class Drag(val occ: Occ, val box: Rectangle, val resize: Boolean, val grab: Int, val origin: Point) {
+		var moved = false
+		var newStart = 0
+		var newEnd = 0
+		var dropDay: Long? = null          // the calendar day under the mouse, or null
+		var target: Rectangle? = null      // the outline in the grid, or null
+	}
 
 	/**
 	 * A To Do row as Palm Desktop shows it, after the Show Options: check box, priority, description and
@@ -107,9 +117,11 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	 */
 	private val todoRenderer = object : JPanel(BorderLayout(2, 0)), ListCellRenderer<Todo> {
 		val check = JCheckBox()   // the list mouse listener reads its width to find a click on it
-		private val pri = JLabel()
+		val pri = JLabel()   // the popup of a click on it reads its bounds
 		private val title = JLabel()
-		private val due = JLabel()
+		val due = JLabel()
+		private val noteMark = JLabel(Icons.note())
+		private val privateMark = JLabel(Icons.privateRecord())
 
 		init {
 			background = Color.WHITE
@@ -118,12 +130,21 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			check.isOpaque = false
 			lead.add(check)
 			lead.add(pri)
-			for (l in listOf(pri, title, due)) l.font = Theme.font
+			for (l in listOf(pri, title, due, noteMark, privateMark)) l.font = Theme.font
 			title.isOpaque = true
 			due.preferredSize = Dimension(45, 0)
+			// The due date, then the note and private marks, which show only when set.
+			val marks = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+			marks.isOpaque = false
+			marks.add(noteMark)
+			marks.add(privateMark)
+			val tail = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+			tail.isOpaque = false
+			tail.add(due)
+			tail.add(marks)
 			add(lead, BorderLayout.WEST)
 			add(title, BorderLayout.CENTER)
-			add(due, BorderLayout.EAST)
+			add(tail, BorderLayout.EAST)
 			border = EmptyBorder(0, 0, 0, 4)
 		}
 
@@ -136,9 +157,15 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			pri.text = t.priority.toString()
 			title.text = t.title.replace('\n', ' ')
 			title.background = if (isSelected) Theme.select else Color.WHITE
-			title.foreground = if (isSelected) Color.YELLOW else Color.BLACK
+			title.foreground = when {
+				isSelected -> Color.YELLOW
+				isOverdue(t) -> Theme.dateRed
+				else -> Color.BLACK
+			}
 			due.isVisible = Settings.getBool("todoShowDue", true)
 			due.text = if (t.due < 0) "" else dueLabel(t)
+			noteMark.isVisible = t.note.isNotEmpty()
+			privateMark.isVisible = t.isPrivate
 			return this
 		}
 	}
@@ -155,6 +182,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		App.onRefresh { refreshAll() }
 		showMode(Settings.get("dateMode", "day"))
 		refreshAll()
+		// The Day grid opens at the work day hour, as in Palm Desktop.
+		SwingUtilities.invokeLater { dayScroll.viewport.viewPosition = Point(0, yOf(DateSettings.workDay * 60)) }
 	}
 
 	/** Shows the Day, Week or Month view and remembers the choice. */
@@ -163,6 +192,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			"week", "month" -> mode
 			else -> "day"
 		}
+		mode = name
 		cards.show(cardPanel, name)
 		dayTab.isSelected = name == "day"
 		weekTab.isSelected = name == "week"
@@ -179,32 +209,13 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	}
 
 	override fun editSelected() {
-		val o = selectedOcc() ?: return
-		EventDialog.edit(this, o.event, App.day)
+		val o = currentOcc() ?: return
+		EventDialog.edit(this, o.event, o.day)
 	}
 
 	override fun deleteSelected() {
-		val ev = selectedOcc()?.event ?: return
-		if (ev.repeats) {
-			val choice = JOptionPane.showOptionDialog(
-				this, "Delete only this one (Current) or All?", "Delete",
-				JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null,
-				arrayOf("Current", "All", "Cancel"), "Current"
-			)
-			when (choice) {
-				0 -> {
-					ev.exceptions.add(App.day)
-					App.store.save(ev)
-				}
-				1 -> App.store.delete(ev)
-				else -> return
-			}
-		} else {
-			if (!confirmDelete(this, "Delete the event?")) return
-			App.store.delete(ev)
-		}
-		selectedId = null
-		App.refresh()
+		val o = currentOcc() ?: return
+		if (deleteOccurrence(this, o) && mode == "day") selectedId = null
 	}
 
 	override fun select(record: Any) {
@@ -242,9 +253,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		titleLabel.border = BorderFactory.createCompoundBorder(
 			BorderFactory.createLineBorder(Theme.grid), BorderFactory.createEmptyBorder(2, 0, 2, 0)
 		)
-		val scroll = JScrollPane(grid)
-		scroll.setColumnHeaderView(dayHeader)   // the untimed rows stay in view, as in Palm Desktop
-		scroll.verticalScrollBar.unitIncrement = 20
+		dayScroll.setColumnHeaderView(dayHeader)   // the untimed rows stay in view, as in Palm Desktop
+		dayScroll.verticalScrollBar.unitIncrement = 20
 		editBtn.isEnabled = false
 		// Double click on the title picks the day, as Palm Desktop does.
 		titleLabel.addMouseListener(object : MouseAdapter() {
@@ -256,7 +266,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				}
 			}
 		})
-		val bar = JPanel(FlowLayout(FlowLayout.RIGHT))
+		val bar = JPanel(FlowLayout(FlowLayout.CENTER, 24, 5))
 		bar.add(button("Today") {
 			App.day = LocalDate.now().toEpochDay()
 			App.refresh()
@@ -265,7 +275,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		bar.add(button("New...") { newRecord() }.apply { mnemonic = KeyEvent.VK_N })
 		val panel = JPanel(BorderLayout())
 		panel.add(titleLabel, BorderLayout.NORTH)
-		panel.add(scroll, BorderLayout.CENTER)
+		panel.add(dayScroll, BorderLayout.CENTER)
 		panel.add(bar, BorderLayout.SOUTH)
 		return panel
 	}
@@ -330,6 +340,10 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 					markDone(item, !item.done)
 					App.store.save(item)
 					App.refresh()
+				} else if (e.clickCount == 1 && rowPartBounds(idx, todoRenderer.pri)?.contains(e.point) == true) {
+					priorityMenu(item).show(todoList, e.x, e.y)
+				} else if (e.clickCount == 1 && rowPartBounds(idx, todoRenderer.due)?.contains(e.point) == true) {
+					dueMenu(item).show(todoList, e.x, e.y)
 				} else if (e.clickCount == 2) {
 					App.show("todo", item)
 				}
@@ -346,8 +360,16 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 	private fun buildTabs(): JPanel {
 		val column = JPanel(GridLayout(3, 1))
-		for ((tab, mode) in listOf(dayTab to "day", weekTab to "week", monthTab to "month")) {
-			tab.addActionListener { showMode(mode) }
+		for ((tab, name) in listOf(dayTab to "day", weekTab to "week", monthTab to "month")) {
+			tab.addActionListener { showMode(name) }
+			// A double click goes to today, as in Palm Desktop.
+			tab.addMouseListener(object : MouseAdapter() {
+				override fun mouseClicked(e: MouseEvent) {
+					if (e.clickCount != 2) return
+					App.day = LocalDate.now().toEpochDay()
+					App.refresh()
+				}
+			})
 			tabGroup.add(tab)
 			column.add(tab)
 		}
@@ -361,10 +383,13 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	/** Rebuilds every part of the panel from the store and App.day. */
 	private fun refreshAll() {
 		if (App.day != typingDay) endTyping(true)   // the field belongs to the day it was opened on
+		endTitleEdit(true)
 		val day = LocalDate.ofEpochDay(App.day)
 		titleLabel.text = dateTitle(App.day)
 		occs = dayOccs()
-		untimedH = maxOf(1, occs.count { it.event.untimed }) * UNTIMED_H
+		// An open untimed field keeps its row.
+		val typingRow = if (typing != null && typingUntimed) 1 else 0
+		untimedH = maxOf(1, occs.count { it.event.untimed } + typingRow) * UNTIMED_H
 		if (selectedOcc() == null) selectedId = null
 		editBtn.isEnabled = selectedOcc() != null
 		yearLabel.text = day.year.toString()
@@ -380,6 +405,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		App.store.dayEvents(App.day).filter { App.showPrivate || !it.event.isPrivate }
 
 	private fun selectedOcc(): Occ? = occs.firstOrNull { it.event.id == selectedId }
+
+	/** The selected occurrence of the view shown: the Week view's own selection, else the Day selection. */
+	private fun currentOcc(): Occ? = if (mode == "week") weekView.selectedOcc() else selectedOcc()
 
 	private fun dateTitle(day: Long): String =
 		LocalDate.ofEpochDay(day).format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.US))
@@ -422,6 +450,58 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		items.forEach { todoModel.addElement(it) }
 	}
 
+	/** Bounds of [part] on row [idx] in list coordinates, with the row laid out at its cell size. Null when hidden. */
+	private fun rowPartBounds(idx: Int, part: JComponent): Rectangle? {
+		val cell = todoList.getCellBounds(idx, idx) ?: return null
+		todoRenderer.getListCellRendererComponent(todoList, todoModel.getElementAt(idx), idx, false, false)
+		todoRenderer.setBounds(0, 0, cell.width, cell.height)
+		todoRenderer.doLayout()
+		if (!part.isVisible) return null
+		val r = SwingUtilities.convertRectangle(part.parent, part.bounds, todoRenderer)
+		return Rectangle(cell.x + r.x, cell.y + r.y, r.width, r.height)
+	}
+
+	/** The popup of a To Do priority: 1 to 5. */
+	private fun priorityMenu(t: Todo): JPopupMenu =
+		popupOf((1..5).map { n -> "$n" to { saveTodo(t) { t.priority = n } } })
+
+	/** The popup of a To Do due date. */
+	private fun dueMenu(t: Todo): JPopupMenu {
+		val today = LocalDate.now().toEpochDay()
+		return popupOf(listOf(
+			"Today" to { saveTodo(t) { t.due = today } },
+			"Tomorrow" to { saveTodo(t) { t.due = today + 1 } },
+			"One week later" to { saveTodo(t) { t.due = today + 7 } },
+			"No date" to { saveTodo(t) { t.due = -1L } },
+			"Choose date..." to { pickDue(t) }
+		))
+	}
+
+	/** Asks a day in the picker and sets the due date of [t] to it. */
+	private fun pickDue(t: Todo) {
+		val day = DatePicker.pick(this, "day", if (t.due >= 0) t.due else LocalDate.now().toEpochDay()) ?: return
+		saveTodo(t) { t.due = day }
+	}
+
+	/** Applies [change] to [t], saves it and redraws the panel. */
+	private fun saveTodo(t: Todo, change: () -> Unit) {
+		change()
+		App.store.save(t)
+		App.refresh()
+	}
+
+	/** A popup menu with one item for each of [items]. */
+	private fun popupOf(items: List<Pair<String, () -> Unit>>): JPopupMenu {
+		val menu = JPopupMenu()
+		for ((text, action) in items) {
+			menu.add(JMenuItem(text).apply {
+				font = Theme.font
+				addActionListener { action() }
+			})
+		}
+		return menu
+	}
+
 	// Day grid geometry: HALF px per half hour. The untimed rows are in a fixed header above the grid.
 
 	/** Pixel row on the grid of a time in minutes after midnight. */
@@ -435,42 +515,28 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		grid.repaint()
 	}
 
-	/**
-	 * Draws an event box as Palm Desktop does: [fill] with a black outline and a gray bar on the right edge.
-	 * A [selected] box has a darker bar and a blue bar under it.
-	 */
-	private fun drawBox(g: Graphics, r: Rectangle, fill: Paint, selected: Boolean) {
-		val g2 = g.create() as Graphics2D
-		g2.paint = fill
-		g2.fillRect(r.x, r.y, r.width, r.height)
-		g2.color = if (selected) Color.GRAY else Color.LIGHT_GRAY
-		g2.fillRect(r.x + r.width - BAR_W, r.y, BAR_W, r.height)
-		g2.color = Color.BLACK
-		g2.drawRect(r.x, r.y, r.width - 1, r.height - 1)
-		g2.drawLine(r.x + r.width - BAR_W, r.y, r.x + r.width - BAR_W, r.y + r.height - 1)
-		if (selected) {
-			g2.color = Theme.select
-			g2.fillRect(r.x, r.y + r.height, r.width, SEL_H)
-		}
-		g2.dispose()
-	}
-
 	// Typing a new event into an empty hour of the grid, as in Palm Desktop.
 
 	/** Box of the hour being typed into, for a grid [width] in pixels, or null when no field is open. */
 	private fun typingBox(width: Int): Rectangle? {
 		if (typing == null) return null
+		if (typingUntimed) {
+			val row = occs.count { it.event.untimed } * UNTIMED_H
+			return Rectangle(TIME_W + 2, row + 1, width - TIME_W - 4, UNTIMED_H - 2)
+		}
 		val top = yOf(typingMin)
 		return Rectangle(TIME_W + 2, top + 2, width - TIME_W - 4, yOf(typingMin + 60) - top - 3)
 	}
 
 	/** Opens a field in the hour at [min] for the title of a new event. */
-	private fun startTyping(min: Int) {
+	private fun startTyping(min: Int, untimed: Boolean) {
 		endTyping(true)
 		selectedId = null
 		editBtn.isEnabled = false
 		typingMin = min
+		typingUntimed = untimed
 		typingDay = App.day
+		if (untimed) untimedH = (occs.count { it.event.untimed } + 1) * UNTIMED_H   // the header grows by one row
 		val f = JTextField()
 		f.font = Theme.font
 		f.border = null
@@ -485,15 +551,16 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		f.addMouseListener(object : MouseAdapter() {
 			override fun mouseClicked(e: MouseEvent) {
 				// A double click on an empty hour opens the event dialog, as before.
-				if (e.clickCount == 2) {
+				if (e.clickCount == 2 && !untimed) {
 					endTyping(false)
 					EventDialog.edit(this@DatePanel, null, App.day, min)
 				}
 			}
 		})
 		typing = f
-		grid.add(f)
-		grid.revalidate()
+		val parent: JPanel = if (untimed) dayHeader else grid
+		parent.add(f)
+		parent.revalidate()
 		repaintDay()
 		f.requestFocusInWindow()
 	}
@@ -502,27 +569,44 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private fun endTyping(save: Boolean) {
 		val f = typing ?: return
 		typing = null   // first, so the focus loss of the removed field does nothing
-		grid.remove(f)
+		if (typingUntimed) dayHeader.remove(f) else grid.remove(f)
+		untimedH = maxOf(1, occs.count { it.event.untimed }) * UNTIMED_H   // the header shrinks back
+		dayHeader.revalidate()
 		repaintDay()
 		val title = f.text.trim()
 		if (!save || title.isEmpty()) return
-		val ev = Event(title = title, date = typingDay, start = typingMin, end = typingMin + 60, untimed = false)
+		val ev = if (typingUntimed) {
+			Event(title = title, date = typingDay, untimed = true)
+		} else {
+			Event(title = title, date = typingDay, start = typingMin, end = typingMin + 60, untimed = false)
+		}
+		applyAlarmPreset(ev)
 		App.store.save(ev)
 		selectedId = ev.id
 		App.refresh()
 	}
 
-	private fun overlaps(a: Event, b: Event): Boolean = a.start < b.end && b.start < a.end
-
-	/** Marker icons of an event: repeat, alarm, note, private. */
-	private fun markers(e: Event): List<Icon> {
-		val m = ArrayList<Icon>()
-		if (e.repeats) m.add(repeatIcon)
-		if (e.alarm) m.add(alarmIcon)
-		if (e.note.isNotEmpty()) m.add(noteIcon)
-		if (e.isPrivate) m.add(privateIcon)
-		return m
+	/** Closes the in-place title editor. With [save], a changed title that is not empty is saved for its occurrence. */
+	private fun endTitleEdit(save: Boolean) {
+		val f = titleEdit ?: return
+		val occ = titleOcc ?: return
+		titleEdit = null   // first, so the focus loss of the removed editor does nothing
+		titleOcc = null
+		f.parent?.remove(f)
+		repaintDay()
+		val text = f.text.trim()
+		if (!save || text.isEmpty() || text == occ.event.title) return
+		changeOccurrence(this, occ, CHANGE_TEXT) { it.title = text }
 	}
+
+	/** The box of the header ([header] true) or the timed grid under [p], with its bounds, or null. */
+	private fun boxAt(width: Int, p: Point, header: Boolean): Pair<Occ, Rectangle>? =
+		layoutDay(width).firstOrNull { it.first.event.untimed == header && it.second.contains(p) }
+
+	/** [min] rounded to the nearest half hour. */
+	private fun roundHalf(min: Int): Int = (min + 15) / 30 * 30
+
+	private fun overlaps(a: Event, b: Event): Boolean = a.start < b.end && b.start < a.end
 
 	/**
 	 * Bounds of each event for a [width] in pixels: an untimed event on its own full-width row of the
@@ -583,26 +667,157 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		init {
 			isOpaque = true
 			background = Color.WHITE
-			if (!header) layout = null   // doLayout places the typing field
+			layout = null   // doLayout places the typing field and the title editor
 			addMouseListener(object : MouseAdapter() {
+				override fun mousePressed(e: MouseEvent) {
+					suppressClick = false
+					endTyping(true)
+					endTitleEdit(true)
+					if (e.isPopupTrigger) {
+						popupAt(e)
+						return
+					}
+					if (e.button != MouseEvent.BUTTON1) return
+					if (!header) {
+						// The blue bar under the selected box resizes it, so it is tested before the box.
+						val sel = layoutDay(width).firstOrNull { it.first.event.id == selectedId && !it.first.event.untimed }
+						if (sel != null && EventBox.onResizeBar(sel.second, e.point)) {
+							drag = Drag(sel.first, sel.second, true, 0, e.point)
+							return
+						}
+					}
+					val (occ, r) = boxAt(width, e.point, header) ?: return
+					if (EventBox.onHandle(r, e.point) || EventBox.markerAt(r, occ.event, e.point, header) != null) return
+					drag = Drag(occ, r, false, e.y - r.y, e.point)
+				}
+
+				override fun mouseReleased(e: MouseEvent) {
+					if (e.isPopupTrigger) {
+						popupAt(e)
+						return
+					}
+					val d = drag ?: return
+					drag = null
+					if (!d.moved) return
+					suppressClick = true
+					updateDrag(d, e.point)
+					val ev = d.occ.event
+					val day = d.dropDay
+					val newStart = d.newStart
+					val newEnd = d.newEnd
+					when {
+						day != null -> changeOccurrence(this@DatePanel, d.occ, CHANGE_TEXT) { it.date = day }
+						d.resize -> if (newEnd != ev.end) changeOccurrence(this@DatePanel, d.occ, CHANGE_TEXT) { it.end = newEnd }
+						!ev.untimed && newStart != ev.start -> changeOccurrence(this@DatePanel, d.occ, CHANGE_TEXT) {
+							it.start = newStart
+							it.end = newStart + (ev.end - ev.start)
+						}
+					}
+					repaintDay()
+				}
+
 				override fun mouseClicked(e: MouseEvent) {
-					val hit = layoutDay(width).firstOrNull { it.first.event.untimed == header && it.second.contains(e.point) }
+					if (suppressClick) {
+						suppressClick = false
+						return
+					}
+					if (e.button != MouseEvent.BUTTON1) return
+					val hit = boxAt(width, e.point, header)
 					if (hit != null) {
-						endTyping(true)
-						selectedId = hit.first.event.id
+						val (occ, r) = hit
+						val ev = occ.event
+						selectedId = ev.id
 						editBtn.isEnabled = true
 						repaintDay()
-						if (e.clickCount == 2) EventDialog.edit(this@DatePanel, hit.first.event, App.day)
-					} else if (!header && e.x >= TIME_W && e.clickCount == 1) {
-						// A click in an empty hour opens a field to type a new event, as in Palm Desktop.
-						startTyping((minAt(e.y) / 60 * 60).coerceIn(0, 23 * 60))
+						val marker = EventBox.markerAt(r, ev, e.point, header)
+						when {
+							e.clickCount == 2 && EventBox.onHandle(r, e.point) -> EventDialog.edit(this@DatePanel, ev, App.day)
+							e.clickCount == 2 -> editTitle(occ, r)
+							marker === EventBox.alarmIcon -> editAlarm(this@DatePanel, occ)
+							marker === EventBox.noteIcon -> editNote(this@DatePanel, occ)
+						}
+					} else if (e.clickCount == 1) {
+						// A click on empty space types a new event: an untimed row in the header, else the hour clicked.
+						if (header) startTyping(0, true) else startTyping((minAt(e.y) / 60 * 60).coerceIn(0, 23 * 60), false)
 					}
+				}
+			})
+			addMouseMotionListener(object : MouseAdapter() {
+				override fun mouseDragged(e: MouseEvent) {
+					val d = drag ?: return
+					if (!d.moved) {
+						if (Math.max(Math.abs(e.x - d.origin.x), Math.abs(e.y - d.origin.y)) <= 4) return
+						d.moved = true
+					}
+					updateDrag(d, e.point)
+					repaint()
 				}
 			})
 		}
 
+		/** The menu of the box under a right click, or of the empty hour or header row. */
+		private fun popupAt(e: MouseEvent) {
+			val hit = boxAt(width, e.point, header)
+			if (hit != null) {
+				selectedId = hit.first.event.id
+				editBtn.isEnabled = true
+				repaintDay()
+				eventMenu(this@DatePanel, hit.first).show(this, e.x, e.y)
+			} else if (header) {
+				slotMenu(this@DatePanel, App.day, null).show(this, e.x, e.y)
+			} else {
+				slotMenu(this@DatePanel, App.day, (minAt(e.y) / 60).coerceIn(0, 23) * 60).show(this, e.x, e.y)
+			}
+		}
+
+		/** Sets the target of [d] for the mouse at [p] in this grid: a calendar day, or an outline in the grid. */
+		private fun updateDrag(d: Drag, p: Point) {
+			val ev = d.occ.event
+			val cal = SwingUtilities.convertPoint(this, p, calendar)
+			d.dropDay = if (!d.resize && calendar.contains(cal)) calendar.dayAt(cal) else null
+			d.target = null
+			if (d.dropDay != null || header) return
+			if (d.resize) {
+				d.newEnd = minOf(1440, maxOf(ev.start + 30, roundHalf(minAt(p.y))))
+				val top = yOf(ev.start) + 2
+				val bottom = maxOf(yOf(d.newEnd), yOf(ev.start) + HALF)
+				d.target = Rectangle(d.box.x, top, d.box.width, bottom - top - 3)
+			} else if (!ev.untimed) {
+				val dur = ev.end - ev.start
+				d.newStart = minOf(1440 - dur, maxOf(0, roundHalf(minAt(p.y - d.grab))))
+				val top = yOf(d.newStart) + 2
+				val bottom = maxOf(yOf(d.newStart + dur), yOf(d.newStart) + HALF)
+				d.target = Rectangle(d.box.x, top, d.box.width, bottom - top - 3)
+			}
+		}
+
+		/** Opens an in-place editor on the title of the box [occ] at [r]. Enter or focus loss saves it. */
+		private fun editTitle(occ: Occ, r: Rectangle) {
+			val f = JTextField(occ.event.title)
+			f.font = Theme.font
+			f.border = null
+			f.isOpaque = false
+			val x = EventBox.titleX(r, occ.event)
+			val h = f.preferredSize.height
+			val y = if (header) r.y + (r.height - h) / 2 else r.y + 1
+			f.setBounds(x, y, maxOf(20, r.x + r.width - EventBox.BAR_W - x), h)
+			f.addActionListener { endTitleEdit(true) }
+			f.registerKeyboardAction({ endTitleEdit(false) }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_FOCUSED)
+			f.addFocusListener(object : FocusAdapter() {
+				override fun focusLost(e: FocusEvent) {
+					if (!e.isTemporary) endTitleEdit(true)
+				}
+			})
+			titleEdit = f
+			titleOcc = occ
+			add(f)
+			f.selectAll()
+			f.requestFocusInWindow()
+			repaintDay()
+		}
+
 		// The header keeps SEL_H below its last row for the blue bar of a selected event.
-		override fun getPreferredSize(): Dimension = Dimension(300, if (header) untimedH + SEL_H else yOf(24 * 60) + 1)
+		override fun getPreferredSize(): Dimension = Dimension(300, if (header) untimedH + EventBox.SEL_H else yOf(24 * 60) + 1)
 
 		override fun paintComponent(g: Graphics) {
 			super.paintComponent(g)
@@ -622,7 +837,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 					g.drawLine(0, y, width, y)
 					// The label and its tick sit in the middle of the hour, as in Palm Desktop.
 					val mid = y + HALF
-					val label = Fmt.timeShort(h * 60)
+					val label = timeLabel(h * 60)
 					g.color = Color.BLACK
 					g.drawString(label, TIME_W - 10 - fm.stringWidth(label), mid + (fm.ascent - fm.descent) / 2)
 					g.drawLine(TIME_W - 7, mid, TIME_W - 3, mid)
@@ -637,30 +852,22 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			for ((o, r) in layoutDay(width).sortedBy { it.first.event.id == selectedId }) {
 				val ev = o.event
 				if (ev.untimed != header) continue
-				drawBox(g, r, Theme.eventFill, ev.id == selectedId)
-				val g2 = g.create() as Graphics2D
-				g2.clipRect(r.x, r.y, r.width - BAR_W, r.height)   // the title stops at the bar
-				var x = r.x + 3
-				for (icon in markers(ev)) {
-					val iy = if (header) r.y + (r.height - icon.iconHeight) / 2 else r.y + 2
-					icon.paintIcon(this, g2, x, iy)
-					x += icon.iconWidth + 2
-				}
-				val ty = if (header) r.y + (r.height + fm.ascent - fm.descent) / 2 else r.y + fm.ascent + 1
-				g2.color = Color.BLACK
-				g2.font = Theme.font
-				g2.drawString(ev.title, x, ty)
-				g2.dispose()
+				EventBox.paint(this, g, r, ev, ev.id == selectedId, header)
 			}
 			// The hour being typed into: a white box, drawn as selected. The text field is on top of it.
-			if (!header) typingBox(width)?.let { drawBox(g, it, Color.WHITE, true) }
+			if (typingUntimed == header) typingBox(width)?.let { EventBox.draw(g, it, Color.WHITE, true) }
+			// The outline of a box being moved or resized.
+			if (!header) drag?.target?.let {
+				g.color = Color.BLACK
+				g.drawRect(it.x, it.y, it.width - 1, it.height - 1)
+			}
 		}
 
 		override fun doLayout() {
-			if (header) return
 			val f = typing ?: return
+			if (typingUntimed != header) return
 			val r = typingBox(width) ?: return
-			f.setBounds(r.x + 3, r.y + 1, r.width - BAR_W - 4, f.preferredSize.height)
+			f.setBounds(r.x + 3, r.y + 1, r.width - EventBox.BAR_W - 4, f.preferredSize.height)
 		}
 
 		// The column header viewport takes its height from here, so the header returns its own size.
@@ -691,10 +898,21 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			})
 		}
 
-		/** Sunday that opens the first row of the month shown. */
+		/** The epoch day of the cell at [p] in calendar coordinates, or null outside the day cells. Same math as the click. */
+		fun dayAt(p: Point): Long? {
+			val cw = width / 7
+			val ch = height / 7
+			if (cw == 0 || ch == 0) return null
+			val row = p.y / ch - 1
+			if (row < 0 || row > 5) return null
+			val col = (p.x / cw).coerceAtMost(6)
+			return gridStart().plusDays((row * 7 + col).toLong()).toEpochDay()
+		}
+
+		/** The first day of the week that opens the first row of the month shown. */
 		private fun gridStart(): LocalDate {
 			val first = LocalDate.ofEpochDay(App.day).withDayOfMonth(1)
-			return first.minusDays((first.dayOfWeek.value % 7).toLong())
+			return first.minusDays(((first.dayOfWeek.value % 7 - DateSettings.weekBegins + 7) % 7).toLong())
 		}
 
 		override fun paintComponent(g: Graphics) {
@@ -704,7 +922,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			val sel = LocalDate.ofEpochDay(App.day)
 			val today = LocalDate.now()
 			for (c in 0 until 7) {
-				drawCentered(g, Fmt.dowLetter[c], c * cw, 0, cw, ch, Theme.bold, Color.BLACK)
+				drawCentered(g, Fmt.dowLetter[dowIndex(c)], c * cw, 0, cw, ch, Theme.bold, Color.BLACK)
 			}
 			val start = gridStart()
 			for (i in 0 until 42) {
