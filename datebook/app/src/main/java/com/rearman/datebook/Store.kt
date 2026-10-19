@@ -10,6 +10,9 @@ import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** One row that sync reads: its table, local id, uid, last server rev, and the dirty and deleted flags. */
+data class SyncRow(val table: String, val id: Long, val uid: String, val rev: Long, val dirty: Boolean, val deleted: Boolean)
+
 /**
  * All records live in one SQLite file on the phone. The lists are cached in memory.
  * Deleted rows stay as tombstones until sync; the lists hold only live rows.
@@ -26,6 +29,9 @@ class Store private constructor(ctx: Context) :
         const val MAX_CATEGORIES = 15
         private const val SYNC_COLS = "uid TEXT, rev INTEGER DEFAULT 0, dirty INTEGER DEFAULT 1, deleted INTEGER DEFAULT 0"
     }
+
+    /** Called after every local write. The sync functions do not call it. */
+    var onWrite: (() -> Unit)? = null
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -161,11 +167,13 @@ class Store private constructor(ctx: Context) :
             val i = events.indexOfFirst { it.id == e.id }
             if (i >= 0) events[i] = e else events.add(e)
         }
+        onWrite?.invoke()
     }
 
     fun delete(e: Event) {
         remove("events", e.id)
         events.removeAll { it.id == e.id }
+        onWrite?.invoke()
     }
 
     fun event(id: Long): Event? = events.firstOrNull { it.id == id }
@@ -210,11 +218,13 @@ class Store private constructor(ctx: Context) :
             val i = todos.indexOfFirst { it.id == t.id }
             if (i >= 0) todos[i] = t else todos.add(t)
         }
+        onWrite?.invoke()
     }
 
     fun delete(t: Todo) {
         remove("todos", t.id)
         todos.removeAll { it.id == t.id }
+        onWrite?.invoke()
     }
 
     // ==== memos ====
@@ -252,11 +262,13 @@ class Store private constructor(ctx: Context) :
             val i = memos.indexOfFirst { it.id == m.id }
             if (i >= 0) memos[i] = m else memos.add(m)
         }
+        onWrite?.invoke()
     }
 
     fun delete(m: Memo) {
         remove("memos", m.id)
         memos.removeAll { it.id == m.id }
+        onWrite?.invoke()
     }
 
     /** Writes only the pos column of each memo, in one transaction. */
@@ -271,6 +283,7 @@ class Store private constructor(ctx: Context) :
         } finally {
             db.endTransaction()
         }
+        onWrite?.invoke()
     }
 
     // ---- categories ----
@@ -295,6 +308,7 @@ class Store private constructor(ctx: Context) :
             put("id", id); put("name", name); put("app", app); put("uid", cat.uid); put("dirty", 1)
         })
         list.add(cat)
+        onWrite?.invoke()
         return cat
     }
 
@@ -302,6 +316,7 @@ class Store private constructor(ctx: Context) :
         cat.name = name
         writableDatabase.update("categories", ContentValues().apply { put("name", name); put("dirty", 1) },
             "id=?", arrayOf(cat.id.toString()))
+        onWrite?.invoke()
     }
 
     /** Deletes a category. Its items move to Unfiled, as on the Palm. */
@@ -316,7 +331,214 @@ class Store private constructor(ctx: Context) :
             todos.filter { it.category == cat.id }.forEach { it.category = 0 }
             categories.removeAll { it.id == cat.id }
         }
+        onWrite?.invoke()
     }
+
+    // ---- sync ----
+
+    private val tables = listOf("categories", "events", "todos", "memos")
+
+    /** Loads the in-memory lists now, so that a list loaded after a sync write does not add a row twice. */
+    private fun loadLists() {
+        listOf(events, todos, memos, categories, memoCategories)
+    }
+
+    /** Dirty rows of all four tables, categories first. */
+    fun dirtyRows(): List<SyncRow> = tables.flatMap { rowsWhere(it, "dirty=1", emptyArray()) }
+
+    /** The row with [uid] in any table, live or tombstone. */
+    fun syncRow(uid: String): SyncRow? =
+        tables.firstNotNullOfOrNull { rowsWhere(it, "uid=?", arrayOf(uid)).firstOrNull() }
+
+    private fun rowsWhere(table: String, where: String, args: Array<String>): List<SyncRow> {
+        val out = mutableListOf<SyncRow>()
+        readableDatabase.rawQuery("SELECT id, uid, rev, dirty, deleted FROM $table WHERE $where", args).use { c ->
+            while (c.moveToNext()) {
+                out.add(SyncRow(table, c.getLong(0), c.getString(1) ?: "", c.getLong(2), c.getInt(3) != 0, c.getInt(4) != 0))
+            }
+        }
+        return out
+    }
+
+    private fun idOf(table: String, uid: String): Long? =
+        writableDatabase.rawQuery("SELECT id FROM $table WHERE uid=?", arrayOf(uid)).use { c ->
+            if (c.moveToFirst()) c.getLong(0) else null
+        }
+
+    /** Sets the state of a copy that came from the server: clean, live, at [rev]. */
+    private fun ContentValues.serverState(rev: Long) {
+        put("dirty", 0); put("deleted", 0); put("rev", rev)
+    }
+
+    /** Records revision [rev] of [uid]. A clean row is no longer dirty, and a clean tombstone is removed. */
+    fun markSynced(table: String, uid: String, rev: Long, clean: Boolean) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            if (clean) db.delete(table, "uid=? AND deleted=1", arrayOf(uid))
+            db.update(table, ContentValues().apply {
+                put("rev", rev)
+                if (clean) put("dirty", 0)
+            }, "uid=?", arrayOf(uid))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Stores a server copy of [e] at [rev]. A row with the same uid keeps its local id. */
+    fun putRemote(e: Event, rev: Long) {
+        loadLists()
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val cv = eventValues(e).apply { serverState(rev) }
+            val old = idOf("events", e.uid)
+            if (old != null) {
+                db.update("events", cv, "id=?", arrayOf(old.toString()))
+                e.id = old
+                val i = events.indexOfFirst { it.id == old }
+                if (i >= 0) events[i] = e else events.add(e)
+            } else {
+                e.id = db.insert("events", null, cv)
+                events.add(e)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Stores a server copy of [t] at [rev]. A row with the same uid keeps its local id. */
+    fun putRemote(t: Todo, rev: Long) {
+        loadLists()
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val cv = todoValues(t).apply { serverState(rev) }
+            val old = idOf("todos", t.uid)
+            if (old != null) {
+                db.update("todos", cv, "id=?", arrayOf(old.toString()))
+                t.id = old
+                val i = todos.indexOfFirst { it.id == old }
+                if (i >= 0) todos[i] = t else todos.add(t)
+            } else {
+                t.id = db.insert("todos", null, cv)
+                todos.add(t)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Stores a server copy of [m] at [rev]. A row with the same uid keeps its local id. */
+    fun putRemote(m: Memo, rev: Long) {
+        loadLists()
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val cv = memoValues(m).apply { serverState(rev) }
+            val old = idOf("memos", m.uid)
+            if (old != null) {
+                db.update("memos", cv, "id=?", arrayOf(old.toString()))
+                m.id = old
+                val i = memos.indexOfFirst { it.id == old }
+                if (i >= 0) memos[i] = m else memos.add(m)
+            } else {
+                m.id = db.insert("memos", null, cv)
+                memos.add(m)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Stores a server copy of category [c] at [rev], in the list of its app. */
+    fun putRemote(c: Category, rev: Long) {
+        loadLists()
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val old = idOf("categories", c.uid)
+            val id = old?.toInt()
+                ?: db.rawQuery("SELECT IFNULL(MAX(id), 0) + 1 FROM categories", null).use { it.moveToFirst(); it.getInt(0) }
+            val cv = ContentValues().apply {
+                put("name", c.name); put("app", c.app); put("uid", c.uid); serverState(rev)
+            }
+            if (old != null) {
+                db.update("categories", cv, "id=?", arrayOf(id.toString()))
+            } else {
+                cv.put("id", id)
+                db.insert("categories", null, cv)
+            }
+            (if (c.app == 1) categories else memoCategories).removeAll { it.uid == c.uid }
+            val mine = categoriesFor(c.app)
+            val stored = Category(id, c.name, c.app, c.uid)
+            val i = mine.indexOfFirst { it.uid == c.uid }
+            if (i >= 0) mine[i] = stored else mine.add(stored)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Removes a row that another device deleted. A category also moves its items to Unfiled, without marking them dirty. */
+    fun dropRemote(table: String, uid: String) {
+        loadLists()
+        val db = writableDatabase
+        val id = idOf(table, uid) ?: return
+        db.beginTransaction()
+        try {
+            if (table == "categories") {
+                val app = db.rawQuery("SELECT app FROM categories WHERE id=?", arrayOf(id.toString())).use { it.moveToFirst(); it.getInt(0) }
+                db.delete(table, "id=?", arrayOf(id.toString()))
+                if (app == 1) {
+                    db.execSQL("UPDATE memos SET cat=0 WHERE cat=$id")
+                    memos.filter { it.category == id.toInt() }.forEach { it.category = 0 }
+                } else {
+                    db.execSQL("UPDATE todos SET cat=0 WHERE cat=$id")
+                    todos.filter { it.category == id.toInt() }.forEach { it.category = 0 }
+                }
+                categories.removeAll { it.uid == uid }
+                memoCategories.removeAll { it.uid == uid }
+            } else {
+                db.delete(table, "id=?", arrayOf(id.toString()))
+                when (table) {
+                    "events" -> events.removeAll { it.id == id }
+                    "todos" -> todos.removeAll { it.id == id }
+                    else -> memos.removeAll { it.id == id }
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Makes every live row due for upload (rev 0, dirty) and removes the tombstones. */
+    fun resetSync() {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (t in tables) {
+                db.execSQL("DELETE FROM $t WHERE deleted=1")
+                db.execSQL("UPDATE $t SET rev=0, dirty=1")
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** The uid of category [id], or "" for 0 and unknown ids. */
+    fun categoryUid(id: Int): String =
+        if (id == 0) "" else (categories + memoCategories).firstOrNull { it.id == id }?.uid ?: ""
+
+    /** The id of the category with [uid] in the list of [app], or 0 when blank or unknown. */
+    fun categoryIdForUid(uid: String, app: Int): Int =
+        if (uid.isBlank()) 0 else categoriesFor(app).firstOrNull { it.uid == uid }?.id ?: 0
 
     // ---- backup ----
 
@@ -461,6 +683,10 @@ class Prefs(ctx: Context) {
     private fun bool(k: String, d: Boolean) = p.getBoolean(k, d)
     private fun setInt(k: String, v: Int) = p.edit().putInt(k, v).apply()
     private fun setBool(k: String, v: Boolean) = p.edit().putBoolean(k, v).apply()
+    private fun str(k: String, d: String) = p.getString(k, d) ?: d
+    private fun setStr(k: String, v: String) = p.edit().putString(k, v).apply()
+    private fun lng(k: String, d: Long) = p.getLong(k, d)
+    private fun setLng(k: String, v: Long) = p.edit().putLong(k, v).apply()
 
     // Date Book Preferences
     var dayStart: Int get() = int("dayStart", 8); set(v) = setInt("dayStart", v)
@@ -517,8 +743,30 @@ class Prefs(ctx: Context) {
             }
         }
         set(v) {
-            val a = JSONArray()
-            v.forEach { a.put(JSONObject().put("name", it.name).put("text", it.text)) }
-            p.edit().putString("shortCuts", a.toString()).apply()
+            writeShortCuts(v)
+            setBool("scDirty", true)
         }
+
+    // Sync (see SyncEngine). syncSince is the last server rev pulled; syncLast is the last sync message.
+    var syncOn: Boolean get() = bool("syncOn", false); set(v) = setBool("syncOn", v)
+    var syncUrl: String get() = str("syncUrl", "https://sync.earman.xyz"); set(v) = setStr("syncUrl", v)
+    var syncSince: Long get() = lng("syncSince", 0); set(v) = setLng("syncSince", v)
+    var syncLast: String get() = str("syncLast", ""); set(v) = setStr("syncLast", v)
+
+    // ShortCuts sync state: dirty when edited on this phone; rev is the server rev of the list.
+    var shortCutsDirty: Boolean get() = bool("scDirty", false); set(v) = setBool("scDirty", v)
+    var shortCutsRev: Long get() = lng("scRev", 0); set(v) = setLng("scRev", v)
+
+    /** Stores a ShortCuts list that came from the server, at [rev], as clean. */
+    fun setShortCutsFromSync(list: List<ShortCut>, rev: Long) {
+        writeShortCuts(list)
+        setLng("scRev", rev)
+        setBool("scDirty", false)
+    }
+
+    private fun writeShortCuts(v: List<ShortCut>) {
+        val a = JSONArray()
+        v.forEach { a.put(JSONObject().put("name", it.name).put("text", it.text)) }
+        p.edit().putString("shortCuts", a.toString()).apply()
+    }
 }
