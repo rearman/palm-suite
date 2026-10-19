@@ -62,7 +62,7 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Font, Security (show, mask or hide private records) and Purge. The screen is always the Green LCD color.
 - All screens use the proportions of the Palm IIIxe: the screen width is 160 Palm pixels, and the Font option selects the Palm small, normal or large font size. Select Font shows three A buttons (small, normal and large) and no sample text. All text uses the Palm OS font.
 - On a screen that is taller than it is wide, the keyboard stays open below the app, and the app uses the area above the keyboard. On a square screen, the keyboard opens only when you select a line of text.
-- Export Backup and Import Backup save and load all records as a JSON file.
+- Export Backup and Import Backup save and load all records as a JSON file. Import skips a record that is the same as a record on the device.
 - Delete Event, Delete To Do and Delete Memo have a Save archive copy on PC check box. When it is set, the app saves a backup file of the record before it deletes the record.
 - ShortCuts: type ^ or press Ctrl+Space, then a ShortCut name. When the letters after ^ match a full name, the ^ and the name change to the ShortCut text. Options > ShortCuts... edits the list. Export Backup does not include ShortCuts.
 

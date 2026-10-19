@@ -1400,9 +1400,10 @@ open class MainActivity : Activity() {
             REQ_IMPORT -> {
                 try {
                     val text = contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
-                    val (ne, nt, nm) = store.importJson(text)
+                    val (ne, nt, nm, ns) = store.importJson(text)
                     changed()
-                    ask("Import", "Added $ne events, $nt To Do items and $nm memos.", "OK" to {})
+                    val skip = if (ns > 0) " Skipped $ns duplicate records." else ""
+                    ask("Import", "Added $ne events, $nt To Do items and $nm memos.$skip", "OK" to {})
                 } catch (ex: Exception) {
                     ask("Import", "This file is not a Date Book backup.", "OK" to {})
                 }

@@ -101,7 +101,7 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 - Find searches the descriptions and notes of all records.
 - Font (small, normal and large Palm sizes), Security (show, mask or hide
   private records) and Purge.
-- Export Backup and Import Backup save and load all records as a JSON file.
+- Export Backup and Import Backup save and load all records as a JSON file. Import skips a record that is the same as a record on the device.
   Delete can save an archive copy of the record first.
 - The Palm OS font and the Green LCD color on all screens. All screens use
   the proportions of the Palm IIIxe, 160 Palm pixels wide.

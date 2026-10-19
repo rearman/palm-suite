@@ -45,6 +45,9 @@ data class Event(
     }
 }
 
+/** The record without its database id: equal keys mean the same content. Import uses it to skip duplicates. */
+fun Event.dupKey() = copy(id = 0)
+
 /** One To Do List record. */
 data class Todo(
     var id: Long = 0,
@@ -56,6 +59,8 @@ data class Todo(
     var category: Int = 0,       // 0 = Unfiled
     var isPrivate: Boolean = false
 )
+
+fun Todo.dupKey() = copy(id = 0)
 
 /** A category of one app: [app] 0 is To Do, 1 is Memo Pad. */
 data class Category(val id: Int, var name: String, val app: Int = 0)
@@ -70,6 +75,9 @@ data class Memo(
 ) {
     val title: String get() = text.lineSequence().firstOrNull()?.trim().orEmpty()
 }
+
+/** The memo without its database id and Memo List position. */
+fun Memo.dupKey() = copy(id = 0, pos = 0)
 
 /** Memo List order: by first line (ignoring case) when [alphabetic], else by manual position. */
 fun memoOrder(memos: List<Memo>, alphabetic: Boolean): List<Memo> =

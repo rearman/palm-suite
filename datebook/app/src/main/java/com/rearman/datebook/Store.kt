@@ -299,13 +299,23 @@ class Store private constructor(ctx: Context) :
         return root.toString(1)
     }
 
-    /** Adds the records in a backup file. Returns (events, to dos, memos) added. */
-    fun importJson(text: String): Triple<Int, Int, Int> {
+    /** Record counts of one import. */
+    data class ImportCount(val events: Int, val todos: Int, val memos: Int, val skipped: Int)
+
+    /**
+     * Adds the records in a backup file. A record equal to one already on the device is a duplicate
+     * and is skipped. Equal records in the file itself are all added.
+     */
+    fun importJson(text: String): ImportCount {
         val root = JSONObject(text)
         val db = writableDatabase
+        val haveEvents = events.mapTo(HashSet()) { it.dupKey() }
+        val haveTodos = todos.mapTo(HashSet()) { it.dupKey() }
+        val haveMemos = memos.mapTo(HashSet()) { it.dupKey() }
         var ne = 0
         var nt = 0
         var nm = 0
+        var ns = 0
         db.beginTransaction()
         try {
             root.optJSONArray("categories")?.let { arr ->
@@ -325,18 +335,18 @@ class Store private constructor(ctx: Context) :
                     val o = arr.getJSONObject(i)
                     val exc = mutableSetOf<Long>()
                     o.optJSONArray("exceptions")?.let { x -> for (k in 0 until x.length()) exc.add(x.getLong(k)) }
-                    save(
-                        Event(
-                            title = o.optString("title"), note = o.optString("note"),
-                            date = o.getLong("date"), untimed = o.optBoolean("untimed"),
-                            start = o.optInt("start", 480), end = o.optInt("end", 540),
-                            alarm = o.optBoolean("alarm"), alarmAdvance = o.optInt("alarmAdvance", 5),
-                            alarmUnit = o.optInt("alarmUnit"), repeat = o.optInt("repeat"),
-                            every = o.optInt("every", 1), repeatEnd = o.optLong("repeatEnd", -1),
-                            weekDays = o.optInt("weekDays"), exceptions = exc,
-                            isPrivate = o.optBoolean("private")
-                        )
+                    val e = Event(
+                        title = o.optString("title"), note = o.optString("note"),
+                        date = o.getLong("date"), untimed = o.optBoolean("untimed"),
+                        start = o.optInt("start", 480), end = o.optInt("end", 540),
+                        alarm = o.optBoolean("alarm"), alarmAdvance = o.optInt("alarmAdvance", 5),
+                        alarmUnit = o.optInt("alarmUnit"), repeat = o.optInt("repeat"),
+                        every = o.optInt("every", 1), repeatEnd = o.optLong("repeatEnd", -1),
+                        weekDays = o.optInt("weekDays"), exceptions = exc,
+                        isPrivate = o.optBoolean("private")
                     )
+                    if (e.dupKey() in haveEvents) { ns++; continue }
+                    save(e)
                     ne++
                 }
             }
@@ -345,14 +355,14 @@ class Store private constructor(ctx: Context) :
                     val o = arr.getJSONObject(i)
                     val catName = o.optString("category", "Unfiled")
                     val cat = categories.firstOrNull { it.name.equals(catName, true) }?.id ?: 0
-                    save(
-                        Todo(
-                            title = o.optString("title"), note = o.optString("note"),
-                            priority = o.optInt("priority", 1), due = o.optLong("due", -1),
-                            done = o.optBoolean("done"), category = cat,
-                            isPrivate = o.optBoolean("private")
-                        )
+                    val t = Todo(
+                        title = o.optString("title"), note = o.optString("note"),
+                        priority = o.optInt("priority", 1), due = o.optLong("due", -1),
+                        done = o.optBoolean("done"), category = cat,
+                        isPrivate = o.optBoolean("private")
                     )
+                    if (t.dupKey() in haveTodos) { ns++; continue }
+                    save(t)
                     nt++
                 }
             }
@@ -361,12 +371,12 @@ class Store private constructor(ctx: Context) :
                     val o = arr.getJSONObject(i)
                     val catName = o.optString("category", "Unfiled")
                     val cat = memoCategories.firstOrNull { it.name.equals(catName, true) }?.id ?: 0
-                    save(
-                        Memo(
-                            text = o.optString("text"), category = cat,
-                            isPrivate = o.optBoolean("private")
-                        )
+                    val m = Memo(
+                        text = o.optString("text"), category = cat,
+                        isPrivate = o.optBoolean("private")
                     )
+                    if (m.dupKey() in haveMemos) { ns++; continue }
+                    save(m)
                     nm++
                 }
             }
@@ -374,7 +384,7 @@ class Store private constructor(ctx: Context) :
         } finally {
             db.endTransaction()
         }
-        return Triple(ne, nt, nm)
+        return ImportCount(ne, nt, nm, ns)
     }
 }
 
