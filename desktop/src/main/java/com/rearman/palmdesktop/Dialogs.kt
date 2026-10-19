@@ -22,6 +22,7 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.time.LocalDate
 import javax.swing.AbstractButton
+import javax.swing.ButtonGroup
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
@@ -34,11 +35,14 @@ import javax.swing.JList
 import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JPasswordField
+import javax.swing.JRadioButton
 import javax.swing.JScrollPane
+import javax.swing.JSpinner
 import javax.swing.JTabbedPane
 import javax.swing.JTextField
 import javax.swing.KeyStroke
 import javax.swing.ListSelectionModel
+import javax.swing.SpinnerNumberModel
 import javax.swing.SwingUtilities
 import javax.swing.WindowConstants
 import javax.swing.border.EmptyBorder
@@ -48,15 +52,15 @@ import javax.swing.event.DocumentListener
 // Palm Desktop dialogs: Options, Edit Categories, Find and Purge.
 // Each dialog is modal, Enter runs the default button and Escape closes it.
 
-// Asks before a record is deleted. Returns true at once when Settings "confirmDelete" is off.
+// Asks before a record is deleted. Returns true at once when App.noConfirm is set or Settings "confirmDelete" is off.
 fun confirmDelete(owner: Component, message: String): Boolean {
-	if (!Settings.getBool("confirmDelete", true)) return true
+	if (App.noConfirm || !Settings.getBool("confirmDelete", true)) return true
 	val answer = JOptionPane.showConfirmDialog(owner, message, "Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE)
 	return answer == JOptionPane.YES_OPTION
 }
 
-// Options has two tabs: General (startup view and delete confirmation) and Sync.
-// General values are saved on OK, and also when Set Up or Turn Off closes the dialog.
+// Options has three tabs: General (startup view and delete confirmation), Date Book and Sync.
+// General and Date Book values are saved on OK, and also when Set Up or Turn Off closes the dialog.
 object OptionsDialog {
 	private val startViews = listOf("date" to "Date Book", "todo" to "To Do List", "memo" to "Memo Pad")
 
@@ -68,13 +72,43 @@ object OptionsDialog {
 		startCombo.selectedIndex = startViews.indexOfFirst { it.first == Settings.get("startView", "date") }.coerceAtLeast(0)
 		val confirmBox = JCheckBox("Confirm before deleting records", Settings.getBool("confirmDelete", true)).withFont().key('C')
 		val general = JPanel(BorderLayout(0, 8)).apply {
-			add(formPanel(listOf(keyed("Startup application:", 'p', startCombo) to startCombo)), BorderLayout.NORTH)
+			add(formPanel(listOf(keyed("Startup application:", 'S', startCombo) to startCombo)), BorderLayout.NORTH)
 			add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply { add(confirmBox) }, BorderLayout.CENTER)
+		}
+
+		// Date Book values. The amount and the unit are on only when the alarm preset is.
+		val workCombo = JComboBox(Array(24) { timeLabel(it * 60) }).withFont().apply { selectedIndex = DateSettings.workDay }
+		val weekCombo = JComboBox(arrayOf("Sunday", "Monday")).withFont().apply { selectedIndex = DateSettings.weekBegins }
+		val presetBox = JCheckBox().withFont().apply { isSelected = DateSettings.alarmPreset }
+		val presetAmount = JSpinner(SpinnerNumberModel(DateSettings.alarmPresetAmount, 1, 99, 1)).withFont()
+		val presetUnit = JComboBox(arrayOf("Minutes", "Hours", "Days")).withFont().apply { selectedIndex = DateSettings.alarmPresetUnit }
+		fun refreshPreset() {
+			presetAmount.isEnabled = presetBox.isSelected
+			presetUnit.isEnabled = presetBox.isSelected
+		}
+		presetBox.addActionListener { refreshPreset() }
+		refreshPreset()
+		val dateBook = JPanel(BorderLayout(0, 8)).apply {
+			add(formPanel(listOf(
+				keyed("Work day begins:", 'd', workCombo) to workCombo,
+				keyed("Week begins:", 'W', weekCombo) to weekCombo,
+				keyed("Alarm preset:", 'p', presetBox) to JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+					add(presetBox)
+					add(presetAmount)
+					add(presetUnit)
+				},
+			)), BorderLayout.NORTH)
 		}
 
 		fun save() {
 			Settings.set("startView", startViews[startCombo.selectedIndex].first)
 			Settings.setBool("confirmDelete", confirmBox.isSelected)
+			Settings.setInt("workDay", workCombo.selectedIndex)
+			Settings.setInt("weekStart", weekCombo.selectedIndex)
+			Settings.setBool("alarmPreset", presetBox.isSelected)
+			Settings.setInt("alarmPresetAmount", presetAmount.value as Int)
+			Settings.setInt("alarmPresetUnit", presetUnit.selectedIndex)
+			App.refresh()
 		}
 
 		val sync = App.sync
@@ -151,12 +185,19 @@ object OptionsDialog {
 		}
 
 		tabs.addTab("General", general)
+		tabs.addTab("Date Book", dateBook)
 		tabs.addTab("Sync", syncPanel)
 		tabs.setMnemonicAt(0, KeyEvent.VK_G)
 		tabs.setDisplayedMnemonicIndexAt(0, 0)
-		tabs.setMnemonicAt(1, KeyEvent.VK_S)
-		tabs.setDisplayedMnemonicIndexAt(1, 0)
-		tabs.selectedIndex = if (tab == "sync") 1 else 0
+		tabs.setMnemonicAt(1, KeyEvent.VK_B)
+		tabs.setDisplayedMnemonicIndexAt(1, 5)
+		tabs.setMnemonicAt(2, KeyEvent.VK_Y)
+		tabs.setDisplayedMnemonicIndexAt(2, 1)
+		tabs.selectedIndex = when (tab) {
+			"datebook" -> 1
+			"sync" -> 2
+			else -> 0
+		}
 
 		val okBtn = button("OK")
 		val cancelBtn = button("Cancel")
@@ -189,6 +230,54 @@ object SyncDialog {
 }
 
 object CategoriesDialog {
+	private const val MAX_NAME = 15
+
+	// Names have at most MAX_NAME characters. Warns and returns true when [name] is longer.
+	private fun tooLong(owner: Component, name: String, title: String): Boolean {
+		if (name.trim().length <= MAX_NAME) return false
+		JOptionPane.showMessageDialog(owner, "A category name can have at most $MAX_NAME characters.", title, JOptionPane.WARNING_MESSAGE)
+		return true
+	}
+
+	// True when a record of the category's app holds [cat]: To Dos for app 0, Memos for app 1.
+	private fun inUse(cat: Category): Boolean =
+		if (cat.app == 1) App.store.memos.any { it.category == cat.id } else App.store.todos.any { it.category == cat.id }
+
+	// Deletes every record of the category's app that holds [cat].
+	private fun deleteItems(cat: Category) {
+		if (cat.app == 1) {
+			App.store.memos.filter { it.category == cat.id }.forEach { App.store.delete(it) }
+		} else {
+			App.store.todos.filter { it.category == cat.id }.forEach { App.store.delete(it) }
+		}
+	}
+
+	// Asks what to do with the items of a category in use. Returns true to delete them, false to move them, null on Cancel.
+	private fun askDeleteItems(owner: Component): Boolean? {
+		val d = dialog(owner, "Delete Category")
+		val move = JRadioButton("Move all items to Unfiled").withFont().key('M').apply { isSelected = true }
+		val delete = JRadioButton("Delete all items").withFont().key('D')
+		ButtonGroup().apply {
+			add(move)
+			add(delete)
+		}
+		var result: Boolean? = null
+		val okBtn = button("OK")
+		val cancelBtn = button("Cancel")
+		okBtn.onClick {
+			result = delete.isSelected
+			d.dispose()
+		}
+		cancelBtn.onClick { d.dispose() }
+		d.rootPane.defaultButton = okBtn
+		val options = JPanel(GridLayout(0, 1, 0, 6)).apply {
+			add(move)
+			add(delete)
+		}
+		present(d, owner, options, bar(okBtn, cancelBtn))
+		return result
+	}
+
 	fun show(owner: Component, app: Int) {
 		val d = dialog(owner, if (app == 0) "Edit To Do Categories" else "Edit Memo Categories")
 		val names = DefaultListModel<String>()
@@ -223,7 +312,7 @@ object CategoriesDialog {
 
 		newBtn.onClick {
 			val name: String? = JOptionPane.showInputDialog(d, "Name:", "New Category", JOptionPane.PLAIN_MESSAGE)
-			if (name.isNullOrBlank()) return@onClick
+			if (name.isNullOrBlank() || tooLong(d, name, "New Category")) return@onClick
 			if (App.store.addCategory(name.trim(), app) == null) {
 				JOptionPane.showMessageDialog(d, "You can have at most 15 categories.", "New Category", JOptionPane.WARNING_MESSAGE)
 			}
@@ -233,15 +322,20 @@ object CategoriesDialog {
 		renameBtn.onClick {
 			val cat = selected() ?: return@onClick
 			val name = JOptionPane.showInputDialog(d, "Name:", "Rename Category", JOptionPane.PLAIN_MESSAGE, null, null, cat.name) as String?
-			if (name.isNullOrBlank()) return@onClick
+			if (name.isNullOrBlank() || tooLong(d, name, "Rename Category")) return@onClick
 			App.store.renameCategory(cat, name.trim())
 			changed()
 		}
 
 		deleteBtn.onClick {
 			val cat = selected() ?: return@onClick
-			val answer = JOptionPane.showConfirmDialog(d, "Delete the category? Its records move to Unfiled.", "Delete Category", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE)
-			if (answer != JOptionPane.YES_OPTION) return@onClick
+			if (inUse(cat)) {
+				val deleteAll = askDeleteItems(d) ?: return@onClick
+				if (deleteAll) deleteItems(cat)
+			} else {
+				val answer = JOptionPane.showConfirmDialog(d, "Delete the category? Its records move to Unfiled.", "Delete Category", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE)
+				if (answer != JOptionPane.YES_OPTION) return@onClick
+			}
 			App.store.deleteCategory(cat)
 			changed()
 		}
@@ -269,14 +363,17 @@ object FindDialog {
 	fun show(owner: Component) {
 		val d = dialog(owner, "Find")
 		val field = JTextField(24).withFont()
-		val findLabel = keyed("Find:", 'F', field)
-		val findBtn = button("Find").key('n')
+		val findLabel = keyed("Find what:", 'w', field)
+		val wholeBox = JCheckBox("Match whole word only").withFont().key('M')
+		val caseBox = JCheckBox("Match case").withFont().key('C')
+		val findBtn = button("Find").key('F')
 		val results = DefaultListModel<Any>()
 		val list = JList(results).withFont()
 		list.selectionMode = ListSelectionModel.SINGLE_SELECTION
 		list.cellRenderer = ResultRenderer()
 		val goBtn = button("Go To").key('G').apply { isEnabled = false }
-		val closeBtn = button("Close").key('C')
+		val cancelBtn = button("Cancel")
+		val status = label("")
 
 		fun go(record: Any) {
 			d.dispose()
@@ -289,9 +386,21 @@ object FindDialog {
 
 		fun search() {
 			results.clear()
+			status.text = ""
 			val text = field.text.trim()
 			if (text.isEmpty()) return
-			App.store.find(text).filter { App.showPrivate || !isPrivate(it) }.forEach { results.addElement(it) }
+			val caseOn = caseBox.isSelected
+			val word = if (wholeBox.isSelected) {
+				Regex("\\b" + Regex.escape(text) + "\\b", if (caseOn) emptySet<RegexOption>() else setOf(RegexOption.IGNORE_CASE))
+			} else {
+				null
+			}
+			App.store.find(text)
+				.filter { App.showPrivate || !isPrivate(it) }
+				.filter { !caseOn || searchable(it).contains(text) }
+				.filter { word == null || word.containsMatchIn(searchable(it)) }
+				.forEach { results.addElement(it) }
+			status.text = "${results.size} items found."
 		}
 
 		field.addActionListener { search() }
@@ -303,19 +412,43 @@ object FindDialog {
 			}
 		})
 		goBtn.onClick { list.selectedValue?.let { go(it) } }
-		closeBtn.onClick { d.dispose() }
+		cancelBtn.onClick { d.dispose() }
 		d.rootPane.defaultButton = findBtn
 
-		val north = JPanel(BorderLayout(6, 0)).apply {
+		val fieldRow = JPanel(BorderLayout(6, 0)).apply {
 			add(findLabel, BorderLayout.WEST)
 			add(field, BorderLayout.CENTER)
-			add(findBtn, BorderLayout.EAST)
+		}
+		val checks = JPanel(GridLayout(0, 1, 0, 2)).apply {
+			add(wholeBox)
+			add(caseBox)
+		}
+		val buttons = JPanel(GridLayout(0, 1, 0, 6)).apply {
+			add(findBtn)
+			add(goBtn)
+			add(cancelBtn)
+		}
+		val top = JPanel(BorderLayout(8, 0)).apply {
+			add(JPanel(BorderLayout(0, 8)).apply {
+				add(fieldRow, BorderLayout.NORTH)
+				add(checks, BorderLayout.CENTER)
+			}, BorderLayout.CENTER)
+			add(JPanel(BorderLayout()).apply { add(buttons, BorderLayout.NORTH) }, BorderLayout.EAST)
 		}
 		val content = JPanel(BorderLayout(0, 8)).apply {
-			add(north, BorderLayout.NORTH)
+			add(top, BorderLayout.NORTH)
 			add(JScrollPane(list).apply { preferredSize = Dimension(360, 200) }, BorderLayout.CENTER)
+			add(status, BorderLayout.SOUTH)
 		}
-		present(d, owner, content, bar(goBtn, closeBtn))
+		present(d, owner, content, null)
+	}
+
+	// The text that Find searches in a record: the title and note of an event or To Do, or the text of a memo.
+	private fun searchable(record: Any): String = when (record) {
+		is Event -> record.title + "\n" + record.note
+		is Todo -> record.title + "\n" + record.note
+		is Memo -> record.text
+		else -> ""
 	}
 
 	private fun isPrivate(record: Any): Boolean = when (record) {
@@ -368,7 +501,7 @@ object PurgeDialog {
 		d.rootPane.defaultButton = okBtn
 
 		val row = JPanel(FlowLayout(FlowLayout.LEFT, 6, 0)).apply {
-			add(keyed("Purge events older than:", 'o', combo))
+			add(keyed("Delete events older than:", 'D', combo))
 			add(combo)
 		}
 		present(d, owner, row, bar(okBtn, cancelBtn))
