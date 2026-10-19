@@ -17,16 +17,15 @@ import java.awt.event.FocusEvent
 import java.awt.event.KeyEvent
 import java.time.DateTimeException
 import java.time.LocalDate
-import java.util.Calendar
-import java.util.Date
 import javax.swing.*
 
 /** Edit Event dialog. A new event starts at [startMin], or at 8:00 am. */
 object EventDialog {
-	/** Opens Edit Event for [e], or for a new event on [day] when [e] is null. */
-	fun edit(owner: Component, e: Event?, day: Long, startMin: Int? = null) {
+	/** Opens Edit Event for [e], or for a new event on [day] when [e] is null. [title] is the description of a new event. */
+	fun edit(owner: Component, e: Event?, day: Long, startMin: Int? = null, title: String = "") {
 		val start = startMin ?: 8 * 60
-		val work = e?.deepCopy() ?: Event(date = day, start = start, end = start + 60, untimed = false)
+		val work = e?.deepCopy() ?: Event(title = title, date = day, start = start, end = start + 60, untimed = false)
+		if (e == null) applyAlarmPreset(work)
 		EventForm(owner, e, work, day).show()
 	}
 }
@@ -65,21 +64,23 @@ private class EventForm(
 ) {
 	private val dlg = modalDialog(owner, "Edit Event")
 	private val desc = JTextArea(work.title, 3, 28).themed().apply { lineWrap = true; wrapStyleWord = true }
-	private val startField = readOnlyField()
-	private val endField = readOnlyField()
+	private val startField = JTextField(9).themed()
+	private val endField = JTextField(9).themed()
 	private val dateField = JTextField(Fmt.shortDate(occDay), 8).themed()
 	private val dayName = JLabel(weekdayName(occDay)).themed()
 	private val noteField = readOnlyField().apply { text = firstLine(work.note) }
-	private val repeatBtn = JButton(repeatText()).themed()
-	private val alarmBox = JCheckBox("Alarm", work.alarm).themed()
-	private val alarmAmount = JSpinner(SpinnerNumberModel(work.alarmAdvance.coerceIn(0, 99), 0, 99, 1)).themed()
+	private val repeatBtn = JButton().themed()
+	private val alarmBox = JCheckBox("", work.alarm).themed()
+	private val alarmAmount = JSpinner(SpinnerNumberModel(work.alarmAdvance.coerceIn(1, 99), 1, 99, 1)).themed()
 	private val alarmUnit = JComboBox(arrayOf("Minutes", "Hours", "Days")).themed()
 		.apply { selectedIndex = work.alarmUnit.coerceIn(0, 2) }
 	private val alarmLine = line(alarmAmount, alarmUnit).apply { isVisible = work.alarm }
-	private val privateBox = JCheckBox("Private", work.isPrivate).themed()
+	private val privateBox = JCheckBox("", work.isPrivate).themed()
 
 	init {
-		showTime()
+		showTime(work)
+		showRepeat()
+		desc.caretPosition = desc.text.length   // a title typed in the Month view goes on after its first key
 		dateField.addFocusListener(object : FocusAdapter() {
 			override fun focusLost(ev: FocusEvent) {
 				parseShortDate(dateField.text)?.let { dayName.text = weekdayName(it) }
@@ -98,73 +99,56 @@ private class EventForm(
 		val calBtn = JButton(Icons.calendar()).apply { toolTipText = "Choose date"; addActionListener { pickCalendarDate() } }
 		val noteBtn = JButton(Icons.note()).apply { toolTipText = "Edit note"; addActionListener { pickNote() } }
 		repeatBtn.addActionListener { pickRepeat() }
-		repeatBtn.mnemonic = KeyEvent.VK_R
-		alarmBox.mnemonic = KeyEvent.VK_A
-		privateBox.mnemonic = KeyEvent.VK_P
+		val toLabel = JLabel(" to ").themed().apply { setDisplayedMnemonic('t'); labelFor = endField }
 		val form = JPanel(GridBagLayout())
 		val rows = listOf(
-			FormRow("Description:", JScrollPane(desc)).key('D', desc),
-			FormRow("Time:", line(startField, JLabel(" to ").themed(), endField, clockBtn)).key('T', startField),
+			FormRow("Description:", JScrollPane(desc)).key('s', desc),
+			FormRow("Time:", line(startField, toLabel, endField, clockBtn)).key('i', startField),
 			FormRow("Date:", line(dateField, dayName, calBtn)).key('a', dateField),
-			FormRow("Note:", line(noteField, noteBtn)).key('N', noteField),
-			FormRow("Repeat:", repeatBtn),
-			FormRow("", line(alarmBox, alarmLine)),
-			FormRow("", privateBox)
+			FormRow("Note:", line(noteField, noteBtn)).key('e', noteField),
+			FormRow("Repeat:", repeatBtn).key('R', repeatBtn),
+			FormRow("Alarm:", line(alarmBox, alarmLine)).key('l', alarmBox),
+			FormRow("Private:", privateBox).key('P', privateBox)
 		)
 		rows.forEachIndexed { i, r -> r.addTo(form, i) }
 
 		val ok = JButton("OK").themed().apply { addActionListener { save() } }
 		val cancel = JButton("Cancel").themed().apply { addActionListener { dlg.dispose() } }
-		val buttons = JPanel(BorderLayout())
-		orig?.let { o ->
-			buttons.add(JButton("Delete").themed().apply { mnemonic = KeyEvent.VK_L; addActionListener { delete(o) } }, BorderLayout.WEST)
-		}
-		buttons.add(buttonRow(ok, cancel), BorderLayout.EAST)
 
 		dlg.contentPane.add(form, BorderLayout.CENTER)
-		dlg.contentPane.add(buttons, BorderLayout.SOUTH)
+		dlg.contentPane.add(buttonRow(ok, cancel), BorderLayout.SOUTH)
 		dlg.rootPane.defaultButton = ok
 		dlg.pack()
 		dlg.setLocationRelativeTo(owner)
 	}
 
-	private fun showTime() {
-		startField.text = if (work.untimed) "None" else Fmt.time(work.start)
-		endField.text = if (work.untimed) "None" else Fmt.time(work.end)
+	/** Fills the time fields from [t]. Both are empty when [t] is untimed. */
+	private fun showTime(t: Event) {
+		startField.text = if (t.untimed) "" else Fmt.time(t.start)
+		endField.text = if (t.untimed) "" else Fmt.time(t.end)
 	}
 
-	private fun repeatText(): String = if (work.repeat == Repeat.NONE) "None..." else Recur.describe(work)
+	/** Sets the Repeat button text and tooltip from the type of the working copy. */
+	private fun showRepeat() {
+		repeatBtn.text = when (work.repeat) {
+			Repeat.DAY -> "Daily..."
+			Repeat.WEEK -> "Weekly..."
+			Repeat.MONTH_DAY, Repeat.MONTH_DATE -> "Monthly..."
+			Repeat.YEAR -> "Yearly..."
+			else -> "None..."
+		}
+		repeatBtn.toolTipText = if (work.repeats) Recur.describe(work) else null
+	}
 
-	/** Time picker: two spinners, OK, No Time and Cancel. */
+	/** Select Time dialog, run on a copy of the time fields. The fields take the copy on OK or No Time. */
 	private fun pickTime() {
-		val startSpin = timeSpinner(work.start)
-		val endSpin = timeSpinner(work.end)
-		val panel = JPanel(GridLayout(2, 2, 6, 4)).apply {
-			add(JLabel("Start:").themed())
-			add(startSpin)
-			add(JLabel("End:").themed())
-			add(endSpin)
+		val s = parseTime(startField.text)
+		val t = work.deepCopy().apply {
+			untimed = s == null
+			start = s ?: 8 * 60
+			end = if (untimed) start + 60 else (parseTime(endField.text) ?: minOf(start + 60, 1439))
 		}
-		val answer = JOptionPane.showOptionDialog(
-			dlg, panel, "Set Time", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE,
-			null, arrayOf("OK", "No Time", "Cancel"), "OK"
-		)
-		when (answer) {
-			0 -> {
-				val s = minutesOf(startSpin.value as Date)
-				val en = minutesOf(endSpin.value as Date)
-				if (en < s) {
-					JOptionPane.showMessageDialog(dlg, "The end time is before the start time.", "Set Time", JOptionPane.WARNING_MESSAGE)
-					return
-				}
-				work.untimed = false
-				work.start = s
-				work.end = en
-			}
-			1 -> { work.untimed = true }
-			else -> return
-		}
-		showTime()
+		if (selectTime(dlg, t)) showTime(t)
 	}
 
 	private fun pickCalendarDate() {
@@ -181,7 +165,7 @@ private class EventForm(
 	}
 
 	private fun pickRepeat() {
-		if (RepeatDialog.edit(dlg, work)) repeatBtn.text = repeatText()
+		if (RepeatDialog.edit(dlg, work)) showRepeat()
 	}
 
 	private fun save() {
@@ -190,6 +174,22 @@ private class EventForm(
 			JOptionPane.showMessageDialog(dlg, "Enter a date as M/D/YY.", "Edit Event", JOptionPane.WARNING_MESSAGE)
 			return
 		}
+		val timed = startField.text.isNotBlank()
+		val s = parseTime(startField.text)
+		val en = if (endField.text.isBlank()) s?.let { minOf(it + 60, 1439) } else parseTime(endField.text)
+		if (timed) {
+			if (s == null || en == null) {
+				JOptionPane.showMessageDialog(dlg, "Invalid time entered.", "Edit Event", JOptionPane.WARNING_MESSAGE)
+				return
+			}
+			if (en < s) {
+				JOptionPane.showMessageDialog(dlg, "The end time is before the start time.", "Edit Event", JOptionPane.WARNING_MESSAGE)
+				return
+			}
+			work.start = s
+			work.end = en
+		}
+		work.untimed = !timed
 		work.title = desc.text.trim()
 		work.alarm = alarmBox.isSelected
 		work.alarmAdvance = alarmAmount.value as Int
@@ -208,7 +208,7 @@ private class EventForm(
 
 	/** Asks Current or All for a changed occurrence of a series. Returns false on Cancel. */
 	private fun saveSeries(o: Event, newDay: Long): Boolean {
-		when (askScope("Edit Event", "Change the current event only, or all events in the series?")) {
+		when (askRepeatScope(dlg, "Apply the changes to the current event only or to all occurrences?")) {
 			0 -> {
 				App.store.save(o.deepCopy().apply { exceptions.add(occDay) })
 				App.store.save(work.deepCopy().apply {
@@ -233,28 +233,6 @@ private class EventForm(
 		}
 		return true
 	}
-
-	private fun delete(o: Event) {
-		if (o.repeats) {
-			when (askScope("Delete Event", "Delete the current event only, or all events in the series?")) {
-				0 -> App.store.save(o.deepCopy().apply { exceptions.add(occDay) })
-				1 -> App.store.delete(o)
-				else -> return
-			}
-		} else {
-			if (!confirmDelete(dlg, "Delete the event?")) return
-			App.store.delete(o)
-		}
-		App.refresh()
-		dlg.dispose()
-	}
-
-	/** Asks Current, All or Cancel. Returns 0, 1 or 2. */
-	private fun askScope(title: String, text: String): Int =
-		JOptionPane.showOptionDialog(
-			dlg, text, title, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
-			null, arrayOf("Current", "All", "Cancel"), "Current"
-		)
 }
 
 /** The Change Repeat form. Edits a copy of the repeat fields and writes them to [e] on OK. */
@@ -274,7 +252,7 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 	private val hint = JTextArea("Click one of the buttons to the left to set a repeat interval.", 3, 18)
 		.themed().apply { isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true }
 	private val everySpin = JSpinner(SpinnerNumberModel(e.every.coerceIn(1, 99), 1, 99, 1)).themed()
-	private val everyUnit = JLabel("Month").themed()
+	private val everyUnit = JLabel("Months").themed()
 	private val endField = JTextField(10).themed().apply { isEditable = false }
 	private val dayToggles = Array(7) { i ->
 		val btn = JToggleButton(Fmt.dowLetter[i]).themed()
@@ -403,10 +381,10 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 		weekRow.isVisible = kind == Repeat.WEEK
 		byRow.isVisible = isMonthly()
 		everyUnit.text = when (kind) {
-			Repeat.DAY -> "Day"
-			Repeat.WEEK -> "Week"
-			Repeat.YEAR -> "Year"
-			else -> "Month"
+			Repeat.DAY -> "Days"
+			Repeat.WEEK -> "Weeks"
+			Repeat.YEAR -> "Years"
+			else -> "Months"
 		}
 		endField.text = if (end < 0) "No End Date" else Fmt.shortDate(end)
 		summary.text = Recur.describe(preview())
@@ -479,17 +457,115 @@ private fun parseShortDate(text: String): Long? {
 	}
 }
 
-/** Minutes after midnight to a Date, for a time spinner. */
-private fun timeOf(min: Int): Date =
-	Calendar.getInstance().apply { clear(); set(Calendar.HOUR_OF_DAY, min / 60); set(Calendar.MINUTE, min % 60) }.time
-
-/** Time spinner value to minutes after midnight. */
-private fun minutesOf(d: Date): Int {
-	val c = Calendar.getInstance().apply { time = d }
-	return c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
+/**
+ * Parses a time field such as "8:00a", "8a", "1:30 PM", "13:30" or "830" to minutes after midnight, or
+ * null. Spaces and case do not count. With no suffix the hour is 24 h.
+ */
+internal fun parseTime(text: String): Int? {
+	val s = text.filterNot { it.isWhitespace() }.lowercase()
+	val m = Regex("""(?:(\d{1,2}):(\d{2})|(\d{1,2})|(\d{3,4}))(a|am|p|pm)?""").matchEntire(s) ?: return null
+	val g = m.groupValues
+	val h: Int
+	val min: Int
+	when {
+		g[1].isNotEmpty() -> { h = g[1].toInt(); min = g[2].toInt() }
+		g[3].isNotEmpty() -> { h = g[3].toInt(); min = 0 }
+		else -> { h = g[4].dropLast(2).toInt(); min = g[4].takeLast(2).toInt() }
+	}
+	if (min > 59) return null
+	val hour = when {
+		g[5].isEmpty() -> h
+		h !in 1..12 -> return null
+		g[5].startsWith("a") -> h % 12
+		else -> h % 12 + 12
+	}
+	return if (hour > 23) null else hour * 60 + min
 }
 
-private fun timeSpinner(min: Int): JSpinner =
-	JSpinner(SpinnerDateModel(timeOf(min), null, null, Calendar.MINUTE)).themed().apply {
-		editor = JSpinner.DateEditor(this, if (Fmt.h24) "HH:mm" else "h:mm a")
+/** Select Time dialog. Edits [t] and returns true on OK or No Time. Cancel returns false. */
+private fun selectTime(owner: Component, t: Event): Boolean {
+	val dlg = modalDialog(owner, "Select Time")
+	var ok = false
+	var editStart = true
+	var syncing = false
+	val startRadio = JRadioButton("Start time:").themed().apply { mnemonic = KeyEvent.VK_S }
+	val endRadio = JRadioButton("End time:").themed().apply { mnemonic = KeyEvent.VK_E }
+	val startShow = readOnlyField()
+	val endShow = readOnlyField()
+	val noTime = JButton("No Time").themed().apply { mnemonic = KeyEvent.VK_N }
+	val hours = JList(Array(24) { timeLabel(it * 60) }).themed().apply {
+		selectionMode = ListSelectionModel.SINGLE_SELECTION
+		visibleRowCount = 8
 	}
+	val minutes = JList(Array(12) { "%02d".format(it * 5) }).themed().apply {
+		selectionMode = ListSelectionModel.SINGLE_SELECTION
+		visibleRowCount = 8
+	}
+
+	fun activeTime(): Int = if (editStart) t.start else t.end
+
+	/** Shows both times and selects their hour and minute in the lists. */
+	fun refresh() {
+		startShow.text = Fmt.time(t.start)
+		endShow.text = Fmt.time(t.end)
+		syncing = true
+		hours.selectedIndex = activeTime() / 60
+		minutes.selectedIndex = activeTime() % 60 / 5
+		syncing = false
+	}
+
+	/** Puts [min] on the checked radio. A new start moves the end. A new end before the start is refused. */
+	fun place(min: Int) {
+		if (editStart) {
+			val len = maxOf(t.end - t.start, 0)
+			t.start = min
+			t.end = minOf(min + len, 1439)
+		} else if (min < t.start) {
+			dlg.toolkit.beep()
+			refresh()
+			return
+		} else {
+			t.end = min
+		}
+		t.untimed = false
+		refresh()
+	}
+
+	hours.addListSelectionListener { ev ->
+		if (!ev.valueIsAdjusting && !syncing) place(hours.selectedIndex * 60 + activeTime() % 60)
+	}
+	minutes.addListSelectionListener { ev ->
+		if (!ev.valueIsAdjusting && !syncing) place(activeTime() / 60 * 60 + minutes.selectedIndex * 5)
+	}
+	ButtonGroup().apply { add(startRadio); add(endRadio) }
+	startRadio.addActionListener { editStart = true; refresh() }
+	endRadio.addActionListener { editStart = false; refresh() }
+	startRadio.isSelected = true
+	noTime.addActionListener { t.untimed = true; ok = true; dlg.dispose() }
+	val okBtn = JButton("OK").themed().apply { addActionListener { ok = true; dlg.dispose() } }
+	val cancel = JButton("Cancel").themed().apply { addActionListener { dlg.dispose() } }
+
+	val left = JPanel(GridLayout(0, 1, 0, 6)).apply {
+		add(startRadio)
+		add(startShow)
+		add(endRadio)
+		add(endShow)
+		add(noTime)
+	}
+	val right = JPanel(GridLayout(1, 2, 8, 0)).apply {
+		add(JScrollPane(hours))
+		add(JScrollPane(minutes))
+	}
+	val top = JPanel(BorderLayout(12, 0)).apply {
+		add(left, BorderLayout.WEST)
+		add(right, BorderLayout.CENTER)
+	}
+	dlg.contentPane.add(top, BorderLayout.CENTER)
+	dlg.contentPane.add(buttonRow(okBtn, cancel), BorderLayout.SOUTH)
+	dlg.rootPane.defaultButton = okBtn
+	refresh()
+	dlg.pack()
+	dlg.setLocationRelativeTo(owner)
+	dlg.isVisible = true
+	return ok
+}
