@@ -5,16 +5,17 @@ import com.rearman.datebook.Todo
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
+import java.awt.Dialog
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.GridLayout
 import java.awt.Insets
+import java.awt.event.KeyEvent
 import java.time.LocalDate
-import java.time.ZoneId
-import java.util.Calendar
-import java.util.Date
+import java.time.format.TextStyle
+import java.util.Locale
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.border.LineBorder
@@ -28,12 +29,13 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	private val sortNames = arrayOf(
-		"Priority, then Due Date",
-		"Due Date, then Priority",
-		"Category, then Priority",
-		"Category, then Due Date"
+		"Due Date, Priority",
+		"Priority, Due Date",
+		"Category, Priority",
+		"Category, Due Date"
 	)
-	private val dueNames = arrayOf("No Date", "Today", "Tomorrow", "One week later", "Choose Date...")
+	private val dueNames = arrayOf("Today", "Tomorrow", "One week later", "No Date", "Choose Date...")
+	private val dayRenderer = DefaultListCellRenderer()
 
 	private var rows: List<Todo> = emptyList()   // the items the table shows
 	private var selectedId: Long? = null         // the item selected in the table
@@ -47,29 +49,39 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	private val filterBox = JComboBox<Choice>()
 	private val categoryBox = JComboBox<Choice>()
 	private val todoText = JTextArea(3, 20)
-	private val radios = (1..5).map { JRadioButton("$it").apply { font = Theme.font } }
+	private val radios = (1..5).map { n -> JRadioButton("$n").apply { font = Theme.font; mnemonic = KeyEvent.VK_0 + n } }
 	private val dueBox = JComboBox(dueNames)
-	private val dueField = JTextField(8)
+	private val dueField = JTextField(9)
 	private val noteField = JTextField(12)
 	private val noteButton = JButton(Icons.note())
 	private val privateBox = JCheckBox()
 	private val completeBox = JCheckBox()
 	private val applyButton = JButton("Apply")
 	private val model = Model()
+	private val cell = Cell()
 	private val table = JTable(model)
 
+	/** The table model. Its columns depend on the Settings "todoShowPri", "todoShowDue" and "todoShowCat". */
 	private inner class Model : AbstractTableModel() {
-		private val names = arrayOf("Done", "Priority", "To Do", "Due Date", "Category")
+		/** The kind of each column: 0 Done, 1 Priority, 2 To Do, 3 Due Date, 4 Category. */
+		var cols = intArrayOf(0, 2)
+
+		/** Sets the column kinds. The table makes new columns only when the kinds change. */
+		fun useColumns(kinds: IntArray) {
+			if (kinds.contentEquals(cols)) return
+			cols = kinds
+			fireTableStructureChanged()
+		}
 
 		override fun getRowCount() = rows.size
-		override fun getColumnCount() = names.size
-		override fun getColumnName(c: Int) = names[c]
-		override fun getColumnClass(c: Int): Class<*> = if (c == 0) Boolean::class.javaObjectType else Any::class.java
-		override fun isCellEditable(r: Int, c: Int) = c == 0
+		override fun getColumnCount() = cols.size
+		override fun getColumnName(c: Int) = ""
+		override fun getColumnClass(c: Int): Class<*> = if (cols[c] == 0) Boolean::class.javaObjectType else Any::class.java
+		override fun isCellEditable(r: Int, c: Int) = cols[c] == 0
 
 		override fun getValueAt(r: Int, c: Int): Any {
 			val t = rows[r]
-			return when (c) {
+			return when (cols[c]) {
 				0 -> t.done
 				1 -> t.priority
 				2 -> t.title
@@ -79,9 +91,9 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		}
 
 		override fun setValueAt(v: Any?, r: Int, c: Int) {
-			if (c != 0 || v !is Boolean) return
+			if (cols[c] != 0 || v !is Boolean) return
 			val t = rows[r]
-			t.done = v
+			markDone(t, v)
 			App.store.save(t)
 			if (selectedId == t.id) loadedId = null   // reload the Complete box
 			App.refresh()
@@ -94,13 +106,19 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		): Component {
 			super.getTableCellRendererComponent(t, value, sel, focus, row, col)
 			val item = rows[row]
-			text = when (col) {
+			val kind = model.cols[col]
+			text = when (kind) {
 				2 -> item.title.replace('\n', ' ')
-				3 -> if (item.due == -1L) "-" else Fmt.shortDate(item.due)
+				3 -> dueLabel(item)
 				else -> value?.toString() ?: ""
 			}
-			icon = if (col == 2 && item.isPrivate) Icons.privateRecord() else null
-			if (!sel && col == 3 && isOverdue(item)) foreground = Theme.dateRed
+			icon = if (kind == 2 && item.isPrivate) Icons.privateRecord() else null
+			// Set on every cell: DefaultTableCellRenderer keeps the last value as the unselected color.
+			foreground = when {
+				sel -> Color.WHITE
+				isOverdue(item) -> Theme.dateRed
+				else -> Color.BLACK
+			}
 			return this
 		}
 	}
@@ -123,53 +141,56 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		top.add(filterBox, BorderLayout.EAST)
 
 		table.font = Theme.font
-		table.tableHeader.font = Theme.bold
 		table.rowHeight = 18
 		table.setShowGrid(false)
 		table.intercellSpacing = Dimension(0, 0)
+		table.background = Color.WHITE
 		table.selectionBackground = Theme.select
 		table.selectionForeground = Color.WHITE
 		table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-		val cell = Cell()
-		// Done, Priority, Due Date and Category keep a fixed width; the To Do text gets the rest.
-		val widths = intArrayOf(40, 50, 0, 90, 120)
-		for (c in widths.indices) {
-			val col = table.columnModel.getColumn(c)
-			if (widths[c] > 0) {
-				col.preferredWidth = widths[c]
-				col.maxWidth = widths[c]
-			}
-			if (c > 0) col.cellRenderer = cell
-		}
+		table.tableHeader = null
 		table.selectionModel.addListSelectionListener { e ->
 			if (e.valueIsAdjusting || busy) return@addListSelectionListener
 			rows.getOrNull(table.selectedRow)?.let { loadDetails(it) }
 		}
 
+		val scroll = JScrollPane(table)
+		scroll.viewport.background = Color.WHITE
+		scroll.border = BorderFactory.createSunkenBevelBorder()
+
 		val showButton = JButton("Show...")
+		showButton.mnemonic = KeyEvent.VK_W
 		showButton.addActionListener { showOptions() }
 		val newButton = JButton("New")
+		newButton.mnemonic = KeyEvent.VK_N
 		newButton.addActionListener { newRecord() }
 		val bottom = JPanel(FlowLayout(FlowLayout.RIGHT))
 		bottom.add(showButton)
 		bottom.add(newButton)
 
 		val center = JPanel(BorderLayout())
-		center.add(JScrollPane(table), BorderLayout.CENTER)
+		center.add(scroll, BorderLayout.CENTER)
 		center.add(bottom, BorderLayout.SOUTH)
 
 		dueBox.font = Theme.font
+		// The closed box shows the due date, not the item text.
+		dueBox.renderer = ListCellRenderer<Any?> { list, value, index, sel, focus ->
+			val shown: Any? = if (index < 0) dateText(pendingDue) else value
+			dayRenderer.getListCellRendererComponent(list, shown, index, sel, focus)
+		}
 		dueBox.addActionListener {
-			if (busy) return@addActionListener
+			val pick = dueBox.selectedIndex
+			if (busy || pick < 0) return@addActionListener
 			val day = today()
-			when (dueBox.selectedIndex) {
-				0 -> pendingDue = -1L
-				1 -> pendingDue = day
-				2 -> pendingDue = day + 1
-				3 -> pendingDue = day + 7
-				4 -> if (!chooseDate()) quiet { dueBox.selectedIndex = dueIndex(pendingDue) }
+			when (pick) {
+				0 -> pendingDue = day
+				1 -> pendingDue = day + 1
+				2 -> pendingDue = day + 7
+				3 -> pendingDue = -1L
+				else -> DatePicker.pick(this, "day", if (pendingDue >= 0) pendingDue else day)?.let { pendingDue = it }
 			}
-			dueField.text = dueText(pendingDue)
+			quiet { dueBox.selectedIndex = -1 }
+			showDue()
 		}
 		noteButton.addActionListener {
 			val text = NoteDialog.edit(this, "To Do Note", pendingNote)
@@ -205,12 +226,12 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		c.anchor = GridBagConstraints.WEST
 		c.fill = GridBagConstraints.HORIZONTAL
 		var row = 0
-		fun addRow(label: String, comp: JComponent) {
+		fun addRow(text: String, key: Char, target: Component, comp: JComponent) {
 			c.gridy = row
 			row++
 			c.gridx = 0
 			c.weightx = 0.0
-			p.add(JLabel(label).apply { font = Theme.font }, c)
+			p.add(label(text, key, target), c)
 			c.gridx = 1
 			c.weightx = 1.0
 			p.add(comp, c)
@@ -219,47 +240,58 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		todoText.lineWrap = true
 		todoText.wrapStyleWord = true
 		todoText.font = Theme.font
-		addRow("To Do:", JScrollPane(todoText))
+		addRow("To Do:", 'T', todoText, JScrollPane(todoText))
 
-		val prio = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+		val prio = JPanel(GridLayout(1, 5, 0, 0))
+		prio.border = BorderFactory.createSunkenBevelBorder()
 		for (r in radios) {
 			group.add(r)
 			prio.add(r)
 		}
-		addRow("Priority:", prio)
+		addRow("Priority:", 'r', radios[0], prio)
 
 		val due = JPanel(BorderLayout(4, 0))
+		dueBox.selectedIndex = -1
 		dueField.isEditable = false
+		dueField.font = Theme.font
+		dueField.border = BorderFactory.createSunkenBevelBorder()
 		due.add(dueBox, BorderLayout.WEST)
 		due.add(dueField, BorderLayout.CENTER)
-		addRow("Due:", due)
+		addRow("Due:", 'u', dueBox, due)
 
 		categoryBox.font = Theme.font
-		addRow("Category:", categoryBox)
+		addRow("Category:", 'g', categoryBox, categoryBox)
 
 		val note = JPanel(BorderLayout(4, 0))
 		noteField.isEditable = false
 		note.add(noteField, BorderLayout.CENTER)
 		note.add(noteButton, BorderLayout.EAST)
-		addRow("Note:", note)
+		addRow("Note:", 'e', noteField, note)
 
-		addRow("Private:", privateBox)
-		addRow("Complete:", completeBox)
+		addRow("Private:", 'v', privateBox, privateBox)
 
 		applyButton.font = Theme.font
-		c.gridy = row
-		c.gridx = 1
-		c.anchor = GridBagConstraints.EAST
-		c.weightx = 0.0
-		p.add(applyButton, c)
+		applyButton.mnemonic = KeyEvent.VK_A
+		val complete = JPanel(BorderLayout(4, 0))
+		complete.add(completeBox, BorderLayout.WEST)
+		complete.add(applyButton, BorderLayout.EAST)
+		addRow("Complete:", 'm', completeBox, complete)
 
-		c.gridy = row + 1
+		c.gridy = row
 		c.gridx = 0
 		c.gridwidth = 2
 		c.weighty = 1.0
 		c.fill = GridBagConstraints.BOTH
 		p.add(JPanel(), c)
 		return p
+	}
+
+	/** A label that is right-aligned and shows its mnemonic, which moves the focus to [target]. */
+	private fun label(text: String, key: Char, target: Component): JLabel = JLabel(text, JLabel.RIGHT).apply {
+		font = Theme.font
+		displayedMnemonic = key.uppercaseChar().code
+		displayedMnemonicIndex = text.indexOf(key, ignoreCase = true)
+		labelFor = target
 	}
 
 	override fun newRecord() {
@@ -279,8 +311,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 	override fun deleteSelected() {
 		val t = selectedTodo() ?: return
-		val answer = JOptionPane.showConfirmDialog(this, "Delete this To Do item?", "Delete", JOptionPane.YES_NO_OPTION)
-		if (answer != JOptionPane.YES_OPTION) return
+		if (!confirmDelete(this, "Delete the To Do item?")) return
 		selectedId = null
 		App.store.delete(t)
 		App.refresh()
@@ -314,12 +345,14 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		rebuild()
 	}
 
-	/** Rebuilds the table and keeps the selection by id. */
+	/** Rebuilds the columns and the table, and keeps the selection by id. */
 	private fun rebuild() {
 		val keep = selectedId
 		rows = visible()
 		val idx = if (keep == null) -1 else rows.indexOfFirst { it.id == keep }
 		quiet {
+			model.useColumns(columnKinds())
+			configureColumns()
 			model.fireTableDataChanged()
 			if (idx >= 0) table.setRowSelectionInterval(idx, idx) else table.clearSelection()
 		}
@@ -329,9 +362,37 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		}
 	}
 
+	private fun columnKinds(): IntArray {
+		val kinds = arrayListOf(0)
+		if (Settings.getBool("todoShowPri", false)) kinds.add(1)
+		kinds.add(2)
+		if (Settings.getBool("todoShowDue", true)) kinds.add(3)
+		if (Settings.getBool("todoShowCat", true)) kinds.add(4)
+		return kinds.toIntArray()
+	}
+
+	/** Sets the fixed widths and the renderer of each column. The To Do text gets the rest. */
+	private fun configureColumns() {
+		for (c in 0 until table.columnModel.columnCount) {
+			val col = table.columnModel.getColumn(c)
+			val kind = model.cols[c]
+			val fixed = when (kind) {
+				0, 1 -> 20
+				3 -> 45
+				4 -> 50
+				else -> 0
+			}
+			if (fixed > 0) {
+				col.preferredWidth = fixed
+				col.maxWidth = fixed
+			}
+			if (kind != 0) col.cellRenderer = cell
+		}
+	}
+
 	private fun visible(): List<Todo> {
 		val cat = Settings.getInt("todoCategory", -1)
-		val showDone = Settings.getBool("todoShowDone", true)
+		val showDone = Settings.getBool("todoShowDone", false)
 		val onlyDue = Settings.getBool("todoOnlyDue", false)
 		return App.store.todos
 			.filter { t ->
@@ -345,13 +406,13 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 	private fun order(): Comparator<Todo> {
 		val byPriority = compareBy<Todo> { it.priority }
-		val byDue = compareBy<Todo> { if (it.due == -1L) Long.MAX_VALUE else it.due }
+		val byDue = compareBy<Todo> { if (it.due < 0) Long.MAX_VALUE else it.due }
 		val byCategory = compareBy<Todo> { App.store.categoryName(it.category).lowercase() }
 		return when (Settings.getInt("todoSort", 0)) {
-			1 -> byDue.thenComparing(byPriority)
+			1 -> byPriority.thenComparing(byDue)
 			2 -> byCategory.thenComparing(byPriority)
 			3 -> byCategory.thenComparing(byDue)
-			else -> byPriority.thenComparing(byDue)
+			else -> byDue.thenComparing(byPriority)
 		}
 	}
 
@@ -359,7 +420,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	private fun reveal(t: Todo) {
 		val cat = Settings.getInt("todoCategory", -1)
 		if (cat != -1 && t.category != cat) Settings.setInt("todoCategory", -1)
-		if (t.done && !Settings.getBool("todoShowDone", true)) Settings.setBool("todoShowDone", true)
+		if (t.done && !Settings.getBool("todoShowDone", false)) Settings.setBool("todoShowDone", true)
 		if (Settings.getBool("todoOnlyDue", false) && !isDueByToday(t)) Settings.setBool("todoOnlyDue", false)
 	}
 
@@ -399,8 +460,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 			todoText.text = t.title
 			radios[t.priority.coerceIn(1, 5) - 1].isSelected = true
 			pendingDue = t.due
-			dueBox.selectedIndex = dueIndex(t.due)
-			dueField.text = dueText(t.due)
+			showDue()
 			selectCategory(t.category)
 			pendingNote = t.note
 			noteField.text = firstLine(t.note)
@@ -417,8 +477,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 			todoText.text = ""
 			group.clearSelection()
 			pendingDue = -1L
-			dueBox.selectedIndex = 0
-			dueField.text = ""
+			showDue()
 			selectCategory(0)
 			pendingNote = ""
 			noteField.text = ""
@@ -426,6 +485,13 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 			completeBox.isSelected = false
 		}
 		setControlsEnabled(false)
+	}
+
+	/** Shows the due date in the Due box and the day name in the field next to it. */
+	private fun showDue() {
+		dueBox.selectedIndex = -1
+		dueBox.repaint()
+		dueField.text = if (pendingDue < 0) "" else LocalDate.ofEpochDay(pendingDue).dayOfWeek.getDisplayName(TextStyle.FULL, Locale.US)
 	}
 
 	private fun setControlsEnabled(on: Boolean) {
@@ -440,43 +506,81 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		t.category = (categoryBox.selectedItem as Choice).id
 		t.note = pendingNote
 		t.isPrivate = privateBox.isSelected
-		t.done = completeBox.isSelected
+		markDone(t, completeBox.isSelected)
 		App.store.save(t)
+		loadedId = null   // reload the panel from the saved item
 		App.refresh()
 	}
 
-	private fun showOptions() {
+	/** Sets the done flag. A new completion sets the due date to today when Settings "todoRecordDone" is on. */
+	private fun markDone(t: Todo, done: Boolean) {
+		if (done && !t.done && Settings.getBool("todoRecordDone", false)) t.due = today()
+		t.done = done
+	}
+
+	/** The Show Options dialog: sort order and the view filters, and which columns the list shows. */
+	fun showOptions() {
+		val dlg = JDialog(SwingUtilities.getWindowAncestor(this), "Show Options", Dialog.ModalityType.APPLICATION_MODAL)
+		var ok = false
 		val sort = JComboBox(sortNames)
+		sort.font = Theme.font
 		sort.selectedIndex = Settings.getInt("todoSort", 0).coerceIn(0, 3)
-		val done = JCheckBox("Show Completed Items", Settings.getBool("todoShowDone", true))
-		val due = JCheckBox("Show Only Due Items", Settings.getBool("todoOnlyDue", false))
-		val p = JPanel(GridLayout(0, 1, 4, 4))
-		p.add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {
-			add(JLabel("Sort by:").apply { font = Theme.font })
-			add(sort)
-		})
-		p.add(done)
-		p.add(due)
-		val answer = JOptionPane.showConfirmDialog(this, p, "Show", JOptionPane.OK_CANCEL_OPTION)
-		if (answer != JOptionPane.OK_OPTION) return
+		val done = check("Show completed items", 'c', Settings.getBool("todoShowDone", false))
+		val onlyDue = check("Show only due items", 'o', Settings.getBool("todoOnlyDue", false))
+		val record = check("Record completion date", 'R', Settings.getBool("todoRecordDone", false))
+		val dues = check("Show due dates", 'd', Settings.getBool("todoShowDue", true))
+		val pri = check("Show priorities", 'p', Settings.getBool("todoShowPri", false))
+		val cat = check("Show categories", 'a', Settings.getBool("todoShowCat", true))
+
+		val view = JPanel()
+		view.layout = BoxLayout(view, BoxLayout.Y_AXIS)
+		view.border = BorderFactory.createCompoundBorder(BorderFactory.createTitledBorder("View Options"), EmptyBorder(4, 6, 6, 6))
+		view.add(done)
+		view.add(onlyDue)
+		view.add(record)
+		view.add(Box.createVerticalStrut(10))
+		view.add(dues)
+		view.add(pri)
+		view.add(cat)
+
+		val okButton = JButton("OK").apply { addActionListener { ok = true; dlg.dispose() } }
+		val cancelButton = JButton("Cancel").apply { addActionListener { dlg.dispose() } }
+		dlg.rootPane.defaultButton = okButton
+		dlg.rootPane.registerKeyboardAction({ dlg.dispose() }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW)
+
+		val sortRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+		sortRow.add(label("Sort by:", 'S', sort))
+		sortRow.add(sort)
+		val left = JPanel(BorderLayout(0, 10))
+		left.add(sortRow, BorderLayout.NORTH)
+		left.add(view, BorderLayout.CENTER)
+		val buttons = JPanel(GridLayout(0, 1, 0, 6))
+		buttons.add(okButton)
+		buttons.add(cancelButton)
+		val body = JPanel(BorderLayout(12, 0))
+		body.border = EmptyBorder(12, 12, 12, 12)
+		body.add(left, BorderLayout.CENTER)
+		body.add(JPanel(BorderLayout()).apply { add(buttons, BorderLayout.NORTH) }, BorderLayout.EAST)
+		dlg.contentPane = body
+		dlg.pack()
+		dlg.setLocationRelativeTo(this)
+		dlg.isVisible = true   // modal: returns when the dialog closes
+
+		if (!ok) return
 		Settings.setInt("todoSort", sort.selectedIndex)
 		Settings.setBool("todoShowDone", done.isSelected)
-		Settings.setBool("todoOnlyDue", due.isSelected)
+		Settings.setBool("todoOnlyDue", onlyDue.isSelected)
+		Settings.setBool("todoRecordDone", record.isSelected)
+		Settings.setBool("todoShowDue", dues.isSelected)
+		Settings.setBool("todoShowPri", pri.isSelected)
+		Settings.setBool("todoShowCat", cat.isSelected)
 		App.refresh()
 	}
 
-	/** Shows the date picker. Returns false when the user cancels. */
-	private fun chooseDate(): Boolean {
-		val start = if (pendingDue >= 0) pendingDue else today()
-		val spinner = JSpinner(SpinnerDateModel(toDate(start), null, null, Calendar.DAY_OF_MONTH))
-		spinner.editor = JSpinner.DateEditor(spinner, "M/d/yy")
-		val p = JPanel(FlowLayout(FlowLayout.LEFT))
-		p.add(JLabel("Due date:").apply { font = Theme.font })
-		p.add(spinner)
-		val answer = JOptionPane.showConfirmDialog(this, p, "Choose Date", JOptionPane.OK_CANCEL_OPTION)
-		if (answer != JOptionPane.OK_OPTION) return false
-		pendingDue = toDay(spinner.value as Date)
-		return true
+	private fun check(text: String, key: Char, on: Boolean): JCheckBox = JCheckBox(text, on).apply {
+		font = Theme.font
+		mnemonic = key.uppercaseChar().code
+		alignmentX = Component.LEFT_ALIGNMENT
 	}
 
 	private inline fun quiet(block: () -> Unit) {
@@ -492,24 +596,21 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	private fun selectedTodo(): Todo? = App.store.todos.firstOrNull { it.id == selectedId }
 
 	private fun today() = LocalDate.now().toEpochDay()
-	private fun isOverdue(t: Todo) = !t.done && t.due != -1L && t.due < today()
-	private fun isDueByToday(t: Todo) = t.due != -1L && t.due <= today()
-	private fun dueText(due: Long) = if (due == -1L) "" else Fmt.shortDate(due)
+	private fun isOverdue(t: Todo) = !t.done && t.due >= 0 && t.due < today()
+	private fun isDueByToday(t: Todo) = t.due >= 0 && t.due <= today()
 	private fun firstLine(s: String) = s.lineSequence().firstOrNull() ?: ""
 
-	private fun dueIndex(due: Long): Int {
-		val day = today()
-		return when {
-			due == -1L -> 0
-			due == day -> 1
-			due == day + 1 -> 2
-			due == day + 7 -> 3
-			else -> 4
-		}
+	/** The due text of the table: M/d, with "!" when overdue, or "-" when no date. */
+	private fun dueLabel(t: Todo): String {
+		if (t.due < 0) return "-"
+		val d = LocalDate.ofEpochDay(t.due)
+		return "${d.monthValue}/${d.dayOfMonth}" + if (isOverdue(t)) "!" else ""
 	}
 
-	private fun toDate(day: Long): Date =
-		Date.from(LocalDate.ofEpochDay(day).atStartOfDay(ZoneId.systemDefault()).toInstant())
-
-	private fun toDay(d: Date): Long = d.toInstant().atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay()
+	/** The due text of the Due box: M/d/yyyy, or empty when no date. */
+	private fun dateText(due: Long): String {
+		if (due < 0) return ""
+		val d = LocalDate.ofEpochDay(due)
+		return "${d.monthValue}/${d.dayOfMonth}/${d.year}"
+	}
 }

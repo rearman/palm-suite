@@ -11,24 +11,19 @@ import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.Point
 import java.awt.Rectangle
+import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.WeekFields
-import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 import javax.swing.BorderFactory
 import javax.swing.JButton
 import javax.swing.JLabel
-import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JScrollPane
-import javax.swing.JSpinner
 import javax.swing.Scrollable
-import javax.swing.SpinnerDateModel
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 
@@ -66,17 +61,20 @@ private abstract class ViewportWidthPanel : JPanel(), Scrollable {
 	override fun getScrollableTracksViewportHeight(): Boolean = false
 }
 
-/** Shared header: the step buttons, the Go to button, the title and the Today button. */
-internal class DateNav(private val step: (Int) -> Unit) : JPanel(BorderLayout()) {
+/** Shared header: the step buttons, the Go to button, the title and the Today button. [mode] is the DatePicker mode. */
+internal class DateNav(private val mode: String, private val step: (Int) -> Unit) : JPanel(BorderLayout()) {
 	private val title = JLabel("", SwingConstants.CENTER)
 
 	init {
 		val left = JPanel(FlowLayout(FlowLayout.LEFT, 2, 2))
 		left.add(JButton("◀").apply { addActionListener { step(-1) } })
-		left.add(JButton("Go to").apply { addActionListener { goTo() } })
+		left.add(JButton("Go to").apply { mnemonic = KeyEvent.VK_G; addActionListener { goTo() } })
 		left.add(JButton("▶").apply { addActionListener { step(1) } })
 		val right = JPanel(FlowLayout(FlowLayout.RIGHT, 2, 2))
-		right.add(JButton("Today").apply { addActionListener { App.day = todayEpoch(); App.refresh() } })
+		right.add(JButton("Today").apply {
+			mnemonic = KeyEvent.VK_T
+			addActionListener { App.day = todayEpoch(); App.refresh() }
+		})
 		title.font = Theme.bold
 		title.isOpaque = true
 		title.background = Color.WHITE
@@ -91,13 +89,8 @@ internal class DateNav(private val step: (Int) -> Unit) : JPanel(BorderLayout())
 	}
 
 	private fun goTo() {
-		val start = Date.from(Fmt.ld(App.day).atStartOfDay(ZoneId.systemDefault()).toInstant())
-		val model = SpinnerDateModel(start, null, null, Calendar.DAY_OF_MONTH)
-		val spinner = JSpinner(model)
-		spinner.editor = JSpinner.DateEditor(spinner, "MMMM d, yyyy")
-		val answer = JOptionPane.showConfirmDialog(this, spinner, "Go to", JOptionPane.OK_CANCEL_OPTION)
-		if (answer == JOptionPane.OK_OPTION) {
-			App.day = model.date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay()
+		DatePicker.pick(this, mode, App.day)?.let {
+			App.day = it
 			App.refresh()
 		}
 	}
@@ -105,7 +98,7 @@ internal class DateNav(private val step: (Int) -> Unit) : JPanel(BorderLayout())
 
 /** Week view: seven day columns, a time grid and an untimed row. */
 class WeekView : JPanel(BorderLayout()) {
-	private val nav = DateNav { dir -> App.day += 7L * dir; App.refresh() }
+	private val nav = DateNav("week") { dir -> App.day += 7L * dir; App.refresh() }
 	private var start = 0L
 	private var days: List<List<Occ>> = emptyList()
 	private var untimedH = MIN_UNTIMED_H

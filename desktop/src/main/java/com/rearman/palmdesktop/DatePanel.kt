@@ -17,6 +17,7 @@ import java.awt.GridLayout
 import java.awt.Insets
 import java.awt.Point
 import java.awt.Rectangle
+import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.time.LocalDate
@@ -59,7 +60,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private val monthView = MonthView()
 	private val titleLabel = JLabel("", SwingConstants.CENTER)
 	private val grid = DayGrid()
-	private val editBtn = button("Edit...") { editSelected() }
+	private val editBtn = button("Edit...") { editSelected() }.apply { mnemonic = KeyEvent.VK_E }
 	private val yearLabel = JLabel("", SwingConstants.CENTER)
 	private val monthButtons = List(12) { i -> JButton(Fmt.monthShort[i]) }
 	private val calendar = MiniCalendar()
@@ -150,9 +151,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				else -> return
 			}
 		} else {
-			if (JOptionPane.showConfirmDialog(this, "Delete the event?", "Delete", JOptionPane.YES_NO_OPTION)
-				!= JOptionPane.YES_OPTION
-			) return
+			if (!confirmDelete(this, "Delete the event?")) return
 			App.store.delete(ev)
 		}
 		selectedId = null
@@ -198,13 +197,23 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		scroll.verticalScrollBar.unitIncrement = 20
 		// The grid starts at the top, as in Palm Desktop, so the untimed row shows.
 		editBtn.isEnabled = false
+		// Double click on the title picks the day, as Palm Desktop does.
+		titleLabel.addMouseListener(object : MouseAdapter() {
+			override fun mouseClicked(e: MouseEvent) {
+				if (e.clickCount != 2) return
+				DatePicker.pick(this@DatePanel, "day", App.day)?.let {
+					App.day = it
+					App.refresh()
+				}
+			}
+		})
 		val bar = JPanel(FlowLayout(FlowLayout.RIGHT))
 		bar.add(button("Today") {
 			App.day = LocalDate.now().toEpochDay()
 			App.refresh()
-		})
+		}.apply { mnemonic = KeyEvent.VK_T })
 		bar.add(editBtn)
-		bar.add(button("New...") { newRecord() })
+		bar.add(button("New...") { newRecord() }.apply { mnemonic = KeyEvent.VK_N })
 		val panel = JPanel(BorderLayout())
 		panel.add(titleLabel, BorderLayout.NORTH)
 		panel.add(scroll, BorderLayout.CENTER)

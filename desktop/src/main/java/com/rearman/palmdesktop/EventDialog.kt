@@ -98,12 +98,15 @@ private class EventForm(
 		val calBtn = JButton(Icons.calendar()).apply { toolTipText = "Choose date"; addActionListener { pickCalendarDate() } }
 		val noteBtn = JButton(Icons.note()).apply { toolTipText = "Edit note"; addActionListener { pickNote() } }
 		repeatBtn.addActionListener { pickRepeat() }
+		repeatBtn.mnemonic = KeyEvent.VK_R
+		alarmBox.mnemonic = KeyEvent.VK_A
+		privateBox.mnemonic = KeyEvent.VK_P
 		val form = JPanel(GridBagLayout())
 		val rows = listOf(
-			FormRow("Description:", JScrollPane(desc)),
-			FormRow("Time:", line(startField, JLabel(" to ").themed(), endField, clockBtn)),
-			FormRow("Date:", line(dateField, dayName, calBtn)),
-			FormRow("Note:", line(noteField, noteBtn)),
+			FormRow("Description:", JScrollPane(desc)).key('D', desc),
+			FormRow("Time:", line(startField, JLabel(" to ").themed(), endField, clockBtn)).key('T', startField),
+			FormRow("Date:", line(dateField, dayName, calBtn)).key('a', dateField),
+			FormRow("Note:", line(noteField, noteBtn)).key('N', noteField),
 			FormRow("Repeat:", repeatBtn),
 			FormRow("", line(alarmBox, alarmLine)),
 			FormRow("", privateBox)
@@ -114,7 +117,7 @@ private class EventForm(
 		val cancel = JButton("Cancel").themed().apply { addActionListener { dlg.dispose() } }
 		val buttons = JPanel(BorderLayout())
 		orig?.let { o ->
-			buttons.add(JButton("Delete").themed().apply { addActionListener { delete(o) } }, BorderLayout.WEST)
+			buttons.add(JButton("Delete").themed().apply { mnemonic = KeyEvent.VK_L; addActionListener { delete(o) } }, BorderLayout.WEST)
 		}
 		buttons.add(buttonRow(ok, cancel), BorderLayout.EAST)
 
@@ -165,7 +168,7 @@ private class EventForm(
 	}
 
 	private fun pickCalendarDate() {
-		val d = pickDate(dlg, parseShortDate(dateField.text) ?: occDay) ?: return
+		val d = DatePicker.pick(dlg, "day", parseShortDate(dateField.text) ?: occDay) ?: return
 		dateField.text = Fmt.shortDate(d)
 		dayName.text = weekdayName(d)
 	}
@@ -239,6 +242,7 @@ private class EventForm(
 				else -> return
 			}
 		} else {
+			if (!confirmDelete(dlg, "Delete the event?")) return
 			App.store.delete(o)
 		}
 		App.refresh()
@@ -314,6 +318,11 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 	}
 
 	private fun buildLayout() {
+		noneRadio.mnemonic = KeyEvent.VK_N
+		dailyRadio.mnemonic = KeyEvent.VK_D
+		weeklyRadio.mnemonic = KeyEvent.VK_W
+		monthlyRadio.mnemonic = KeyEvent.VK_M
+		yearlyRadio.mnemonic = KeyEvent.VK_Y
 		val group = ButtonGroup()
 		val left = JPanel(GridLayout(0, 1, 0, 6))
 		for (r in listOf(noneRadio, dailyRadio, weeklyRadio, monthlyRadio, yearlyRadio)) {
@@ -337,10 +346,10 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 
 		val right = JPanel(GridBagLayout())
 		FormRow("", hint).addTo(right, 0)
-		FormRow("Every:", everyRow).addTo(right, 1)
-		FormRow("End on:", endRow).addTo(right, 2)
-		FormRow("Days:", weekRow).addTo(right, 3)
-		FormRow("By:", byRow).addTo(right, 4)
+		FormRow("Every:", everyRow).key('E', everySpin).addTo(right, 1)
+		FormRow("End on:", endRow).key('O', endField).addTo(right, 2)
+		FormRow("Days:", weekRow).key('s', dayToggles[0]).addTo(right, 3)
+		FormRow("By:", byRow).key('B', byCombo).addTo(right, 4)
 
 		val top = JPanel(BorderLayout(12, 0))
 		top.add(left, BorderLayout.WEST)
@@ -365,7 +374,7 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 	}
 
 	private fun pickEnd() {
-		val d = pickDate(dlg, if (end >= 0) end else e.date) ?: return
+		val d = DatePicker.pick(dlg, "day", if (end >= 0) end else e.date) ?: return
 		if (d < e.date) {
 			JOptionPane.showMessageDialog(dlg, "The end date is before the first date.", "Change Repeat", JOptionPane.WARNING_MESSAGE)
 			return
@@ -419,6 +428,12 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 private class FormRow(text: String, private val field: Component) {
 	private val label = JLabel(text).themed()
 
+	/** Sets the Alt key that moves focus to [target]. */
+	fun key(c: Char, target: Component): FormRow = apply {
+		label.setDisplayedMnemonic(c)
+		label.labelFor = target
+	}
+
 	fun addTo(panel: JPanel, y: Int) {
 		panel.add(label, GridBagConstraints(0, y, 1, 1, 0.0, 0.0, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, Insets(3, 6, 3, 4), 0, 0))
 		panel.add(field, GridBagConstraints(1, y, 1, 1, 1.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.NONE, Insets(3, 4, 3, 6), 0, 0))
@@ -464,18 +479,6 @@ private fun parseShortDate(text: String): Long? {
 	}
 }
 
-/** Epoch day to a Date at midnight, for a date spinner. */
-private fun dateOf(day: Long): Date {
-	val d = LocalDate.ofEpochDay(day)
-	return Calendar.getInstance().apply { clear(); set(d.year, d.monthValue - 1, d.dayOfMonth) }.time
-}
-
-/** Date spinner value to an epoch day. */
-private fun dayOf(d: Date): Long {
-	val c = Calendar.getInstance().apply { time = d }
-	return LocalDate.of(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH)).toEpochDay()
-}
-
 /** Minutes after midnight to a Date, for a time spinner. */
 private fun timeOf(min: Int): Date =
 	Calendar.getInstance().apply { clear(); set(Calendar.HOUR_OF_DAY, min / 60); set(Calendar.MINUTE, min % 60) }.time
@@ -490,13 +493,3 @@ private fun timeSpinner(min: Int): JSpinner =
 	JSpinner(SpinnerDateModel(timeOf(min), null, null, Calendar.MINUTE)).themed().apply {
 		editor = JSpinner.DateEditor(this, if (Fmt.h24) "HH:mm" else "h:mm a")
 	}
-
-/** Date picker: a date spinner in a modal dialog. Returns the epoch day, or null on Cancel. */
-private fun pickDate(owner: Component, day: Long): Long? {
-	val spin = JSpinner(SpinnerDateModel(dateOf(day), null, null, Calendar.DAY_OF_MONTH)).themed()
-	spin.editor = JSpinner.DateEditor(spin, "M/d/yy")
-	val answer = JOptionPane.showConfirmDialog(
-		owner, spin, "Choose Date", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE
-	)
-	return if (answer == JOptionPane.OK_OPTION) dayOf(spin.value as Date) else null
-}

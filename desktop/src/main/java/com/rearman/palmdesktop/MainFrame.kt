@@ -14,8 +14,11 @@ import java.awt.event.FocusEvent
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
 import java.awt.event.WindowEvent
+import java.awt.print.PageFormat
+import java.awt.print.PrinterJob
 import java.time.LocalDate
 import java.util.WeakHashMap
+import javax.swing.AbstractButton
 import javax.swing.Action
 import javax.swing.BorderFactory
 import javax.swing.Box
@@ -31,10 +34,13 @@ import javax.swing.JMenuBar
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
+import javax.swing.JRadioButtonMenuItem
 import javax.swing.JToggleButton
 import javax.swing.JToolBar
 import javax.swing.KeyStroke
 import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
 import javax.swing.TransferHandler
 import javax.swing.text.JTextComponent
 import javax.swing.undo.UndoManager
@@ -54,8 +60,11 @@ class MainFrame : JFrame("Palm Desktop") {
 	private val center = JPanel(cards)
 	private val launcherGroup = ButtonGroup()
 	private val launcherButtons = HashMap<String, JToggleButton>()
+	private val viewItems = HashMap<String, JRadioButtonMenuItem>()
 	private val statusLabel = JLabel("Ready")
-	private val privateItem = JMenuItem()
+	private val visibleIn = HashMap<JComponent, Set<String>>()
+	private lateinit var categoriesItem: JMenuItem
+	private lateinit var purgeItem: JMenuItem
 	private var current = "date"
 
 	init {
@@ -71,9 +80,9 @@ class MainFrame : JFrame("Palm Desktop") {
 		contentPane.add(buildLauncher(), BorderLayout.WEST)
 		contentPane.add(center, BorderLayout.CENTER)
 		contentPane.add(buildStatusBar(), BorderLayout.SOUTH)
-		val start = Settings.get("view", "date")
+		// The startView setting wins. Without it, the view of the last session opens.
+		val start = Settings.get("startView", "").ifEmpty { Settings.get("view", "date") }
 		switchTo(if (start in panels) start else "date")
-		updatePrivateItem()
 	}
 
 	/** Sets the text of the status bar. */
@@ -93,6 +102,15 @@ class MainFrame : JFrame("Palm Desktop") {
 		current = name
 		cards.show(center, name)
 		launcherButtons.getValue(name).isSelected = true
+		viewItems.getValue(name).isSelected = true
+		updateMenus()
+	}
+
+	/** Shows or hides the menu items that belong to one view, and sets the items that change with it. */
+	private fun updateMenus() {
+		for ((item, views) in visibleIn) item.isVisible = current in views
+		categoriesItem.isEnabled = current != "date"
+		purgeItem.text = if (current == "todo") "Purge Completed To Do's..." else "Purge Events..."
 	}
 
 	private fun currentView(): AppView = panels.getValue(current)
@@ -105,20 +123,24 @@ class MainFrame : JFrame("Palm Desktop") {
 		Printing.print(this, currentView())
 	}
 
-	private fun showDate(mode: String) {
-		showView("date", null)
-		datePanel.showMode(mode)
+	private fun saveAll() {
+		App.store.persist()
+		setStatus("Saved.")
 	}
 
-	private fun togglePrivate() {
-		App.showPrivate = !App.showPrivate
-		Settings.setBool("showPrivate", App.showPrivate)
-		updatePrivateItem()
+	private fun setShowPrivate(on: Boolean) {
+		App.showPrivate = on
+		Settings.setBool("showPrivate", on)
 		App.refresh()
 	}
 
-	private fun updatePrivateItem() {
-		privateItem.text = if (App.showPrivate) "Hide Private Records" else "Show Private Records"
+	private fun syncNow() {
+		App.sync.syncNow { error ->
+			SwingUtilities.invokeLater {
+				if (error != null) JOptionPane.showMessageDialog(this, error, "Sync", JOptionPane.ERROR_MESSAGE)
+				else setStatus("Sync done.")
+			}
+		}
 	}
 
 	/** Runs a clipboard action on the focused component, such as a text field. */
@@ -134,46 +156,69 @@ class MainFrame : JFrame("Palm Desktop") {
 
 	private fun buildMenuBar(): JMenuBar {
 		val bar = JMenuBar()
-		bar.add(JMenu("File").also { m ->
-			m.add(item("New Record", KeyEvent.VK_N, CTRL) { newRecord() })
-			m.add(item("Import...") { Transfer.importFile(this) })
-			m.add(item("Export...") { Transfer.exportFile(this) })
-			m.add(item("Print...", KeyEvent.VK_P, CTRL) { printView() })
+		bar.add(menu("File", 'F').also { m ->
+			m.add(item("Save All", 'S', KeyEvent.VK_S, CTRL) { saveAll() })
 			m.addSeparator()
-			m.add(item("Exit") { processWindowEvent(WindowEvent(this, WindowEvent.WINDOW_CLOSING)) })
+			m.add(item("Import...", 'I') { Transfer.importFile(this) })
+			m.add(item("Export...", 'E') { Transfer.exportFile(this) })
+			m.addSeparator()
+			m.add(item("Page Setup...", 'u') {
+				val job = PrinterJob.getPrinterJob()
+				Printing.pageFormat = job.pageDialog(Printing.pageFormat ?: job.defaultPage())
+			})
+			m.add(item("Print...", 'P', KeyEvent.VK_P, CTRL) { printView() })
+			m.addSeparator()
+			m.add(item("Exit", 'x') { processWindowEvent(WindowEvent(this, WindowEvent.WINDOW_CLOSING)) })
 		})
-		bar.add(JMenu("Edit").also { m ->
-			m.add(item("Undo", KeyEvent.VK_Z, CTRL) { undo() })
+		bar.add(menu("Edit", 'E').also { m ->
+			m.add(item("Undo", 'U', KeyEvent.VK_Z, CTRL) { undo() })
 			m.addSeparator()
-			m.add(item("Cut", KeyEvent.VK_X, CTRL) { transfer(TransferHandler.getCutAction()) })
-			m.add(item("Copy", KeyEvent.VK_C, CTRL) { transfer(TransferHandler.getCopyAction()) })
-			m.add(item("Paste", KeyEvent.VK_V, CTRL) { transfer(TransferHandler.getPasteAction()) })
+			m.add(item("Cut", 't', KeyEvent.VK_X, CTRL) { transfer(TransferHandler.getCutAction()) })
+			m.add(item("Copy", 'C', KeyEvent.VK_C, CTRL) { transfer(TransferHandler.getCopyAction()) })
+			m.add(item("Paste", 'P', KeyEvent.VK_V, CTRL) { transfer(TransferHandler.getPasteAction()) })
+			m.add(item("Delete", 'D', KeyEvent.VK_DELETE) { currentView().deleteSelected() })
 			m.addSeparator()
-			m.add(item("Delete Record", KeyEvent.VK_DELETE) { currentView().deleteSelected() })
-			m.add(item("Edit Record...") { currentView().editSelected() })
+			m.add(item("Select All", 'A', KeyEvent.VK_A, CTRL) {
+				(KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner as? JTextComponent)?.selectAll()
+			})
+			m.add(onlyIn(item("New Event...", 'N', KeyEvent.VK_N, CTRL) { newRecord() }, "date"))
+			m.add(onlyIn(item("Edit Event...", 'E') { currentView().editSelected() }, "date"))
+			m.add(onlyIn(item("Delete Event", 'l') { currentView().deleteSelected() }, "date"))
+			m.add(onlyIn(item("New To Do", 'N', KeyEvent.VK_N, CTRL) { newRecord() }, "todo"))
+			m.add(onlyIn(item("New Memo", 'N', KeyEvent.VK_N, CTRL) { newRecord() }, "memo"))
+			m.addSeparator()
+			m.add(item("Find...", 'F', KeyEvent.VK_F, CTRL) { FindDialog.show(this) })
 		})
-		bar.add(JMenu("View").also { m ->
-			m.add(item("Date", KeyEvent.VK_F2) { showView("date", null) })
-			m.add(item("To Do", KeyEvent.VK_F3) { showView("todo", null) })
-			m.add(item("Memo", KeyEvent.VK_F4) { showView("memo", null) })
+		bar.add(menu("View", 'V').also { m ->
+			val views = ButtonGroup()
+			viewRadio(m, views, "date", "Date Book", 'D', KeyEvent.VK_F2)
+			viewRadio(m, views, "todo", "To Do List", 'o', KeyEvent.VK_F4)
+			viewRadio(m, views, "memo", "Memo Pad", 'M', KeyEvent.VK_F5)
 			m.addSeparator()
-			m.add(item("Day") { showDate("day") })
-			m.add(item("Week") { showDate("week") })
-			m.add(item("Month") { showDate("month") })
-			m.addSeparator()
-			privateItem.addActionListener { togglePrivate() }
-			m.add(privateItem)
+			val privacy = ButtonGroup()
+			m.add(radio(privacy, "Show Private Records", 'S') { setShowPrivate(true) }
+				.also { it.isSelected = App.showPrivate })
+			m.add(radio(privacy, "Hide Private Records", 'H') { setShowPrivate(false) }
+				.also { it.isSelected = !App.showPrivate })
+			m.add(onlyIn(JPopupMenu.Separator(), "todo"))
+			m.add(onlyIn(item("Show...", 'w') { (todoPanel as? TodoPanel)?.showOptions() }, "todo"))
 		})
-		bar.add(JMenu("Tools").also { m ->
-			m.add(item("Find...", KeyEvent.VK_F, CTRL) { FindDialog.show(this) })
-			m.add(item("Purge...") { PurgeDialog.show(this, if (current == "todo") "todos" else "events") })
-			m.add(item("Categories...") { CategoriesDialog.show(this, if (current == "memo") 1 else 0) })
+		bar.add(menu("Tools", 'T').also { m ->
+			categoriesItem = item("Categories...", 'C') {
+				CategoriesDialog.show(this, if (current == "memo") 1 else 0)
+			}
+			m.add(categoriesItem)
 			m.addSeparator()
-			m.add(item("Sync Now") { App.sync.syncNow() })
-			m.add(item("Sync Setup...") { SyncDialog.show(this) })
+			purgeItem = item("Purge Events...", 'P') {
+				PurgeDialog.show(this, if (current == "todo") "todos" else "events")
+			}
+			m.add(onlyIn(purgeItem, "date", "todo"))
+			m.add(onlyIn(JPopupMenu.Separator(), "date", "todo"))
+			m.add(item("Options...", 'O') { OptionsDialog.show(this) })
+			m.add(item("Sync Now", 'N') { syncNow() })
 		})
-		bar.add(JMenu("Help").also { m ->
-			m.add(item("About Palm Desktop") {
+		bar.add(menu("Help", 'H').also { m ->
+			m.add(item("About Palm Desktop...", 'A') {
 				JOptionPane.showMessageDialog(
 					this,
 					"Palm Desktop for the palm-suite apps",
@@ -185,16 +230,52 @@ class MainFrame : JFrame("Palm Desktop") {
 		return bar
 	}
 
-	private fun item(text: String, key: Int = 0, modifiers: Int = 0, action: () -> Unit): JMenuItem {
+	/** Shows [item] only in the views listed in [views]. The view menus call updateMenus to apply it. */
+	private fun <T : JComponent> onlyIn(item: T, vararg views: String): T {
+		visibleIn[item] = views.toSet()
+		return item
+	}
+
+	private fun menu(text: String, c: Char): JMenu {
+		val m = JMenu(text)
+		mnemonic(m, text, c)
+		return m
+	}
+
+	private fun item(text: String, c: Char, key: Int = 0, modifiers: Int = 0, action: () -> Unit): JMenuItem {
 		val menuItem = JMenuItem(text)
+		mnemonic(menuItem, text, c)
 		if (key != 0) menuItem.accelerator = KeyStroke.getKeyStroke(key, modifiers)
 		menuItem.addActionListener { action() }
 		return menuItem
 	}
 
+	private fun radio(group: ButtonGroup, text: String, c: Char, key: Int = 0, action: () -> Unit): JRadioButtonMenuItem {
+		val menuItem = JRadioButtonMenuItem(text)
+		mnemonic(menuItem, text, c)
+		if (key != 0) menuItem.accelerator = KeyStroke.getKeyStroke(key, 0)
+		menuItem.addActionListener { action() }
+		group.add(menuItem)
+		return menuItem
+	}
+
+	/** Adds a view radio item. The check mark follows the current view. */
+	private fun viewRadio(m: JMenu, group: ButtonGroup, name: String, text: String, c: Char, key: Int) {
+		val menuItem = radio(group, text, c, key) { showView(name, null) }
+		viewItems[name] = menuItem
+		m.add(menuItem)
+	}
+
+	/** Sets the Alt mnemonic of a button to [c], underlined in [text]. */
+	private fun mnemonic(button: AbstractButton, text: String, c: Char) {
+		button.mnemonic = c.uppercaseChar().code
+		button.displayedMnemonicIndex = text.indexOf(c)
+	}
+
 	private fun buildToolBar(): JToolBar {
 		val bar = JToolBar()
 		bar.isFloatable = false
+		bar.add(toolButton(Icons.save(), "Save All") { saveAll() })
 		bar.add(toolButton(Icons.print(), "Print") { printView() })
 		bar.addSeparator()
 		bar.add(toolButton(Icons.cut(), "Cut") { transfer(TransferHandler.getCutAction()) })
@@ -203,6 +284,8 @@ class MainFrame : JFrame("Palm Desktop") {
 		bar.add(toolButton(Icons.undo(), "Undo") { undo() })
 		bar.addSeparator()
 		bar.add(toolButton(Icons.find(), "Find") { FindDialog.show(this) })
+		bar.addSeparator()
+		bar.add(toolButton(Icons.note(), "New") { newRecord() })
 		return bar
 	}
 
@@ -224,14 +307,15 @@ class MainFrame : JFrame("Palm Desktop") {
 			BorderFactory.createRaisedBevelBorder(),
 			BorderFactory.createEmptyBorder(6, 2, 6, 2)
 		)
-		addLauncher(bar, "date", "Date", Icons.date())
-		addLauncher(bar, "todo", "To Do", Icons.todo())
-		addLauncher(bar, "memo", "Memo", Icons.memo())
+		addLauncher(bar, "date", "Date", Icons.date(), 'D')
+		addLauncher(bar, "todo", "To Do", Icons.todo(), 'o')
+		addLauncher(bar, "memo", "Memo", Icons.memo(), 'M')
 		return bar
 	}
 
-	private fun addLauncher(bar: JPanel, name: String, label: String, icon: Icon) {
+	private fun addLauncher(bar: JPanel, name: String, label: String, icon: Icon, c: Char) {
 		val button = JToggleButton(label, icon)
+		mnemonic(button, label, c)
 		button.verticalTextPosition = SwingConstants.BOTTOM
 		button.horizontalTextPosition = SwingConstants.CENTER
 		button.isFocusPainted = false

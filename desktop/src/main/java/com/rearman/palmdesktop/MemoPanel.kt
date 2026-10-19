@@ -9,6 +9,7 @@ import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.GridLayout
 import java.awt.Insets
+import java.awt.event.KeyEvent
 import javax.swing.*
 
 /** The Memo Pad view. */
@@ -56,15 +57,16 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		editor.font = Theme.font
 		category.font = Theme.font
 		applyButton.font = Theme.font
+		applyButton.mnemonic = KeyEvent.VK_A
 		applyButton.addActionListener { applyEdits() }
 		filterCombo.addActionListener { if (!busy) setFilter(choiceId(filterCombo)) }
 		val form = JPanel(GridBagLayout())
 		val gbc = GridBagConstraints().apply { insets = Insets(2, 4, 2, 4); anchor = GridBagConstraints.WEST }
-		form.add(JLabel("Category:").apply { font = Theme.font }, gbc)
+		form.add(JLabel("Category:").apply { font = Theme.font; setDisplayedMnemonic('C'); labelFor = category }, gbc)
 		gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
 		form.add(category, gbc)
 		gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
-		form.add(JLabel("Private:").apply { font = Theme.font }, gbc)
+		form.add(JLabel("Private:").apply { font = Theme.font; setDisplayedMnemonic('v'); labelFor = privateBox }, gbc)
 		gbc.gridx = 1
 		form.add(privateBox, gbc)
 		gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.EAST
@@ -76,8 +78,8 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		}
 		add(right, BorderLayout.EAST)
 
-		val listByButton = JButton("List by...").apply { font = Theme.font; addActionListener { listBy() } }
-		val newButton = JButton("New").apply { font = Theme.font; addActionListener { newRecord() } }
+		val listByButton = JButton("List by...").apply { font = Theme.font; mnemonic = KeyEvent.VK_L; addActionListener { listBy() } }
+		val newButton = JButton("New").apply { font = Theme.font; mnemonic = KeyEvent.VK_N; addActionListener { newRecord() } }
 		val bottom = JPanel(FlowLayout(FlowLayout.RIGHT)).apply {
 			add(listByButton)
 			add(newButton)
@@ -105,8 +107,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 
 	override fun deleteSelected() {
 		val m = current ?: return
-		val ok = JOptionPane.showConfirmDialog(this, "Delete this memo?", "Memo Pad", JOptionPane.OK_CANCEL_OPTION)
-		if (ok != JOptionPane.OK_OPTION) return
+		if (!confirmDelete(this, "Delete the memo?")) return
 		loadEditor(null)
 		App.store.delete(m)
 		App.refresh()
@@ -157,12 +158,16 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	private fun listBy() {
-		val manual = JRadioButton("Order on Palm (manual)")
-		val alpha = JRadioButton("Alphabetic")
+		val manual = JRadioButton("Order on handheld").apply { mnemonic = KeyEvent.VK_H; font = Theme.font }
+		val alpha = JRadioButton("Alphabetical").apply { mnemonic = KeyEvent.VK_A; font = Theme.font }
 		ButtonGroup().apply { add(manual); add(alpha) }
 		if (Settings.get("memoSort", "0") == "1") alpha.isSelected = true else manual.isSelected = true
-		val panel = JPanel(GridLayout(0, 1)).apply { add(manual); add(alpha) }
-		val ok = JOptionPane.showConfirmDialog(this, panel, "List by...", JOptionPane.OK_CANCEL_OPTION)
+		val panel = JPanel(GridLayout(0, 1)).apply {
+			border = BorderFactory.createTitledBorder("Record Order")
+			add(manual)
+			add(alpha)
+		}
+		val ok = JOptionPane.showConfirmDialog(this, panel, "List By", JOptionPane.OK_CANCEL_OPTION)
 		if (ok != JOptionPane.OK_OPTION) return
 		Settings.set("memoSort", if (alpha.isSelected) "1" else "0")
 		App.refresh()

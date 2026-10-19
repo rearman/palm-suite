@@ -2,6 +2,7 @@ package com.rearman.palmdesktop
 
 import java.awt.Color
 import java.awt.Font
+import java.awt.GraphicsEnvironment
 import java.util.Collections
 import javax.swing.UIManager
 import javax.swing.plaf.metal.DefaultMetalTheme
@@ -9,8 +10,11 @@ import javax.swing.plaf.metal.MetalLookAndFeel
 
 /** The Palm Desktop look: the Windows classic look and feel where it exists, one font and the Palm colors. */
 object Theme {
-	val font: Font = Font(Font.DIALOG, Font.PLAIN, 12)
-	val bold: Font = Font(Font.DIALOG, Font.BOLD, 12)
+	/** The small Windows dialog font. Tahoma when it is installed, else the logical dialog font. */
+	private val family: String =
+		if (GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.contains("Tahoma")) "Tahoma" else Font.DIALOG
+	val font: Font = Font(family, Font.PLAIN, 11)
+	val bold: Font = Font(family, Font.BOLD, 11)
 	val dateRed: Color = Color(255, 0, 0)
 	val select: Color = Color(0, 120, 215)
 	val grid: Color = Color(160, 160, 160)
@@ -28,8 +32,9 @@ object Theme {
 			UIManager.setLookAndFeel(MetalLookAndFeel())
 		}
 		// Copy the keys first: the defaults table is not changed while it is read.
-		for (key in Collections.list(UIManager.getDefaults().keys())) {
-			if (UIManager.get(key) is Font) UIManager.put(key, font)
+		val defaults = UIManager.getLookAndFeelDefaults()
+		for (key in Collections.list(defaults.keys())) {
+			if (key is String && key.endsWith(".font")) UIManager.put(key, font)
 		}
 	}
 }

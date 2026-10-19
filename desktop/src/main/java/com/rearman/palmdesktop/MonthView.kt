@@ -34,7 +34,7 @@ private fun fitText(text: String, fm: FontMetrics, w: Int): String {
 
 /** Month view: a grid of six weeks, with the events of each day in its cell. */
 class MonthView : JPanel(BorderLayout()) {
-	private val nav = DateNav { dir -> App.day = Fmt.ld(App.day).plusMonths(dir.toLong()).toEpochDay(); App.refresh() }
+	private val nav = DateNav("month") { dir -> App.day = Fmt.ld(App.day).plusMonths(dir.toLong()).toEpochDay(); App.refresh() }
 	private var gridStart = 0L
 	private var days: List<List<Occ>> = emptyList()
 	private val grid = MonthGrid()

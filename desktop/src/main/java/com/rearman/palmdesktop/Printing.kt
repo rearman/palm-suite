@@ -16,11 +16,14 @@ import javax.swing.JOptionPane
 
 /** Prints the lines of an [AppView]. */
 object Printing {
+	/** The paper and margins from File > Page Setup; null uses the printer default. */
+	var pageFormat: PageFormat? = null
+
 	fun print(owner: Component, view: AppView) {
 		val (title, lines) = view.printLines()
 		val job = PrinterJob.getPrinterJob()
 		try {
-			job.setPrintable(LinesPrintable(title, lines))
+			job.setPrintable(LinesPrintable(title, lines), pageFormat ?: job.defaultPage())
 			if (job.printDialog()) job.print()
 		} catch (e: PrinterException) {
 			JOptionPane.showMessageDialog(owner, "The print job failed.\n${e.message ?: ""}", "Print", JOptionPane.ERROR_MESSAGE)
