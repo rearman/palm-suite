@@ -3,6 +3,10 @@ package com.rearman.palmdesktop
 import java.awt.Color
 import java.awt.Font
 import java.awt.GraphicsEnvironment
+import java.awt.Paint
+import java.awt.Rectangle
+import java.awt.TexturePaint
+import java.awt.image.BufferedImage
 import java.util.Collections
 import javax.swing.UIManager
 import javax.swing.plaf.metal.DefaultMetalTheme
@@ -19,6 +23,15 @@ object Theme {
 	val select: Color = Color(0, 120, 215)
 	val grid: Color = Color(160, 160, 160)
 	val otherMonth: Color = Color(240, 240, 240)
+	/** The Day view fill of an event: the Palm Desktop checkerboard of yellow and white pixels, #FFFF88 on average. */
+	val eventFill: Paint by lazy {
+		val img = BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB)
+		img.setRGB(0, 0, 0xFFFF00)
+		img.setRGB(1, 1, 0xFFFF00)
+		img.setRGB(1, 0, 0xFFFFFF)
+		img.setRGB(0, 1, 0xFFFFFF)
+		TexturePaint(img, Rectangle(0, 0, 2, 2))
+	}
 	val panel: Color get() = UIManager.getColor("Panel.background")
 
 	/** Sets the look and feel and the default fonts. Call it once, before any window is built. */

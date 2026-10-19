@@ -395,28 +395,9 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 	private fun visible(): List<Todo> {
 		val cat = Settings.getInt("todoCategory", -1)
-		val showDone = Settings.getBool("todoShowDone", false)
-		val onlyDue = Settings.getBool("todoOnlyDue", false)
 		return App.store.todos
-			.filter { t ->
-				(App.showPrivate || !t.isPrivate) &&
-					(cat == -1 || t.category == cat) &&
-					(showDone || !t.done) &&
-					(!onlyDue || isDueByToday(t))
-			}
-			.sortedWith(order())
-	}
-
-	private fun order(): Comparator<Todo> {
-		val byPriority = compareBy<Todo> { it.priority }
-		val byDue = compareBy<Todo> { if (it.due < 0) Long.MAX_VALUE else it.due }
-		val byCategory = compareBy<Todo> { App.store.categoryName(it.category).lowercase() }
-		return when (Settings.getInt("todoSort", 0)) {
-			1 -> byPriority.thenComparing(byDue)
-			2 -> byCategory.thenComparing(byPriority)
-			3 -> byCategory.thenComparing(byDue)
-			else -> byDue.thenComparing(byPriority)
-		}
+			.filter { t -> (cat == -1 || t.category == cat) && todoShown(t) }
+			.sortedWith(todoOrder())
 	}
 
 	/** Makes the item visible in the table by changing the filters when needed. */
@@ -515,12 +496,6 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		App.refresh()
 	}
 
-	/** Sets the done flag. A new completion sets the due date to today when Settings "todoRecordDone" is on. */
-	private fun markDone(t: Todo, done: Boolean) {
-		if (done && !t.done && Settings.getBool("todoRecordDone", false)) t.due = today()
-		t.done = done
-	}
-
 	/** The Show Options dialog: sort order and the view filters, and which columns the list shows. */
 	fun showOptions() {
 		val dlg = JDialog(SwingUtilities.getWindowAncestor(this), "Show Options", Dialog.ModalityType.APPLICATION_MODAL)
@@ -599,16 +574,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	private fun selectedTodo(): Todo? = App.store.todos.firstOrNull { it.id == selectedId }
 
 	private fun today() = LocalDate.now().toEpochDay()
-	private fun isOverdue(t: Todo) = !t.done && t.due >= 0 && t.due < today()
-	private fun isDueByToday(t: Todo) = t.due >= 0 && t.due <= today()
 	private fun firstLine(s: String) = s.lineSequence().firstOrNull() ?: ""
-
-	/** The due text of the table: M/d, with "!" when overdue, or "-" when no date. */
-	private fun dueLabel(t: Todo): String {
-		if (t.due < 0) return "-"
-		val d = LocalDate.ofEpochDay(t.due)
-		return "${d.monthValue}/${d.dayOfMonth}" + if (isOverdue(t)) "!" else ""
-	}
 
 	/** The due text of the Due box: M/d/yyyy, or empty when no date. */
 	private fun dateText(due: Long): String {
@@ -616,4 +582,44 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		val d = LocalDate.ofEpochDay(due)
 		return "${d.monthValue}/${d.dayOfMonth}/${d.year}"
 	}
+}
+
+// The To Do List and the To Do part of the Day view share these, so both follow the Show Options.
+
+/** True when [t] is not done and its due date is before today. */
+fun isOverdue(t: Todo) = !t.done && t.due >= 0 && t.due < LocalDate.now().toEpochDay()
+
+/** Sets the done flag. A new completion sets the due date to today when Settings "todoRecordDone" is on. */
+fun markDone(t: Todo, done: Boolean) {
+	if (done && !t.done && Settings.getBool("todoRecordDone", false)) t.due = LocalDate.now().toEpochDay()
+	t.done = done
+}
+
+/** True when [t] has a due date of today or earlier. */
+fun isDueByToday(t: Todo) = t.due >= 0 && t.due <= LocalDate.now().toEpochDay()
+
+/** True when the private setting and the Show Options (completed items, only due items) let [t] show. */
+fun todoShown(t: Todo): Boolean =
+	(App.showPrivate || !t.isPrivate) &&
+		(Settings.getBool("todoShowDone", false) || !t.done) &&
+		(!Settings.getBool("todoOnlyDue", false) || isDueByToday(t))
+
+/** The sort order of the Show Options. */
+fun todoOrder(): Comparator<Todo> {
+	val byPriority = compareBy<Todo> { it.priority }
+	val byDue = compareBy<Todo> { if (it.due < 0) Long.MAX_VALUE else it.due }
+	val byCategory = compareBy<Todo> { App.store.categoryName(it.category).lowercase() }
+	return when (Settings.getInt("todoSort", 0)) {
+		1 -> byPriority.thenComparing(byDue)
+		2 -> byCategory.thenComparing(byPriority)
+		3 -> byCategory.thenComparing(byDue)
+		else -> byDue.thenComparing(byPriority)
+	}
+}
+
+/** The due text of a To Do: M/d, with "!" when overdue, or "-" when no date. */
+fun dueLabel(t: Todo): String {
+	if (t.due < 0) return "-"
+	val d = LocalDate.ofEpochDay(t.due)
+	return "${d.monthValue}/${d.dayOfMonth}" + if (isOverdue(t)) "!" else ""
 }

@@ -26,10 +26,10 @@ import java.util.Locale
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
-import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.Icon
 import javax.swing.JButton
+import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.JList
@@ -37,9 +37,11 @@ import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JToggleButton
+import javax.swing.ListCellRenderer
 import javax.swing.Scrollable
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
+import javax.swing.border.EmptyBorder
 
 /**
  * The Date view: the Day grid, the right pane (calendar and To Do list) and the view tabs.
@@ -49,8 +51,10 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 	private companion object {
 		const val TIME_W = 52        // width of the time column
-		const val UNTIMED_H = 22     // height of the untimed row
-		const val HALF = 20          // pixels per half hour
+		const val UNTIMED_H = 18     // height of one untimed row
+		const val HALF = 19          // pixels per half hour (Palm Desktop: 38 px per hour)
+		const val BAR_W = 9          // width of the gray bar on the right edge of an event
+		const val SEL_H = 4          // height of the blue bar along the bottom of a selected event
 		const val PANE_W = 240       // width of the right pane
 	}
 
@@ -59,13 +63,17 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private val weekView = WeekView()
 	private val monthView = MonthView()
 	private val titleLabel = JLabel("", SwingConstants.CENTER)
-	private val grid = DayGrid()
+	private val grid = DayGrid(false)
+	private val dayHeader = DayGrid(true)
 	private val editBtn = button("Edit...") { editSelected() }.apply { mnemonic = KeyEvent.VK_E }
 	private val yearLabel = JLabel("", SwingConstants.CENTER)
 	private val monthButtons = List(12) { i -> JButton(Fmt.monthShort[i]) }
 	private val calendar = MiniCalendar()
 	private val todoModel = DefaultListModel<Todo>()
-	private val todoList = JList(todoModel)
+	// The rows take the width of the pane, so a long description is cut short and the list has no horizontal scroll bar.
+	private val todoList = object : JList<Todo>(todoModel) {
+		override fun getScrollableTracksViewportWidth(): Boolean = true
+	}
 	private val catCombo = JComboBox<String>()
 	private val rightPane = JPanel(BorderLayout())
 	private val tabGroup = ButtonGroup()
@@ -77,20 +85,51 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private var catId: Int? = null
 	private var updating = false
 	private var occs: List<Occ> = emptyList()
+	private var untimedH = UNTIMED_H   // height of the untimed rows: one row for each untimed event, at least one
 	private var selectedId: Long? = null
 	private val repeatIcon: Icon by lazy { Icons.repeat() }
 	private val alarmIcon: Icon by lazy { Icons.alarm() }
 	private val noteIcon: Icon by lazy { Icons.note() }
 	private val privateIcon: Icon by lazy { Icons.privateRecord() }
 
-	private val todoRenderer = object : DefaultListCellRenderer() {
+	/**
+	 * A To Do row as Palm Desktop shows it, after the Show Options: check box, priority, description and
+	 * a due date column. A selected row highlights the description only.
+	 */
+	private val todoRenderer = object : JPanel(BorderLayout(2, 0)), ListCellRenderer<Todo> {
+		val check = JCheckBox()   // the list mouse listener reads its width to find a click on it
+		private val pri = JLabel()
+		private val title = JLabel()
+		private val due = JLabel()
+
+		init {
+			background = Color.WHITE
+			val lead = JPanel(FlowLayout(FlowLayout.LEFT, 2, 0))
+			lead.isOpaque = false
+			check.isOpaque = false
+			lead.add(check)
+			lead.add(pri)
+			for (l in listOf(pri, title, due)) l.font = Theme.font
+			title.isOpaque = true
+			due.preferredSize = Dimension(45, 0)
+			add(lead, BorderLayout.WEST)
+			add(title, BorderLayout.CENTER)
+			add(due, BorderLayout.EAST)
+			border = EmptyBorder(0, 0, 0, 4)
+		}
+
 		override fun getListCellRendererComponent(
-			list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean
+			list: JList<out Todo>?, value: Todo?, index: Int, isSelected: Boolean, cellHasFocus: Boolean
 		): java.awt.Component {
-			super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-			val t = value as? Todo
-			text = if (t == null) "" else "[ ] ${t.priority}  ${t.title}"
-			font = Theme.font
+			val t = value ?: return this
+			check.isSelected = t.done
+			pri.isVisible = Settings.getBool("todoShowPri", false)
+			pri.text = t.priority.toString()
+			title.text = t.title.replace('\n', ' ')
+			title.background = if (isSelected) Theme.select else Color.WHITE
+			title.foreground = if (isSelected) Color.YELLOW else Color.BLACK
+			due.isVisible = Settings.getBool("todoShowDue", true)
+			due.text = if (t.due < 0) "" else dueLabel(t)
 			return this
 		}
 	}
@@ -195,8 +234,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			BorderFactory.createLineBorder(Theme.grid), BorderFactory.createEmptyBorder(2, 0, 2, 0)
 		)
 		val scroll = JScrollPane(grid)
+		scroll.setColumnHeaderView(dayHeader)   // the untimed rows stay in view, as in Palm Desktop
 		scroll.verticalScrollBar.unitIncrement = 20
-		// The grid starts at the top, as in Palm Desktop, so the untimed row shows.
 		editBtn.isEnabled = false
 		// Double click on the title picks the day, as Palm Desktop does.
 		titleLabel.addMouseListener(object : MouseAdapter() {
@@ -251,7 +290,14 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		top.add(calendar)
 
 		val todoLabel = JLabel("To Do")
-		todoLabel.font = Theme.bold
+		// Palm Desktop shows the list under a selected "To Do" tab.
+		todoLabel.font = Theme.font
+		todoLabel.isOpaque = true
+		todoLabel.background = Theme.select
+		todoLabel.foreground = Color.WHITE
+		todoLabel.border = BorderFactory.createCompoundBorder(
+			BorderFactory.createLineBorder(Color.BLACK), BorderFactory.createEmptyBorder(1, 8, 1, 8)
+		)
 		catCombo.font = Theme.font
 		catCombo.addActionListener {
 			if (!updating) {
@@ -267,8 +313,17 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		todoList.cellRenderer = todoRenderer
 		todoList.addMouseListener(object : MouseAdapter() {
 			override fun mouseClicked(e: MouseEvent) {
-				val item = todoList.selectedValue
-				if (e.clickCount == 2 && item != null) App.show("todo", item)
+				val idx = todoList.locationToIndex(e.point)
+				if (idx < 0 || todoList.getCellBounds(idx, idx)?.contains(e.point) != true) return
+				val item = todoModel.getElementAt(idx)
+				// A click on the check box marks the item done, or not done, as in Palm Desktop.
+				if (e.x < todoRenderer.check.preferredSize.width + 4) {
+					markDone(item, !item.done)
+					App.store.save(item)
+					App.refresh()
+				} else if (e.clickCount == 2) {
+					App.show("todo", item)
+				}
 			}
 		})
 		val todoPart = JPanel(BorderLayout())
@@ -299,13 +354,15 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		val day = LocalDate.ofEpochDay(App.day)
 		titleLabel.text = dateTitle(App.day)
 		occs = dayOccs()
+		untimedH = maxOf(1, occs.count { it.event.untimed }) * UNTIMED_H
 		if (selectedOcc() == null) selectedId = null
 		editBtn.isEnabled = selectedOcc() != null
 		yearLabel.text = day.year.toString()
 		for ((i, b) in monthButtons.withIndex()) styleMonth(b, i == day.monthValue - 1)
 		rebuildCategories()
 		rebuildTodos()
-		grid.repaint()
+		dayHeader.revalidate()   // the untimed rows change the header height
+		repaintDay()
 		calendar.repaint()
 	}
 
@@ -349,19 +406,24 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 	private fun rebuildTodos() {
 		val items = App.store.todos
-			.filter { !it.done && (App.showPrivate || !it.isPrivate) && (catId == null || it.category == catId) }
-			.sortedBy { it.priority }
+			.filter { (catId == null || it.category == catId) && todoShown(it) }
+			.sortedWith(todoOrder())
 		todoModel.clear()
 		items.forEach { todoModel.addElement(it) }
 	}
 
-	// Day grid geometry: 20 px per half hour, the untimed row on top.
+	// Day grid geometry: HALF px per half hour. The untimed rows are in a fixed header above the grid.
 
-	/** Pixel row of a time in minutes after midnight. */
-	private fun yOf(min: Int): Int = UNTIMED_H + min * HALF / 30
+	/** Pixel row on the grid of a time in minutes after midnight. */
+	private fun yOf(min: Int): Int = min * HALF / 30
 
-	/** Minutes after midnight at a pixel row (inverse of yOf). */
-	private fun minAt(y: Int): Int = (y - UNTIMED_H) * 30 / HALF
+	/** Minutes after midnight at a pixel row of the grid (inverse of yOf). */
+	private fun minAt(y: Int): Int = y * 30 / HALF
+
+	private fun repaintDay() {
+		dayHeader.repaint()
+		grid.repaint()
+	}
 
 	private fun overlaps(a: Event, b: Event): Boolean = a.start < b.end && b.start < a.end
 
@@ -375,18 +437,17 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		return m
 	}
 
-	private fun markerWidth(e: Event): Int = markers(e).sumOf { it.iconWidth + 2 }
-
-	/** Bounds of each event on the Day grid for a grid [width] in pixels. */
+	/**
+	 * Bounds of each event for a [width] in pixels: an untimed event on its own full-width row of the
+	 * header, as in Palm Desktop, and a timed event on the grid.
+	 */
 	private fun layoutDay(width: Int): List<Pair<Occ, Rectangle>> {
-		val fm = grid.getFontMetrics(Theme.font)
 		val out = ArrayList<Pair<Occ, Rectangle>>()
-		var x = TIME_W + 4
+		var row = 0
 		for (o in occs) {
 			if (!o.event.untimed) continue
-			val w = markerWidth(o.event) + fm.stringWidth(o.event.title) + 12
-			out.add(o to Rectangle(x, 2, w, UNTIMED_H - 4))
-			x += w + 4
+			out.add(o to Rectangle(TIME_W + 2, row * UNTIMED_H + 1, width - TIME_W - 4, UNTIMED_H - 2))
+			row++
 		}
 		val timed = occs.filter { !it.event.untimed }
 		// Column of each event: the first column that is free at its start.
@@ -401,7 +462,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			colEnd[c] = o.event.end
 			col[i] = c
 		}
-		val areaW = width - TIME_W - 8
+		val areaW = width - TIME_W - 2
 		for ((i, o) in timed.withIndex()) {
 			// Column count of an event: the widest column among the events it overlaps.
 			var n = col[i] + 1
@@ -411,7 +472,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			val colW = areaW / n
 			val top = yOf(o.event.start)
 			val bottom = maxOf(yOf(o.event.end), top + HALF)
-			out.add(o to Rectangle(TIME_W + 4 + col[i] * colW, top, colW - 2, bottom - top))
+			// Palm Desktop keeps a 2 px gap between the box and the grid lines.
+			out.add(o to Rectangle(TIME_W + 2 + col[i] * colW, top + 2, colW - 2, bottom - top - 3))
 		}
 		return out
 	}
@@ -426,23 +488,26 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 	// Inner components
 
-	/** The Day grid: the time column, the untimed row and the events. */
-	private inner class DayGrid : JPanel(), Scrollable {
+	/**
+	 * The Day grid ([header] false: the time column and the timed events) or the fixed header above it
+	 * ([header] true: one row for each untimed event, with the diamond mark).
+	 */
+	private inner class DayGrid(private val header: Boolean) : JPanel(), Scrollable {
 		init {
 			isOpaque = true
 			background = Color.WHITE
 			addMouseListener(object : MouseAdapter() {
 				override fun mouseClicked(e: MouseEvent) {
-					val hit = layoutDay(width).firstOrNull { it.second.contains(e.point) }
+					val hit = layoutDay(width).firstOrNull { it.first.event.untimed == header && it.second.contains(e.point) }
 					if (hit != null) {
 						selectedId = hit.first.event.id
 						editBtn.isEnabled = true
-						repaint()
+						repaintDay()
 						if (e.clickCount == 2) EventDialog.edit(this@DatePanel, hit.first.event, App.day)
-					} else if (e.y >= UNTIMED_H && e.x >= TIME_W) {
+					} else if (!header && e.x >= TIME_W) {
 						selectedId = null
 						editBtn.isEnabled = false
-						repaint()
+						repaintDay()
 						if (e.clickCount == 2) {
 							val min = (minAt(e.y) / 30 * 30).coerceIn(0, 23 * 60 + 30)
 							EventDialog.edit(this@DatePanel, null, App.day, min)
@@ -452,60 +517,73 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			})
 		}
 
-		override fun getPreferredSize(): Dimension = Dimension(300, yOf(24 * 60) + 1)
+		override fun getPreferredSize(): Dimension = Dimension(300, if (header) untimedH else yOf(24 * 60) + 1)
 
 		override fun paintComponent(g: Graphics) {
 			super.paintComponent(g)
+			g.color = Theme.panel
+			g.fillRect(0, 0, TIME_W, height)
 			g.font = Theme.font
 			val fm = g.fontMetrics
-			for (h in 0 until 24) {
-				val y = yOf(h * 60)
-				g.color = Theme.grid
-				g.drawLine(TIME_W, y, width, y)
-				val label = Fmt.timeShort(h * 60)
+			if (header) {
 				g.color = Color.BLACK
-				g.drawString(label, TIME_W - 12 - fm.stringWidth(label), y + (fm.ascent - fm.descent) / 2)
-				g.drawLine(TIME_W - 8, y, TIME_W - 3, y)
+				for (i in 0 until untimedH / UNTIMED_H) drawDiamond(g, TIME_W / 2, i * UNTIMED_H + UNTIMED_H / 2)
+				g.color = Theme.grid
+				g.drawLine(0, height - 1, width, height - 1)
+			} else {
+				for (h in 0 until 24) {
+					val y = yOf(h * 60)
+					g.color = Theme.grid
+					g.drawLine(0, y, width, y)
+					// The label and its tick sit in the middle of the hour, as in Palm Desktop.
+					val mid = y + HALF
+					val label = Fmt.timeShort(h * 60)
+					g.color = Color.BLACK
+					g.drawString(label, TIME_W - 10 - fm.stringWidth(label), mid + (fm.ascent - fm.descent) / 2)
+					g.drawLine(TIME_W - 7, mid, TIME_W - 3, mid)
+				}
+				g.color = Theme.grid
+				g.drawLine(0, yOf(24 * 60), width, yOf(24 * 60))
 			}
 			g.color = Theme.grid
-			g.drawLine(TIME_W, yOf(24 * 60), width, yOf(24 * 60))
-			g.drawLine(0, UNTIMED_H - 1, width, UNTIMED_H - 1)
 			g.drawLine(TIME_W, 0, TIME_W, height)
-			g.color = Color.BLACK
-			drawDiamond(g, TIME_W / 2, UNTIMED_H / 2)
 
 			for ((o, r) in layoutDay(width)) {
 				val ev = o.event
+				if (ev.untimed != header) continue
 				val sel = ev.id == selectedId
-				val timed = !ev.untimed
 				val g2 = g.create() as Graphics2D
 				g2.clipRect(r.x, r.y, r.width, r.height)
-				g2.color = if (sel) Theme.select else Color.WHITE
+				// Palm Desktop draws each event as a yellow box with a black outline and a gray bar on the right edge.
+				// A selected event has a darker bar and a blue bar along the bottom.
+				g2.paint = Theme.eventFill
 				g2.fillRect(r.x, r.y, r.width, r.height)
-				if (!sel) {
-					g2.color = Color.BLACK
-					g2.drawRect(r.x, r.y, r.width - 1, r.height - 1)
+				g2.color = if (sel) Color.GRAY else Color.LIGHT_GRAY
+				g2.fillRect(r.x + r.width - BAR_W, r.y, BAR_W, r.height)
+				if (sel) {
+					g2.color = Theme.select
+					g2.fillRect(r.x + 1, r.y + r.height - 1 - SEL_H, r.width - BAR_W - 1, SEL_H)
 				}
-				if (timed) {
-					// Time bar for the duration of the event.
-					g2.color = Color.BLACK
-					g2.fillRect(r.x, r.y, 4, r.height)
-				}
-				var x = r.x + (if (timed) 8 else 4)
+				g2.color = Color.BLACK
+				g2.drawRect(r.x, r.y, r.width - 1, r.height - 1)
+				g2.drawLine(r.x + r.width - BAR_W, r.y, r.x + r.width - BAR_W, r.y + r.height - 1)
+				g2.clipRect(r.x, r.y, r.width - BAR_W, r.height)   // the title stops at the bar
+				var x = r.x + 3
 				for (icon in markers(ev)) {
-					val iy = if (timed) r.y + 2 else r.y + (r.height - icon.iconHeight) / 2
+					val iy = if (header) r.y + (r.height - icon.iconHeight) / 2 else r.y + 2
 					icon.paintIcon(this, g2, x, iy)
 					x += icon.iconWidth + 2
 				}
-				val ty = if (timed) r.y + fm.ascent + 1 else r.y + (r.height + fm.ascent - fm.descent) / 2
-				g2.color = if (sel) Color.WHITE else Color.BLACK
+				val ty = if (header) r.y + (r.height + fm.ascent - fm.descent) / 2 else r.y + fm.ascent + 1
+				g2.color = Color.BLACK
 				g2.font = Theme.font
 				g2.drawString(ev.title, x, ty)
 				g2.dispose()
 			}
 		}
 
-		override fun getPreferredScrollableViewportSize(): Dimension = Dimension(300, 400)
+		// The column header viewport takes its height from here, so the header returns its own size.
+		override fun getPreferredScrollableViewportSize(): Dimension = if (header) preferredSize else Dimension(300, 400)
 		override fun getScrollableUnitIncrement(visible: Rectangle, orientation: Int, direction: Int): Int = 10
 		override fun getScrollableBlockIncrement(visible: Rectangle, orientation: Int, direction: Int): Int = visible.height
 		override fun getScrollableTracksViewportWidth(): Boolean = true
