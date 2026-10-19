@@ -123,10 +123,20 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 
 ## Desktop
 
-- Palm Desktop runs on Windows and Linux. At this stage it shows the list of
-  synced records. It reads from the sync server and never writes.
+Palm Desktop for Windows and Linux follows Palm Desktop 3.1.1. It has the Date
+Book (Day, Week and Month views), the To Do List and the Memo Pad. It also has
+categories, private records, Find, Purge, Import and Export, and Print.
+Import and Export use iCalendar files and the Date Book backup file.
+
 - Download `palm-desktop-windows.zip` or `palm-desktop-linux.tar.gz` from a
   `desktop-v*` release, unpack it and run `palm-desktop`. It holds its own
   Java runtime.
-- Enter the server, a device token and the sync passphrase, then click Sync.
-  The app saves the server and the token. It never saves the passphrase.
+- The app keeps its records in `desktop-data.json` in your config folder
+  (`%APPDATA%\palm-suite` on Windows, `~/.config/palm-suite` on Linux). It
+  works offline.
+- To set up sync, choose Tools > Sync Setup... and enter the server, the
+  device token and the sync passphrase. The app saves the token and the sync
+  key in a file that only your user account can read.
+- The app syncs with `palmsync` at start, 30 seconds after a change, every
+  hour, and when you choose Tools > Sync Now.
+- When the same record changed on two devices, the app keeps both copies.
