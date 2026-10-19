@@ -1,4 +1,4 @@
-package com.rearman.datebook
+package com.rearman.palmsync
 
 import org.json.JSONArray
 import org.json.JSONObject

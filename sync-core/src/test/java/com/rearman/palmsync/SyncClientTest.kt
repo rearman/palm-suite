@@ -1,4 +1,4 @@
-package com.rearman.datebook
+package com.rearman.palmsync
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals

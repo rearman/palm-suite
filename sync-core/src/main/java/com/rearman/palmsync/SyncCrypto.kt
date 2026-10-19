@@ -1,4 +1,4 @@
-package com.rearman.datebook
+package com.rearman.palmsync
 
 import java.security.GeneralSecurityException
 import java.security.SecureRandom

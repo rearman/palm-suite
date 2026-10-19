@@ -28,7 +28,7 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build APKs
-        run: gradle assembleDebug testDebugUnitTest --stacktrace
+        run: gradle assembleDebug testDebugUnitTest :sync-core:test --stacktrace
 
       # A tag build names the APK of its app after the tag, for example datebook-v1.2.apk.
       - name: Rename APKs

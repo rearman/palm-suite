@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Three Android apps after the Palm OS 3.5 Date Book, To Do List and Memo Pad, in one APK. Each app has its own launcher icon and task. The Date Book and To Do List apps use the same records. All three apps use the one `Store` database. Kotlin, plain Android Views (no AndroidX, no Compose, no XML layouts), no dependencies. minSdk 26, compileSdk and targetSdk 34, JDK 17. Version control is jj.
+Three Android apps after the Palm OS 3.5 Date Book, To Do List and Memo Pad, in one APK. Each app has its own launcher icon and task. The Date Book and To Do List apps use the same records. All three apps use the one `Store` database. Kotlin, plain Android Views (no AndroidX, no Compose, no XML layouts), no dependencies other than the repository modules `:palm-ui` and `:sync-core`. minSdk 26, compileSdk and targetSdk 34, JDK 17. Version control is jj.
 
 ## Build
 
@@ -39,7 +39,7 @@ All source is in `app/src/main/java/com/rearman/datebook/`.
 - **UI kit:** the shared `palm-ui` module (see the root `CLAUDE.md`) holds the Palm colors, font, Palm px, view builders, `PalmDialog`, `popupList` and the menu bar. Each Date Book file imports `com.rearman.palmui.*`. `MainActivity.render()` sets `Palm.text` from the Font option. Use these builders for new UI. Use `dp()` only for gesture distances.
 - **ShortCuts:** `palm-ui` `ShortCuts.kt` holds the list logic. `Prefs.shortCuts` saves the list. `MainActivity.onCreate` sets `ShortCuts.list`, `date` and `time`. The ShortCut forms are `showShortCuts` in `Details.kt`.
 - **iCalendar** (`ICal.kt`): `ICal.export` writes events with floating local times. `ICal.parse` reads a `.ics` file into events, splits a timed event that goes past midnight into one event for each day, and counts the file events it had to simplify. `Store.addEvents` adds them less duplicates (`dupKey`). The import in `MainActivity.onActivityResult` reads a file that starts with `BEGIN:VCALENDAR` as iCalendar and any other file as a backup.
-- **Sync** (`SyncEngine.kt` and helpers): `SyncCrypto` (PBKDF2 and AES-GCM), `SyncCodec` (record JSON), `SyncClient` (HTTP), `SyncLogic.decide` (the keep-both table), `KeyVault` (Keystore-wrapped key and token), `SyncJob` (JobScheduler: hourly, and 30 s after `Store.onWrite`), `SyncForm.kt` (Options > Sync...). Network work runs on a worker thread; Store work runs on the main thread. `Store` sync functions: `dirtyRows`, `syncRow`, `markSynced`, `putRemote`, `dropRemote`, `resetSync`.
+- **Sync** (`SyncEngine.kt` and helpers): `SyncCrypto` (PBKDF2 and AES-GCM) and `SyncClient` (HTTP) from the `sync-core` module, `SyncCodec` (record JSON), `SyncLogic.decide` (the keep-both table), `KeyVault` (Keystore-wrapped key and token), `SyncJob` (JobScheduler: hourly, and 30 s after `Store.onWrite`), `SyncForm.kt` (Options > Sync...). Network work runs on a worker thread; Store work runs on the main thread. `Store` sync functions: `dirtyRows`, `syncRow`, `markSynced`, `putRemote`, `dropRemote`, `resetSync`.
 - `Grids.kt`: custom-drawn `WeekGrid` and `MonthGrid` views, and `lanes()` for overlapping time bars. `Details.kt`: the event and to-do details dialogs, and the Options dialogs (as `MainActivity` extension functions). `Pickers.kt`: date, time, repeat and note dialogs. `Memo.kt`: the Memo Pad screens (extension functions of `MainActivity`).
 
 ## Conventions

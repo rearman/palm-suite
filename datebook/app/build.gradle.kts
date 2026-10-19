@@ -47,6 +47,7 @@ android {
 
 dependencies {
     implementation(project(":palm-ui"))
+    implementation(project(":sync-core"))
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013") // Android's org.json is a stub in JVM tests
 }
