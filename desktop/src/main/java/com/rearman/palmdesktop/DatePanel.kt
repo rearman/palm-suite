@@ -65,7 +65,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private val titleLabel = JLabel("", SwingConstants.CENTER)
 	private val grid = DayGrid(false)
 	private val dayHeader = DayGrid(true)
-	private val editBtn = button("Edit...") { editSelected() }.apply { mnemonic = KeyEvent.VK_E }
+	private val editBtn = button("Edit...") { editSelected() }.apply { mnemonic = KeyEvent.VK_I }
 	private val yearLabel = JLabel("", SwingConstants.CENTER)
 	private val monthButtons = List(12) { i -> JButton(Fmt.monthShort[i]) }
 	private val calendar = MiniCalendar()
@@ -77,10 +77,10 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private val catCombo = JComboBox<String>()
 	private val rightPane = JPanel(BorderLayout())
 	private val tabGroup = ButtonGroup()
-	// D and M belong to the Date and Memo buttons of the launcher bar.
-	private val dayTab = VerticalTab("Day", 'y')
+	// The keys of Palm Desktop: Alt+D, Alt+W and Alt+M. The launcher buttons use F2, F4 and F5.
+	private val dayTab = VerticalTab("Day", 'D')
 	private val weekTab = VerticalTab("Week", 'W')
-	private val monthTab = VerticalTab("Month", 'n')
+	private val monthTab = VerticalTab("Month", 'M')
 	private var shownCats: List<Category> = emptyList()
 	private var catId: Int? = null
 	private var updating = false

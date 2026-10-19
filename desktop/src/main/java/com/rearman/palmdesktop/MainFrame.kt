@@ -307,15 +307,15 @@ class MainFrame : JFrame("Palm Desktop") {
 			BorderFactory.createRaisedBevelBorder(),
 			BorderFactory.createEmptyBorder(6, 2, 6, 2)
 		)
-		addLauncher(bar, "date", "Date", Icons.date(), 'D')
-		addLauncher(bar, "todo", "To Do", Icons.todo(), 'o')
-		addLauncher(bar, "memo", "Memo", Icons.memo(), 'M')
+		addLauncher(bar, "date", "Date", Icons.date())
+		addLauncher(bar, "todo", "To Do", Icons.todo())
+		addLauncher(bar, "memo", "Memo", Icons.memo())
 		return bar
 	}
 
-	private fun addLauncher(bar: JPanel, name: String, label: String, icon: Icon, c: Char) {
+	/** Adds a launcher button. It has no Alt key: F2, F4 and F5 from the View menu select the views, as in Palm Desktop. */
+	private fun addLauncher(bar: JPanel, name: String, label: String, icon: Icon) {
 		val button = JToggleButton(label, icon)
-		mnemonic(button, label, c)
 		button.verticalTextPosition = SwingConstants.BOTTOM
 		button.horizontalTextPosition = SwingConstants.CENTER
 		button.isFocusPainted = false
