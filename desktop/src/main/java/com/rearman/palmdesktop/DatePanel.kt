@@ -15,6 +15,7 @@ import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.GridLayout
 import java.awt.Insets
+import java.awt.Paint
 import java.awt.Point
 import java.awt.Rectangle
 import java.awt.event.KeyEvent
@@ -54,7 +55,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		const val UNTIMED_H = 18     // height of one untimed row
 		const val HALF = 19          // pixels per half hour (Palm Desktop: 38 px per hour)
 		const val BAR_W = 9          // width of the gray bar on the right edge of an event
-		const val SEL_H = 4          // height of the blue bar along the bottom of a selected event
+		const val SEL_H = 4          // height of the blue bar under a selected event
 		const val PANE_W = 240       // width of the right pane
 	}
 
@@ -425,6 +426,26 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		grid.repaint()
 	}
 
+	/**
+	 * Draws an event box as Palm Desktop does: [fill] with a black outline and a gray bar on the right edge.
+	 * A [selected] box has a darker bar and a blue bar under it.
+	 */
+	private fun drawBox(g: Graphics, r: Rectangle, fill: Paint, selected: Boolean) {
+		val g2 = g.create() as Graphics2D
+		g2.paint = fill
+		g2.fillRect(r.x, r.y, r.width, r.height)
+		g2.color = if (selected) Color.GRAY else Color.LIGHT_GRAY
+		g2.fillRect(r.x + r.width - BAR_W, r.y, BAR_W, r.height)
+		g2.color = Color.BLACK
+		g2.drawRect(r.x, r.y, r.width - 1, r.height - 1)
+		g2.drawLine(r.x + r.width - BAR_W, r.y, r.x + r.width - BAR_W, r.y + r.height - 1)
+		if (selected) {
+			g2.color = Theme.select
+			g2.fillRect(r.x, r.y + r.height, r.width, SEL_H)
+		}
+		g2.dispose()
+	}
+
 	private fun overlaps(a: Event, b: Event): Boolean = a.start < b.end && b.start < a.end
 
 	/** Marker icons of an event: repeat, alarm, note, private. */
@@ -517,7 +538,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			})
 		}
 
-		override fun getPreferredSize(): Dimension = Dimension(300, if (header) untimedH else yOf(24 * 60) + 1)
+		// The header keeps SEL_H below its last row for the blue bar of a selected event.
+		override fun getPreferredSize(): Dimension = Dimension(300, if (header) untimedH + SEL_H else yOf(24 * 60) + 1)
 
 		override fun paintComponent(g: Graphics) {
 			super.paintComponent(g)
@@ -548,25 +570,12 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			g.color = Theme.grid
 			g.drawLine(TIME_W, 0, TIME_W, height)
 
-			for ((o, r) in layoutDay(width)) {
+			// The selected event last, so its blue bar is on top of its neighbors.
+			for ((o, r) in layoutDay(width).sortedBy { it.first.event.id == selectedId }) {
 				val ev = o.event
 				if (ev.untimed != header) continue
-				val sel = ev.id == selectedId
+				drawBox(g, r, Theme.eventFill, ev.id == selectedId)
 				val g2 = g.create() as Graphics2D
-				g2.clipRect(r.x, r.y, r.width, r.height)
-				// Palm Desktop draws each event as a yellow box with a black outline and a gray bar on the right edge.
-				// A selected event has a darker bar and a blue bar along the bottom.
-				g2.paint = Theme.eventFill
-				g2.fillRect(r.x, r.y, r.width, r.height)
-				g2.color = if (sel) Color.GRAY else Color.LIGHT_GRAY
-				g2.fillRect(r.x + r.width - BAR_W, r.y, BAR_W, r.height)
-				if (sel) {
-					g2.color = Theme.select
-					g2.fillRect(r.x + 1, r.y + r.height - 1 - SEL_H, r.width - BAR_W - 1, SEL_H)
-				}
-				g2.color = Color.BLACK
-				g2.drawRect(r.x, r.y, r.width - 1, r.height - 1)
-				g2.drawLine(r.x + r.width - BAR_W, r.y, r.x + r.width - BAR_W, r.y + r.height - 1)
 				g2.clipRect(r.x, r.y, r.width - BAR_W, r.height)   // the title stops at the bar
 				var x = r.x + 3
 				for (icon in markers(ev)) {
