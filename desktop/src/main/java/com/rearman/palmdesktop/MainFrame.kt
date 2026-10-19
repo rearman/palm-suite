@@ -17,7 +17,9 @@ import java.awt.event.WindowEvent
 import java.awt.print.PageFormat
 import java.awt.print.PrinterJob
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.WeakHashMap
+import javax.swing.AbstractAction
 import javax.swing.AbstractButton
 import javax.swing.Action
 import javax.swing.BorderFactory
@@ -62,6 +64,11 @@ class MainFrame : JFrame("Palm Desktop") {
 	private val launcherButtons = HashMap<String, JToggleButton>()
 	private val viewItems = HashMap<String, JRadioButtonMenuItem>()
 	private val statusLabel = JLabel("Ready")
+	private val positionLabel = JLabel()
+	private val privateLabel = JLabel(Icons.privateRecord()).apply {
+		toolTipText = "Private records are hidden"
+		isVisible = !App.showPrivate
+	}
 	private val visibleIn = HashMap<JComponent, Set<String>>()
 	private lateinit var categoriesItem: JMenuItem
 	private lateinit var purgeItem: JMenuItem
@@ -80,6 +87,15 @@ class MainFrame : JFrame("Palm Desktop") {
 		contentPane.add(buildLauncher(), BorderLayout.WEST)
 		contentPane.add(center, BorderLayout.CENTER)
 		contentPane.add(buildStatusBar(), BorderLayout.SOUTH)
+		rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+			.put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, InputEvent.SHIFT_DOWN_MASK), "deleteNoConfirm")
+		rootPane.actionMap.put("deleteNoConfirm", object : AbstractAction() {
+			override fun actionPerformed(e: ActionEvent) {
+				deleteNoConfirm()
+			}
+		})
+		App.onPosition = { updatePosition() }
+		App.onRefresh { updatePosition() }
 		// The startView setting wins. Without it, the view of the last session opens.
 		val start = Settings.get("startView", "").ifEmpty { Settings.get("view", "date") }
 		switchTo(if (start in panels) start else "date")
@@ -88,6 +104,15 @@ class MainFrame : JFrame("Palm Desktop") {
 	/** Sets the text of the status bar. */
 	fun setStatus(text: String) {
 		statusLabel.text = text
+	}
+
+	/** Shows the selected date in the Date Book, and the position in the To Do List and Memo Pad. */
+	private fun updatePosition() {
+		positionLabel.text = if (current == "date") {
+			LocalDate.ofEpochDay(App.day).format(DateTimeFormatter.ofPattern("M/d/yy"))
+		} else {
+			currentView().position()
+		}
 	}
 
 	/** Shows the view [name] and selects [select] in it, when [select] is not null. */
@@ -104,6 +129,7 @@ class MainFrame : JFrame("Palm Desktop") {
 		launcherButtons.getValue(name).isSelected = true
 		viewItems.getValue(name).isSelected = true
 		updateMenus()
+		updatePosition()
 	}
 
 	/** Shows or hides the menu items that belong to one view, and sets the items that change with it. */
@@ -119,6 +145,17 @@ class MainFrame : JFrame("Palm Desktop") {
 		currentView().newRecord()
 	}
 
+	/** Shift+Delete: deletes the selection with no confirmation. Text fields keep their own delete. */
+	private fun deleteNoConfirm() {
+		if (KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner is JTextComponent) return
+		App.noConfirm = true
+		try {
+			currentView().deleteSelected()
+		} finally {
+			App.noConfirm = false
+		}
+	}
+
 	private fun printView() {
 		Printing.print(this, currentView())
 	}
@@ -131,6 +168,7 @@ class MainFrame : JFrame("Palm Desktop") {
 	private fun setShowPrivate(on: Boolean) {
 		App.showPrivate = on
 		Settings.setBool("showPrivate", on)
+		privateLabel.isVisible = !on
 		App.refresh()
 	}
 
@@ -201,7 +239,9 @@ class MainFrame : JFrame("Palm Desktop") {
 			m.add(radio(privacy, "Hide Private Records", 'H') { setShowPrivate(false) }
 				.also { it.isSelected = !App.showPrivate })
 			m.add(onlyIn(JPopupMenu.Separator(), "todo"))
-			m.add(onlyIn(item("Show...", 'w') { (todoPanel as? TodoPanel)?.showOptions() }, "todo"))
+			m.add(onlyIn(item("Show...", 'o') { (todoPanel as? TodoPanel)?.showOptions() }, "todo"))
+			m.add(onlyIn(JPopupMenu.Separator(), "memo"))
+			m.add(onlyIn(item("List By...", 'L') { (memoPanel as? MemoPanel)?.listBy() }, "memo"))
 		})
 		bar.add(menu("Tools", 'T').also { m ->
 			categoriesItem = item("Categories...", 'C') {
@@ -285,7 +325,9 @@ class MainFrame : JFrame("Palm Desktop") {
 		bar.addSeparator()
 		bar.add(toolButton(Icons.find(), "Find") { FindDialog.show(this) })
 		bar.addSeparator()
-		bar.add(toolButton(Icons.note(), "New") { newRecord() })
+		bar.add(toolButton(Icons.note(), "New Item") { newRecord() })
+		bar.add(Box.createHorizontalGlue())
+		bar.add(privateLabel)
 		return bar
 	}
 
@@ -336,10 +378,9 @@ class MainFrame : JFrame("Palm Desktop") {
 			BorderFactory.createEmptyBorder(2, 4, 2, 6)
 		)
 		statusLabel.font = Theme.font
-		val today = JLabel(LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("M/d/yyyy")))
-		today.font = Theme.font
+		positionLabel.font = Theme.font
 		bar.add(statusLabel, BorderLayout.WEST)
-		bar.add(today, BorderLayout.EAST)
+		bar.add(positionLabel, BorderLayout.EAST)
 		return bar
 	}
 }
