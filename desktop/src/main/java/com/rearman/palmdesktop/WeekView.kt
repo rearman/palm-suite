@@ -71,7 +71,7 @@ internal class DateNav(private val mode: String, private val step: (Int) -> Unit
 		left.add(arrowButton(SwingConstants.EAST) { step(1) })
 		val right = JPanel(FlowLayout(FlowLayout.RIGHT, 2, 2))
 		right.add(JButton("Today").apply {
-			mnemonic = KeyEvent.VK_T
+			mnemonic = KeyEvent.VK_O
 			addActionListener { App.day = todayEpoch(); App.refresh() }
 		})
 		title.font = Theme.bold

@@ -260,7 +260,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		bar.add(button("Today") {
 			App.day = LocalDate.now().toEpochDay()
 			App.refresh()
-		}.apply { mnemonic = KeyEvent.VK_T })
+		}.apply { mnemonic = KeyEvent.VK_O })
 		bar.add(editBtn)
 		bar.add(button("New...") { newRecord() }.apply { mnemonic = KeyEvent.VK_N })
 		val panel = JPanel(BorderLayout())
