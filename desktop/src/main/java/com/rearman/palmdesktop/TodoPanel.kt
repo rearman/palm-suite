@@ -11,8 +11,12 @@ import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.GridLayout
+import java.awt.Graphics
 import java.awt.Insets
+import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -30,12 +34,12 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	private val sortNames = arrayOf(
-		"Due Date, Priority",
 		"Priority, Due Date",
+		"Due Date, Priority",
 		"Category, Priority",
 		"Category, Due Date"
 	)
-	private val dueNames = arrayOf("Today", "Tomorrow", "One week later", "No Date", "Choose Date...")
+	private val dueNames = arrayOf("Today", "Tomorrow", "One week later", "No date", "Choose date...")
 	private val dayRenderer = DefaultListCellRenderer()
 
 	private var rows: List<Todo> = emptyList()   // the items the table shows
@@ -64,7 +68,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 	/** The table model. Its columns depend on the Settings "todoShowPri", "todoShowDue" and "todoShowCat". */
 	private inner class Model : AbstractTableModel() {
-		/** The kind of each column: 0 Done, 1 Priority, 2 To Do, 3 Due Date, 4 Category. */
+		/** The kind of each column: 0 Done, 1 Priority, 2 To Do, 3 Due Date, 4 Category, 5 Note and Private marks. */
 		var cols = intArrayOf(0, 2)
 
 		/** Sets the column kinds. The table makes new columns only when the kinds change. */
@@ -87,6 +91,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 				1 -> t.priority
 				2 -> t.title
 				3 -> t.due
+				5 -> ""
 				else -> App.store.categoryName(t.category)
 			}
 		}
@@ -102,6 +107,9 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	private inner class Cell : DefaultTableCellRenderer() {
+		private val noteIcon by lazy { Icons.note() }
+		private val privateIcon by lazy { Icons.privateRecord() }
+
 		override fun getTableCellRendererComponent(
 			t: JTable, value: Any?, sel: Boolean, focus: Boolean, row: Int, col: Int
 		): Component {
@@ -113,7 +121,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 				3 -> dueLabel(item)
 				else -> value?.toString() ?: ""
 			}
-			icon = if (kind == 2 && item.isPrivate) Icons.privateRecord() else null
+			icon = if (kind == 5) marks(item) else null
 			// Set on every cell: DefaultTableCellRenderer keeps the last value as the unselected color.
 			foreground = when {
 				sel -> Color.WHITE
@@ -121,6 +129,14 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 				else -> Color.BLACK
 			}
 			return this
+		}
+
+		/** The note and private icons of [t], side by side, or null when it has neither. */
+		private fun marks(t: Todo): Icon? {
+			val list = ArrayList<Icon>()
+			if (t.note.isNotEmpty()) list.add(noteIcon)
+			if (t.isPrivate) list.add(privateIcon)
+			return if (list.isEmpty()) null else IconRow(list)
 		}
 	}
 
@@ -150,22 +166,50 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		table.selectionForeground = Color.WHITE
 		table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
 		table.tableHeader = null
+		// Typing starts a new item (see keyTyped), so the table must not start a cell editor.
+		table.putClientProperty("JTable.autoStartsEdit", false)
 		table.selectionModel.addListSelectionListener { e ->
-			if (e.valueIsAdjusting || busy) return@addListSelectionListener
+			if (e.valueIsAdjusting) return@addListSelectionListener
+			App.positionChanged()
+			if (busy) return@addListSelectionListener
 			rows.getOrNull(table.selectedRow)?.let { loadDetails(it) }
 		}
+		table.addMouseListener(object : MouseAdapter() {
+			override fun mouseClicked(e: MouseEvent) {
+				if (e.clickCount != 1 || !SwingUtilities.isLeftMouseButton(e)) return
+				val r = table.rowAtPoint(e.point)
+				val c = table.columnAtPoint(e.point)
+				if (r < 0 || c < 0) return
+				val menu = when (model.cols[c]) {
+					1 -> priorityMenu(rows[r])
+					3 -> dueMenu(rows[r])
+					4 -> categoryMenu(rows[r])
+					else -> return
+				}
+				menu.show(table, e.x, e.y)
+			}
+		})
+		table.addKeyListener(object : KeyAdapter() {
+			override fun keyTyped(e: KeyEvent) {
+				if (e.isControlDown || e.isAltDown || e.keyChar.isISOControl()) return
+				newRecord()
+				todoText.text = e.keyChar.toString()
+				todoText.caretPosition = 1
+				e.consume()
+			}
+		})
 
 		val scroll = JScrollPane(table)
 		scroll.viewport.background = Color.WHITE
 		scroll.border = BorderFactory.createBevelBorder(BevelBorder.LOWERED)
 
 		val showButton = JButton("Show...")
-		showButton.mnemonic = KeyEvent.VK_W
+		showButton.mnemonic = KeyEvent.VK_O
 		showButton.addActionListener { showOptions() }
 		val newButton = JButton("New")
 		newButton.mnemonic = KeyEvent.VK_N
 		newButton.addActionListener { newRecord() }
-		val bottom = JPanel(FlowLayout(FlowLayout.RIGHT))
+		val bottom = JPanel(FlowLayout(FlowLayout.CENTER))
 		bottom.add(showButton)
 		bottom.add(newButton)
 
@@ -182,14 +226,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		dueBox.addActionListener {
 			val pick = dueBox.selectedIndex
 			if (busy || pick < 0) return@addActionListener
-			val day = today()
-			when (pick) {
-				0 -> pendingDue = day
-				1 -> pendingDue = day + 1
-				2 -> pendingDue = day + 7
-				3 -> pendingDue = -1L
-				else -> DatePicker.pick(this, "day", if (pendingDue >= 0) pendingDue else day)?.let { pendingDue = it }
-			}
+			dueFor(pick, pendingDue)?.let { pendingDue = it }
 			quiet { dueBox.selectedIndex = -1 }
 			showDue()
 		}
@@ -331,6 +368,11 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		table.requestFocusInWindow()
 	}
 
+	override fun position(): String {
+		val row = table.selectedRow
+		return if (row < 0) "" else "${row + 1} of ${rows.size}"
+	}
+
 	override fun printLines(): Pair<String, List<String>> {
 		val lines = rows.map { t ->
 			val box = if (t.done) "[x]" else "[ ]"
@@ -363,6 +405,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 			idx < 0 -> clearDetails()
 			loadedId != keep -> loadDetails(rows[idx])
 		}
+		App.positionChanged()
 	}
 
 	private fun columnKinds(): IntArray {
@@ -371,6 +414,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		kinds.add(2)
 		if (Settings.getBool("todoShowDue", true)) kinds.add(3)
 		if (Settings.getBool("todoShowCat", true)) kinds.add(4)
+		kinds.add(5)
 		return kinds.toIntArray()
 	}
 
@@ -383,6 +427,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 				0, 1 -> 20
 				3 -> 45
 				4 -> 50
+				5 -> 34
 				else -> 0
 			}
 			if (fixed > 0) {
@@ -496,19 +541,68 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		App.refresh()
 	}
 
+	/** The due date that Due menu row [pick] gives, or null when the date picker is cancelled. */
+	private fun dueFor(pick: Int, current: Long): Long? {
+		val day = today()
+		return when (pick) {
+			0 -> day
+			1 -> day + 1
+			2 -> day + 7
+			3 -> -1L
+			else -> DatePicker.pick(this, "day", if (current >= 0) current else day)
+		}
+	}
+
+	/** Saves an item changed from a cell popup, and reloads the details panel when it shows the item. */
+	private fun saveFromCell(t: Todo) {
+		App.store.save(t)
+		if (selectedId == t.id) loadedId = null
+		App.refresh()
+	}
+
+	private fun priorityMenu(t: Todo) = JPopupMenu().apply {
+		for (n in 1..5) add(JMenuItem("$n").apply {
+			addActionListener {
+				t.priority = n
+				saveFromCell(t)
+			}
+		})
+	}
+
+	private fun dueMenu(t: Todo) = JPopupMenu().apply {
+		dueNames.forEachIndexed { i, name ->
+			add(JMenuItem(name).apply {
+				addActionListener {
+					val due = dueFor(i, t.due) ?: return@addActionListener
+					t.due = due
+					saveFromCell(t)
+				}
+			})
+		}
+	}
+
+	private fun categoryMenu(t: Todo) = JPopupMenu().apply {
+		for (c in choices(false)) add(JMenuItem(c.label).apply {
+			addActionListener {
+				t.category = c.id
+				saveFromCell(t)
+			}
+		})
+	}
+
 	/** The Show Options dialog: sort order and the view filters, and which columns the list shows. */
 	fun showOptions() {
 		val dlg = JDialog(SwingUtilities.getWindowAncestor(this), "Show Options", Dialog.ModalityType.APPLICATION_MODAL)
 		var ok = false
 		val sort = JComboBox(sortNames)
 		sort.font = Theme.font
-		sort.selectedIndex = Settings.getInt("todoSort", 0).coerceIn(0, 3)
-		val done = check("Show completed items", 'c', Settings.getBool("todoShowDone", false))
-		val onlyDue = check("Show only due items", 'o', Settings.getBool("todoOnlyDue", false))
-		val record = check("Record completion date", 'R', Settings.getBool("todoRecordDone", false))
-		val dues = check("Show due dates", 'd', Settings.getBool("todoShowDue", true))
-		val pri = check("Show priorities", 'p', Settings.getBool("todoShowPri", false))
-		val cat = check("Show categories", 'a', Settings.getBool("todoShowCat", true))
+		sort.selectedIndex = todoSortIndex()
+		val done = check("Show &completed items", Settings.getBool("todoShowDone", false))
+		val onlyDue = check("Show only due &items", Settings.getBool("todoOnlyDue", false))
+		val record = check("&Record completion date", Settings.getBool("todoRecordDone", false))
+		val dues = check("Show &due dates", Settings.getBool("todoShowDue", true))
+		val pri = check("Show &priorities", Settings.getBool("todoShowPri", false))
+		val cat = check("Show cate&gories", Settings.getBool("todoShowCat", true))
 
 		val view = JPanel()
 		view.layout = BoxLayout(view, BoxLayout.Y_AXIS)
@@ -527,7 +621,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		dlg.rootPane.registerKeyboardAction({ dlg.dispose() }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW)
 
 		val sortRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
-		sortRow.add(label("Sort by:", 'S', sort))
+		sortRow.add(label("Sort by", 'S', sort))
 		sortRow.add(sort)
 		val left = JPanel(BorderLayout(0, 10))
 		left.add(sortRow, BorderLayout.NORTH)
@@ -545,7 +639,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		dlg.isVisible = true   // modal: returns when the dialog closes
 
 		if (!ok) return
-		Settings.setInt("todoSort", sort.selectedIndex)
+		Settings.setInt("todoSortBy", sort.selectedIndex)
 		Settings.setBool("todoShowDone", done.isSelected)
 		Settings.setBool("todoOnlyDue", onlyDue.isSelected)
 		Settings.setBool("todoRecordDone", record.isSelected)
@@ -555,10 +649,15 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		App.refresh()
 	}
 
-	private fun check(text: String, key: Char, on: Boolean): JCheckBox = JCheckBox(text, on).apply {
-		font = Theme.font
-		mnemonic = key.uppercaseChar().code
-		alignmentX = Component.LEFT_ALIGNMENT
+	/** A check box whose mnemonic is the character after the first '&' in [text]. */
+	private fun check(text: String, on: Boolean): JCheckBox {
+		val amp = text.indexOf('&')
+		return JCheckBox(text.replace("&", ""), on).apply {
+			font = Theme.font
+			mnemonic = text[amp + 1].uppercaseChar().code
+			displayedMnemonicIndex = amp
+			alignmentX = Component.LEFT_ALIGNMENT
+		}
 	}
 
 	private inline fun quiet(block: () -> Unit) {
@@ -584,6 +683,20 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	}
 }
 
+/** Paints icons side by side with a 2 px gap. */
+private class IconRow(private val icons: List<Icon>) : Icon {
+	override fun getIconWidth() = icons.sumOf { it.iconWidth } + 2 * (icons.size - 1)
+	override fun getIconHeight() = icons.maxOfOrNull { it.iconHeight } ?: 0
+
+	override fun paintIcon(c: Component, g: Graphics, x: Int, y: Int) {
+		var dx = x
+		for (i in icons) {
+			i.paintIcon(c, g, dx, y)
+			dx += i.iconWidth + 2
+		}
+	}
+}
+
 // The To Do List and the To Do part of the Day view share these, so both follow the Show Options.
 
 /** True when [t] is not done and its due date is before today. */
@@ -595,8 +708,8 @@ fun markDone(t: Todo, done: Boolean) {
 	t.done = done
 }
 
-/** True when [t] has a due date of today or earlier. */
-fun isDueByToday(t: Todo) = t.due >= 0 && t.due <= LocalDate.now().toEpochDay()
+/** True when [t] has no due date, or a due date of today or earlier. */
+fun isDueByToday(t: Todo) = t.due < 0 || t.due <= LocalDate.now().toEpochDay()
 
 /** True when the private setting and the Show Options (completed items, only due items) let [t] show. */
 fun todoShown(t: Todo): Boolean =
@@ -604,16 +717,31 @@ fun todoShown(t: Todo): Boolean =
 		(Settings.getBool("todoShowDone", false) || !t.done) &&
 		(!Settings.getBool("todoOnlyDue", false) || isDueByToday(t))
 
+/**
+ * The Sort by index of the Show Options (0 Priority, Due Date; 1 Due Date, Priority;
+ * 2 Category, Priority; 3 Category, Due Date). Reads the old "todoSort" index when "todoSortBy" is not set.
+ */
+fun todoSortIndex(): Int {
+	val saved = Settings.getInt("todoSortBy", -1)
+	if (saved >= 0) return saved.coerceAtMost(3)
+	// The old order put Due Date, Priority first: its first two entries swap places.
+	return when (val old = Settings.getInt("todoSort", 0)) {
+		0 -> 1
+		1 -> 0
+		else -> old.coerceIn(2, 3)
+	}
+}
+
 /** The sort order of the Show Options. */
 fun todoOrder(): Comparator<Todo> {
 	val byPriority = compareBy<Todo> { it.priority }
 	val byDue = compareBy<Todo> { if (it.due < 0) Long.MAX_VALUE else it.due }
 	val byCategory = compareBy<Todo> { App.store.categoryName(it.category).lowercase() }
-	return when (Settings.getInt("todoSort", 0)) {
-		1 -> byPriority.thenComparing(byDue)
+	return when (todoSortIndex()) {
+		1 -> byDue.thenComparing(byPriority)
 		2 -> byCategory.thenComparing(byPriority)
 		3 -> byCategory.thenComparing(byDue)
-		else -> byDue.thenComparing(byPriority)
+		else -> byPriority.thenComparing(byDue)
 	}
 }
 

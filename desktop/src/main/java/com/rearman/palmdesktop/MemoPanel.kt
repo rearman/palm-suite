@@ -9,8 +9,11 @@ import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.GridLayout
 import java.awt.Insets
+import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import javax.swing.*
+import javax.swing.border.EmptyBorder
+import javax.swing.border.LineBorder
 
 /** The Memo Pad view. */
 class MemoPanel : JPanel(BorderLayout()), AppView {
@@ -38,8 +41,12 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 	private val applyButton = JButton("Apply")
 
 	init {
-		val title = JLabel("Memo Pad").apply { font = Theme.bold }
+		val title = JLabel("Memo Pad").apply {
+			font = Theme.bold
+			border = BorderFactory.createCompoundBorder(LineBorder(Theme.grid), EmptyBorder(2, 8, 2, 8))
+		}
 		val top = JPanel(BorderLayout()).apply {
+			border = EmptyBorder(4, 4, 4, 4)
 			add(title, BorderLayout.WEST)
 			add(filterCombo, BorderLayout.EAST)
 		}
@@ -48,9 +55,21 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		list.font = Theme.font
 		list.cellRenderer = MemoCell()
 		list.addListSelectionListener {
-			if (!busy && !it.valueIsAdjusting) onPick(list.selectedValue)
+			if (!it.valueIsAdjusting) {
+				App.positionChanged()
+				if (!busy) onPick(list.selectedValue)
+			}
 		}
-		add(JScrollPane(list), BorderLayout.CENTER)
+		// A printable key starts a new memo that holds the typed character, as on the Palm.
+		list.addKeyListener(object : KeyAdapter() {
+			override fun keyTyped(e: KeyEvent) {
+				if (e.isControlDown || e.isAltDown || e.keyChar.isISOControl()) return
+				newRecord()
+				editor.text = e.keyChar.toString()
+				editor.caretPosition = editor.text.length
+				e.consume()
+			}
+		})
 
 		editor.lineWrap = true
 		editor.wrapStyleWord = true
@@ -69,7 +88,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		form.add(JLabel("Private:").apply { font = Theme.font; setDisplayedMnemonic('v'); labelFor = privateBox }, gbc)
 		gbc.gridx = 1
 		form.add(privateBox, gbc)
-		gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.EAST
+		gbc.gridx = 2; gbc.gridy = 1; gbc.anchor = GridBagConstraints.WEST
 		form.add(applyButton, gbc)
 		val right = JPanel(BorderLayout()).apply {
 			preferredSize = Dimension(300, 0)
@@ -80,11 +99,15 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 
 		val listByButton = JButton("List by...").apply { font = Theme.font; mnemonic = KeyEvent.VK_L; addActionListener { listBy() } }
 		val newButton = JButton("New").apply { font = Theme.font; mnemonic = KeyEvent.VK_N; addActionListener { newRecord() } }
-		val bottom = JPanel(FlowLayout(FlowLayout.RIGHT)).apply {
+		val bottom = JPanel(FlowLayout(FlowLayout.CENTER)).apply {
 			add(listByButton)
 			add(newButton)
 		}
-		add(bottom, BorderLayout.SOUTH)
+		val listPanel = JPanel(BorderLayout()).apply {
+			add(JScrollPane(list), BorderLayout.CENTER)
+			add(bottom, BorderLayout.SOUTH)
+		}
+		add(listPanel, BorderLayout.CENTER)
 
 		refreshCombos()
 		loadEditor(null)
@@ -132,6 +155,11 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		return body.lineSequence().firstOrNull()?.trim().orEmpty() to body.lines()
 	}
 
+	override fun position(): String {
+		val i = list.selectedIndex
+		return if (i < 0) "" else "${i + 1} of ${listModel.size()}"
+	}
+
 	/** Rebuilds the list and the combo boxes. Keeps the editor when it holds unsaved text. */
 	private fun reflow(old: Memo?, dirtyEditor: Boolean) {
 		refreshCombos()
@@ -157,8 +185,8 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		reflow(current, false)
 	}
 
-	private fun listBy() {
-		val manual = JRadioButton("Order on handheld").apply { mnemonic = KeyEvent.VK_H; font = Theme.font }
+	fun listBy() {
+		val manual = JRadioButton("Order on handheld").apply { mnemonic = KeyEvent.VK_O; font = Theme.font }
 		val alpha = JRadioButton("Alphabetical").apply { mnemonic = KeyEvent.VK_A; font = Theme.font }
 		ButtonGroup().apply { add(manual); add(alpha) }
 		if (Settings.get("memoSort", "0") == "1") alpha.isSelected = true else manual.isSelected = true
@@ -188,6 +216,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		}
 		val hit = want?.let { w -> shown.firstOrNull { it.id == w.id } }
 		pick(hit)
+		App.positionChanged()
 		return hit
 	}
 
@@ -264,16 +293,28 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		}
 	}
 
-	/** One line of the Memo List: "1. title", with the key icon for a private memo. */
-	private inner class MemoCell : DefaultListCellRenderer() {
+	/** One line of the Memo List: the memo icon, the first line, and the key icon at the right for a private memo. */
+	private inner class MemoCell : JPanel(BorderLayout()), ListCellRenderer<Memo> {
+		private val titleLabel = JLabel().apply { font = Theme.font; iconTextGap = 4 }
+		private val keyLabel = JLabel()
+		private val memoIcon = Icons.note()
+
+		init {
+			isOpaque = true
+			add(titleLabel, BorderLayout.CENTER)
+			add(keyLabel, BorderLayout.EAST)
+		}
+
 		override fun getListCellRendererComponent(
-			list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean
+			list: JList<out Memo>, value: Memo?, index: Int, isSelected: Boolean, cellHasFocus: Boolean
 		): Component {
-			super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-			val m = value as Memo
-			text = "${index + 1}. ${m.title}"
-			icon = if (m.isPrivate) Icons.privateRecord() else null
-			font = Theme.font
+			if (value == null) return this
+			titleLabel.text = value.title
+			titleLabel.icon = memoIcon
+			keyLabel.icon = if (value.isPrivate) Icons.privateRecord() else null
+			background = if (isSelected) list.selectionBackground else list.background
+			foreground = if (isSelected) list.selectionForeground else list.foreground
+			titleLabel.foreground = foreground
 			return this
 		}
 	}
