@@ -36,6 +36,8 @@ object Theme {
 		for (key in Collections.list(defaults.keys())) {
 			if (key is String && key.endsWith(".font")) UIManager.put(key, font)
 		}
+		// Windows hides the Alt key underlines until Alt is pressed. Palm Desktop shows them all the time.
+		UIManager.put("Button.showMnemonics", true)
 	}
 }
 

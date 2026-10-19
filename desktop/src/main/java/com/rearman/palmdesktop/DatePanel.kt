@@ -69,9 +69,10 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private val catCombo = JComboBox<String>()
 	private val rightPane = JPanel(BorderLayout())
 	private val tabGroup = ButtonGroup()
-	private val dayTab = VerticalTab("Day")
-	private val weekTab = VerticalTab("Week")
-	private val monthTab = VerticalTab("Month")
+	// D and M belong to the Date and Memo buttons of the launcher bar.
+	private val dayTab = VerticalTab("Day", 'y')
+	private val weekTab = VerticalTab("Week", 'W')
+	private val monthTab = VerticalTab("Month", 'n')
 	private var shownCats: List<Category> = emptyList()
 	private var catId: Int? = null
 	private var updating = false
@@ -566,10 +567,14 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	}
 
 	/** A vertical tab on the right edge, with its caption turned clockwise. */
-	private class VerticalTab(private val caption: String) : JToggleButton() {
+	/** A tab on the right edge with its caption turned clockwise and [key] underlined (Alt+key selects it). */
+	private class VerticalTab(private val caption: String, key: Char) : JToggleButton() {
+		private val keyIndex = caption.indexOf(key)
+
 		init {
 			isFocusPainted = false
 			font = Theme.font
+			mnemonic = key.uppercaseChar().code
 		}
 
 		override fun getPreferredSize(): Dimension = Dimension(24, 58)
@@ -585,7 +590,13 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			g2.color = Color.BLACK
 			g2.translate(width / 2, height / 2)
 			g2.rotate(Math.PI / 2)
-			g2.drawString(caption, -fm.stringWidth(caption) / 2, (fm.ascent - fm.descent) / 2)
+			val x = -fm.stringWidth(caption) / 2
+			val y = (fm.ascent - fm.descent) / 2
+			g2.drawString(caption, x, y)
+			if (keyIndex >= 0) {
+				val ux = x + fm.stringWidth(caption.substring(0, keyIndex))
+				g2.drawLine(ux, y + 1, ux + fm.charWidth(caption[keyIndex]) - 1, y + 1)
+			}
 			g2.dispose()
 		}
 	}
