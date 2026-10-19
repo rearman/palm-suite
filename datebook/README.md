@@ -66,6 +66,7 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Export Backup and Import Backup save and load all records as a JSON file. Import skips a record that is the same as a record on the device.
 - Delete Event, Delete To Do and Delete Memo have a Save archive copy on PC check box. When it is set, the app saves a backup file of the record before it deletes the record.
 - ShortCuts: type ^ or press Ctrl+Space, then a ShortCut name. When the letters after ^ match a full name, the ^ and the name change to the ShortCut text. Options > ShortCuts... edits the list. Export Backup does not include ShortCuts.
+- Sync: Options > Sync... connects the apps to your own palmsync server (see sync-server/README.md). Enter the server address, the device token and the sync passphrase. Use the same passphrase on every device. The apps sync about 30 seconds after a change and every hour, and Sync Now syncs at once. The server stores only encrypted records. When the same record changed on two devices, the apps keep both copies, as Palm HotSync did.
 
 ## Limits
 

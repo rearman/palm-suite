@@ -112,9 +112,11 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
   ShortCut text. For example, ^me gives Meeting. Options > ShortCuts...
   edits the list. Export Backup does not include ShortCuts.
 
-## Sync server (in progress)
+## Sync
 
-- `sync-server/` holds `palmsync`, a small sync server for your own VPS. It
-  stores only records that the devices encrypt, so the server cannot read them.
-- The apps do not sync yet. See `sync-server/README.md` to install the server
-  and `sync-server/PROTOCOL.md` for the protocol.
+- The apps sync through `palmsync` on your own VPS (Options > Sync...).
+- Records are encrypted on the device. The server stores only ciphertext.
+- When a record changed on two devices, the apps keep both copies, as Palm
+  HotSync did.
+- `sync-server/` holds `palmsync`. See `sync-server/README.md` to install the
+  server and `sync-server/PROTOCOL.md` for the protocol.

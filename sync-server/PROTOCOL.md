@@ -116,18 +116,19 @@ The device encrypts every record. The server stores only ciphertext.
 
 ## 6. Record plaintext
 
-Draft until the Android client (step 3) is written.
+The plaintext of a blob is UTF-8 JSON. The field `kind` gives the record type.
+Each kind has these keys:
 
-The plaintext of a blob is UTF-8 JSON:
+- Event: `{"kind":"event","title","note","date","untimed","start","end","alarm","alarmAdvance","alarmUnit","repeat","every","repeatEnd","weekDays","exceptions":[sorted longs],"private"}`
+- To Do: `{"kind":"todo","title","note","priority","due","done","category":uid or "","private"}`
+- Memo: `{"kind":"memo","text","category":uid or "","private","pos"}`
+- Category: `{"kind":"category","name","app"}`
+- ShortCuts: `{"kind":"shortcuts","list":[{"name","text"}]}`
 
-```json
-{"kind": "event | todo | memo | category | shortcuts", "...": "fields"}
-```
+Rules:
 
-- `event`, `todo` and `memo`: the fields follow the backup JSON of the Date Book app
-  (`eventJson`, `todoJson` and `memoJson` in `datebook/app/src/main/java/com/rearman/datebook/Store.kt`).
-  A record refers to its category by the category uid in the field `category`.
-- `memo` also has the field `pos`.
-- `category`: the fields `name` and `app`. The value of `app` is 0 for To Do or 1 for Memo Pad.
-- `shortcuts`: one record with the id `shortcuts`. It has the field `list`, an array of `{"name": "string", "text": "string"}`.
-  The last change wins.
+- A record refers to its category by the category uid in `category`.
+  An empty string means no category.
+- The value of `app` is 0 for To Do or 1 for Memo Pad.
+- The ShortCuts record has the id `shortcuts`. The device that syncs the record last wins.
+- A client compares two records by their content, without the `uid`. If the content is the same, the two versions are the same.
