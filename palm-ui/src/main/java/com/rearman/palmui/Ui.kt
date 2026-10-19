@@ -21,6 +21,7 @@ import android.os.Build
 import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
+import android.text.TextUtils
 import android.text.style.RelativeSizeSpan
 import android.util.TypedValue
 import android.view.Gravity
@@ -624,15 +625,26 @@ fun Context.ditherPaint(): Paint {
 /**
  * The root view of a screen. When [editor] is true it is a text editor, so that the keyboard can
  * stay open when no field is selected. Typed keys reach the activity as key events.
+ * With [capitalize] the keyboard shows Shift on, as at the start of a sentence: an app that starts
+ * a new record from the first typed letter sets it, so that letter gets the field's auto capital.
  */
 class TypingRoot(ctx: Context) : LinearLayout(ctx) {
 	var editor = false
+	var capitalize = false
 	override fun onCheckIsTextEditor() = editor
 	override fun onCreateInputConnection(out: EditorInfo): InputConnection? {
 		if (!editor) return null
 		out.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+		if (capitalize) {
+			out.inputType = out.inputType or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+			out.initialCapsMode = TextUtils.CAP_MODE_SENTENCES
+		}
 		out.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_NO_FULLSCREEN
-		return BaseInputConnection(this, false)
+		return object : BaseInputConnection(this, false) {
+			// The keyboard asks this before each letter. The root holds no text, so it is always the start.
+			override fun getCursorCapsMode(reqModes: Int) =
+				if (capitalize) reqModes and TextUtils.CAP_MODE_SENTENCES else 0
+		}
 	}
 }
 

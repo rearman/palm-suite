@@ -118,6 +118,7 @@ open class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             isFocusableInTouchMode = true
             editor = keepKeyboard
+            capitalize = true
         }
         setContentView(root)
         window.hideStatusBar()
@@ -284,10 +285,13 @@ open class MainActivity : Activity() {
                 else -> null
             }
             if (typed != null && typed.isNotEmpty() && !typed[0].isWhitespace() && !typed[0].isISOControl()) {
+                // The record fields capitalize the first letter of a sentence (CAP_SENTENCES). A key
+                // that reaches the screen root gets no auto shift, so give its first letter the capital here.
+                val text = typed.replaceFirstChar { it.titlecase() }
                 when {
-                    mode == DAY -> { typedEvent(typed); return true }
-                    mode == TODO -> { newTodo(typed); return true }
-                    mode == MEMO && memoOpen == null -> { newMemo(typed); return true }
+                    mode == DAY -> { typedEvent(text); return true }
+                    mode == TODO -> { newTodo(text); return true }
+                    mode == MEMO && memoOpen == null -> { newMemo(text); return true }
                 }
             }
         }
