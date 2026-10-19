@@ -1,0 +1,29 @@
+[Unit]
+Description=Palm Suite sync server
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/palmsync serve -data /var/lib/palmsync -listen 127.0.0.1:8640
+User=palmsync
+Group=palmsync
+StateDirectory=palmsync
+StateDirectoryMode=0700
+Restart=on-failure
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
