@@ -33,7 +33,6 @@ private const val HEAD_H = 20
 private const val UNTIMED_LINE = 16
 private const val MIN_UNTIMED_H = 20
 private const val MIN_OF_DAY = 1440
-private const val MARK = "◆"
 
 private val LONG_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.US)
 
@@ -67,9 +66,9 @@ internal class DateNav(private val mode: String, private val step: (Int) -> Unit
 
 	init {
 		val left = JPanel(FlowLayout(FlowLayout.LEFT, 2, 2))
-		left.add(JButton("◀").apply { addActionListener { step(-1) } })
+		left.add(arrowButton(SwingConstants.WEST) { step(-1) })
 		left.add(JButton("Go to").apply { mnemonic = KeyEvent.VK_G; addActionListener { goTo() } })
-		left.add(JButton("▶").apply { addActionListener { step(1) } })
+		left.add(arrowButton(SwingConstants.EAST) { step(1) })
 		val right = JPanel(FlowLayout(FlowLayout.RIGHT, 2, 2))
 		right.add(JButton("Today").apply {
 			mnemonic = KeyEvent.VK_T
@@ -204,7 +203,7 @@ class WeekView : JPanel(BorderLayout()) {
 				val label = Fmt.timeShort(h * 60)
 				g.drawString(label, TIME_W - 4 - fm.stringWidth(label), hourY(h) + fm.ascent + 1)
 			}
-			g.drawString(MARK, (TIME_W - fm.stringWidth(MARK)) / 2, (untimedH + fm.ascent - fm.descent) / 2)
+			drawDiamond(g, TIME_W / 2, untimedH / 2)
 
 			// Day column lines.
 			g.color = Theme.grid

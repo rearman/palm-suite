@@ -256,6 +256,8 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		dueField.isEditable = false
 		dueField.font = Theme.font
 		dueField.border = BorderFactory.createBevelBorder(BevelBorder.LOWERED)
+		// The box has no selected item at times, so give it a width that fits its longest choice.
+		dueBox.preferredSize = Dimension(130, dueBox.preferredSize.height)
 		due.add(dueBox, BorderLayout.WEST)
 		due.add(dueField, BorderLayout.CENTER)
 		addRow("Due:", 'u', dueBox, due)

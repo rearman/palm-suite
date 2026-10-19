@@ -228,9 +228,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 		yearLabel.font = Theme.bold
 		val yearRow = JPanel(BorderLayout())
-		yearRow.add(button("◀") { setYear(-1) }, BorderLayout.WEST)
+		yearRow.add(arrowButton(SwingConstants.WEST) { setYear(-1) }, BorderLayout.WEST)
 		yearRow.add(yearLabel, BorderLayout.CENTER)
-		yearRow.add(button("▶") { setYear(1) }, BorderLayout.EAST)
+		yearRow.add(arrowButton(SwingConstants.EAST) { setYear(1) }, BorderLayout.EAST)
 		yearRow.maximumSize = Dimension(Int.MAX_VALUE, 26)
 
 		val months = JPanel(GridLayout(2, 6))
@@ -471,8 +471,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			g.drawLine(0, UNTIMED_H - 1, width, UNTIMED_H - 1)
 			g.drawLine(TIME_W, 0, TIME_W, height)
 			g.color = Color.BLACK
-			val diamond = "◆"
-			g.drawString(diamond, (TIME_W - fm.stringWidth(diamond)) / 2, (UNTIMED_H + fm.ascent - fm.descent) / 2)
+			drawDiamond(g, TIME_W / 2, UNTIMED_H / 2)
 
 			for ((o, r) in layoutDay(width)) {
 				val ev = o.event

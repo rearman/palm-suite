@@ -38,3 +38,15 @@ object Theme {
 		}
 	}
 }
+
+/**
+ * A small arrow button. Tahoma has no arrow characters, so the arrow is drawn. [direction] is a
+ * SwingConstants value such as WEST or EAST.
+ */
+fun arrowButton(direction: Int, action: () -> Unit): javax.swing.JButton =
+	javax.swing.plaf.basic.BasicArrowButton(direction).apply { addActionListener { action() } }
+
+/** Draws the Palm untimed-row mark, a filled diamond, centered on (cx, cy). */
+fun drawDiamond(g: java.awt.Graphics, cx: Int, cy: Int, r: Int = 3) {
+	g.fillPolygon(intArrayOf(cx, cx + r, cx, cx - r), intArrayOf(cy - r, cy, cy + r, cy), 4)
+}

@@ -435,7 +435,7 @@ private class FormRow(text: String, private val field: Component) {
 	}
 
 	fun addTo(panel: JPanel, y: Int) {
-		panel.add(label, GridBagConstraints(0, y, 1, 1, 0.0, 0.0, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE, Insets(3, 6, 3, 4), 0, 0))
+		panel.add(label, GridBagConstraints(0, y, 1, 1, 0.0, 0.0, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, Insets(3, 6, 3, 4), 0, 0))
 		panel.add(field, GridBagConstraints(1, y, 1, 1, 1.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.NONE, Insets(3, 4, 3, 6), 0, 0))
 	}
 }

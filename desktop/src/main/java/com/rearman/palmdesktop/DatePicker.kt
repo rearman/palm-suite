@@ -86,9 +86,9 @@ private class Picker(private val owner: Component, private val mode: String, day
 
 	private fun layout(): JPanel {
 		val top = JPanel(BorderLayout(4, 0)).apply {
-			add(arrow("◀") { move(sel.minusYears(1)) }, BorderLayout.WEST)
+			add(arrowButton(SwingConstants.WEST) { move(sel.minusYears(1)) }, BorderLayout.WEST)
 			add(yearLabel, BorderLayout.CENTER)
-			add(arrow("▶") { move(sel.plusYears(1)) }, BorderLayout.EAST)
+			add(arrowButton(SwingConstants.EAST) { move(sel.plusYears(1)) }, BorderLayout.EAST)
 		}
 		val months = JPanel(GridLayout(2, 6, 2, 2)).apply {
 			monthButtons.forEach { add(it) }

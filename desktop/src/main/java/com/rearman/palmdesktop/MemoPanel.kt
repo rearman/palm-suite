@@ -167,7 +167,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 			add(manual)
 			add(alpha)
 		}
-		val ok = JOptionPane.showConfirmDialog(this, panel, "List By", JOptionPane.OK_CANCEL_OPTION)
+		val ok = JOptionPane.showConfirmDialog(this, panel, "List By", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
 		if (ok != JOptionPane.OK_OPTION) return
 		Settings.set("memoSort", if (alpha.isSelected) "1" else "0")
 		App.refresh()
