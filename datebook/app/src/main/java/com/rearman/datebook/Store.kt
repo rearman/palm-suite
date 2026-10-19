@@ -386,6 +386,21 @@ class Store private constructor(ctx: Context) :
         }
         return ImportCount(ne, nt, nm, ns)
     }
+
+    /** Adds [list], less the events that are already on the device. Returns (added, skipped). */
+    fun addEvents(list: List<Event>): Pair<Int, Int> {
+        val have = events.mapTo(HashSet()) { it.dupKey() }
+        var added = 0
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (e in list) if (e.dupKey() !in have) { save(e); added++ }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return added to list.size - added
+    }
 }
 
 /** Settings from the Preferences, Display Options, Show Options, Font and Security dialogs. */

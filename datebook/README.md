@@ -25,6 +25,7 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Alarms ring while the app is closed. Preferences set the alarm preset, the number of reminders and the interval. Snooze adds 5 minutes.
 - In the Day view, type a character when no event is selected to start a new event. The event starts at the next hour (today) or at the Day Start time, and the text you type is its description.
 - Press Backspace in an empty event to delete it. An event with a note or a repeat stays.
+- Export iCalendar saves all events as an .ics file for Google Calendar, Outlook or Apple Calendar. Import iCalendar adds the events of an .ics file and skips events that are already in Date Book. Times change to the time zone of the device. A timed event that goes past midnight becomes one event for each day it covers. A repeat rule that Date Book cannot show gives a one-time event. The Import dialog shows how many events were simplified.
 
 ### To Do List
 

@@ -1230,7 +1230,9 @@ open class MainActivity : Activity() {
             },
             MenuItem("Purge...", 'E') { showPurgeEvents() },
             MenuItem("Export Backup...") { exportFile("datebook-backup", store.exportJson()) },
-            MenuItem("Import Backup...") { importFile() }
+            MenuItem("Import Backup...") { importFile() },
+            MenuItem("Export iCalendar...") { saveFile("datebook-${LocalDate.now()}.ics", "text/calendar", ICal.export(store.events)) },
+            MenuItem("Import iCalendar...") { importFile() }
         )
         val ed = lastEdit
         val edit: List<MenuItem> = listOf(
@@ -1358,13 +1360,16 @@ open class MainActivity : Activity() {
 
     // ---------------- Backup files ----------------
 
-    fun exportFile(base: String, text: String, after: () -> Unit = {}) {
+    fun exportFile(base: String, text: String, after: () -> Unit = {}) =
+        saveFile("$base-${LocalDate.now()}.json", "application/json", text, after)
+
+    private fun saveFile(name: String, type: String, text: String, after: () -> Unit = {}) {
         pendingExport = text
         afterExport = after
         val i = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("application/json")
-            .putExtra(Intent.EXTRA_TITLE, "$base-${LocalDate.now()}.json")
+            .setType(type)
+            .putExtra(Intent.EXTRA_TITLE, name)
         @Suppress("DEPRECATION")
         startActivityForResult(i, REQ_EXPORT)
     }
@@ -1375,6 +1380,17 @@ open class MainActivity : Activity() {
             .setType("*/*")
         @Suppress("DEPRECATION")
         startActivityForResult(i, REQ_IMPORT)
+    }
+
+    /** Adds the events of an iCalendar file and tells what was added. */
+    private fun importIcs(text: String) {
+        val p = ICal.parse(text)
+        val (added, skipped) = store.addEvents(p.events)
+        changed()
+        var msg = "Added $added events."
+        if (skipped > 0) msg += " Skipped $skipped duplicate events."
+        if (p.simplified > 0) msg += " ${p.simplified} events were simplified to fit Date Book."
+        ask("Import", msg, "OK" to {})
     }
 
     @Deprecated("Deprecated in Java")
@@ -1400,10 +1416,14 @@ open class MainActivity : Activity() {
             REQ_IMPORT -> {
                 try {
                     val text = contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
-                    val (ne, nt, nm, ns) = store.importJson(text)
-                    changed()
-                    val skip = if (ns > 0) " Skipped $ns duplicate records." else ""
-                    ask("Import", "Added $ne events, $nt To Do items and $nm memos.$skip", "OK" to {})
+                    if (text.trimStart('\uFEFF', ' ', '\t', '\r', '\n').startsWith("BEGIN:VCALENDAR", ignoreCase = true)) {
+                        importIcs(text)
+                    } else {
+                        val (ne, nt, nm, ns) = store.importJson(text)
+                        changed()
+                        val skip = if (ns > 0) " Skipped $ns duplicate records." else ""
+                        ask("Import", "Added $ne events, $nt To Do items and $nm memos.$skip", "OK" to {})
+                    }
                 } catch (ex: Exception) {
                     ask("Import", "This file is not a Date Book backup.", "OK" to {})
                 }

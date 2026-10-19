@@ -76,6 +76,8 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 - Repeat: daily, weekly, monthly by day or by date, and yearly, with an
   optional end date. Change or delete the Current, Future or All occurrences.
 - Alarms ring while the app is closed, with reminders and Snooze.
+- Export iCalendar and Import iCalendar save and load events as .ics files,
+  for Google Calendar, Outlook and Apple Calendar.
 
 ## To Do List
 

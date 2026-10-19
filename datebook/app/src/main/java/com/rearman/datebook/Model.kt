@@ -45,8 +45,19 @@ data class Event(
     }
 }
 
-/** The record without its database id: equal keys mean the same content. Import uses it to skip duplicates. */
-fun Event.dupKey() = copy(id = 0)
+/**
+ * The record without its database id and without the fields that change nothing on screen (the
+ * times of an untimed event, the advance of no alarm, the repeat fields of a one-time event).
+ * Equal keys mean the same event. Import uses it to skip duplicates.
+ */
+fun Event.dupKey(): Event {
+    val k = copy(id = 0, date = Recur.firstDay(this))
+    if (untimed) { k.start = 0; k.end = 0 }
+    if (!alarm) { k.alarmAdvance = 0; k.alarmUnit = 0 }
+    if (repeat == Repeat.NONE) { k.every = 1; k.repeatEnd = -1; k.weekDays = 0; k.exceptions = mutableSetOf() }
+    else if (repeat == Repeat.WEEK && weekDays == 0) k.weekDays = 1 shl Recur.dow(LocalDate.ofEpochDay(date))
+    return k
+}
 
 /** One To Do List record. */
 data class Todo(
@@ -129,6 +140,16 @@ object Recur {
 
     private fun monthsBetween(a: LocalDate, b: LocalDate): Long =
         ((b.year - a.year) * 12 + (b.monthValue - a.monthValue)).toLong()
+
+    /** The first day [e] occurs, exceptions aside. A weekly event can start on a day that is not one of its days. */
+    fun firstDay(e: Event): Long {
+        if (e.repeat != Repeat.WEEK || e.weekDays == 0 ||
+            (e.weekDays and (1 shl dow(LocalDate.ofEpochDay(e.date)))) != 0
+        ) return e.date
+        val plain = e.copy(exceptions = mutableSetOf())
+        val stop = e.date + 7L * (maxOf(1, e.every) + 1)
+        return (e.date until stop).firstOrNull { occursOn(plain, it) } ?: e.date
+    }
 
     fun occursOn(e: Event, day: Long): Boolean {
         if (day < e.date) return false
