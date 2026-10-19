@@ -252,7 +252,7 @@ class MainFrame : JFrame("Palm Desktop") {
 			BorderFactory.createEmptyBorder(2, 4, 2, 6)
 		)
 		statusLabel.font = Theme.font
-		val today = JLabel(Fmt.shortDate(LocalDate.now().toEpochDay()))
+		val today = JLabel(LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("M/d/yyyy")))
 		today.font = Theme.font
 		bar.add(statusLabel, BorderLayout.WEST)
 		bar.add(today, BorderLayout.EAST)

@@ -131,10 +131,15 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		table.selectionForeground = Color.WHITE
 		table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
 		val cell = Cell()
-		val widths = intArrayOf(45, 60, 300, 75, 110)
+		// Done, Priority, Due Date and Category keep a fixed width; the To Do text gets the rest.
+		val widths = intArrayOf(40, 50, 0, 90, 120)
 		for (c in widths.indices) {
-			table.columnModel.getColumn(c).preferredWidth = widths[c]
-			if (c > 0) table.columnModel.getColumn(c).cellRenderer = cell
+			val col = table.columnModel.getColumn(c)
+			if (widths[c] > 0) {
+				col.preferredWidth = widths[c]
+				col.maxWidth = widths[c]
+			}
+			if (c > 0) col.cellRenderer = cell
 		}
 		table.selectionModel.addListSelectionListener { e ->
 			if (e.valueIsAdjusting || busy) return@addListSelectionListener

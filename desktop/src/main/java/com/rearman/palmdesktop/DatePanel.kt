@@ -117,6 +117,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		dayTab.isSelected = name == "day"
 		weekTab.isSelected = name == "week"
 		monthTab.isSelected = name == "month"
+		// Palm Desktop shows the calendar pane only in the Day view; Week and Month use the full width.
+		rightPane.isVisible = name == "day"
 		Settings.set("dateMode", name)
 	}
 
@@ -194,8 +196,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		)
 		val scroll = JScrollPane(grid)
 		scroll.verticalScrollBar.unitIncrement = 20
-		// Start the grid at 8:00.
-		SwingUtilities.invokeLater { scroll.viewport.viewPosition = Point(0, yOf(8 * 60)) }
+		// The grid starts at the top, as in Palm Desktop, so the untimed row shows.
 		editBtn.isEnabled = false
 		val bar = JPanel(FlowLayout(FlowLayout.RIGHT))
 		bar.add(button("Today") {
