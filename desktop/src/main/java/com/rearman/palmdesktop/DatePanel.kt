@@ -18,6 +18,8 @@ import java.awt.Insets
 import java.awt.Paint
 import java.awt.Point
 import java.awt.Rectangle
+import java.awt.event.FocusAdapter
+import java.awt.event.FocusEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -32,12 +34,15 @@ import javax.swing.Icon
 import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
+import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JScrollPane
+import javax.swing.JTextField
 import javax.swing.JToggleButton
+import javax.swing.KeyStroke
 import javax.swing.ListCellRenderer
 import javax.swing.Scrollable
 import javax.swing.SwingConstants
@@ -88,6 +93,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private var occs: List<Occ> = emptyList()
 	private var untimedH = UNTIMED_H   // height of the untimed rows: one row for each untimed event, at least one
 	private var selectedId: Long? = null
+	private var typing: JTextField? = null   // the field of a new event typed into an empty hour
+	private var typingMin = 0               // start of that hour, in minutes after midnight
+	private var typingDay = 0L              // the day the field was opened on
 	private val repeatIcon: Icon by lazy { Icons.repeat() }
 	private val alarmIcon: Icon by lazy { Icons.alarm() }
 	private val noteIcon: Icon by lazy { Icons.note() }
@@ -352,6 +360,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 	/** Rebuilds every part of the panel from the store and App.day. */
 	private fun refreshAll() {
+		if (App.day != typingDay) endTyping(true)   // the field belongs to the day it was opened on
 		val day = LocalDate.ofEpochDay(App.day)
 		titleLabel.text = dateTitle(App.day)
 		occs = dayOccs()
@@ -446,6 +455,63 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		g2.dispose()
 	}
 
+	// Typing a new event into an empty hour of the grid, as in Palm Desktop.
+
+	/** Box of the hour being typed into, for a grid [width] in pixels, or null when no field is open. */
+	private fun typingBox(width: Int): Rectangle? {
+		if (typing == null) return null
+		val top = yOf(typingMin)
+		return Rectangle(TIME_W + 2, top + 2, width - TIME_W - 4, yOf(typingMin + 60) - top - 3)
+	}
+
+	/** Opens a field in the hour at [min] for the title of a new event. */
+	private fun startTyping(min: Int) {
+		endTyping(true)
+		selectedId = null
+		editBtn.isEnabled = false
+		typingMin = min
+		typingDay = App.day
+		val f = JTextField()
+		f.font = Theme.font
+		f.border = null
+		f.isOpaque = false
+		f.addActionListener { endTyping(true) }
+		f.registerKeyboardAction({ endTyping(false) }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_FOCUSED)
+		f.addFocusListener(object : FocusAdapter() {
+			override fun focusLost(e: FocusEvent) {
+				if (!e.isTemporary) endTyping(true)
+			}
+		})
+		f.addMouseListener(object : MouseAdapter() {
+			override fun mouseClicked(e: MouseEvent) {
+				// A double click on an empty hour opens the event dialog, as before.
+				if (e.clickCount == 2) {
+					endTyping(false)
+					EventDialog.edit(this@DatePanel, null, App.day, min)
+				}
+			}
+		})
+		typing = f
+		grid.add(f)
+		grid.revalidate()
+		repaintDay()
+		f.requestFocusInWindow()
+	}
+
+	/** Closes the field. With [save], a title that is not empty becomes a one-hour event. */
+	private fun endTyping(save: Boolean) {
+		val f = typing ?: return
+		typing = null   // first, so the focus loss of the removed field does nothing
+		grid.remove(f)
+		repaintDay()
+		val title = f.text.trim()
+		if (!save || title.isEmpty()) return
+		val ev = Event(title = title, date = typingDay, start = typingMin, end = typingMin + 60, untimed = false)
+		App.store.save(ev)
+		selectedId = ev.id
+		App.refresh()
+	}
+
 	private fun overlaps(a: Event, b: Event): Boolean = a.start < b.end && b.start < a.end
 
 	/** Marker icons of an event: repeat, alarm, note, private. */
@@ -517,22 +583,19 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		init {
 			isOpaque = true
 			background = Color.WHITE
+			if (!header) layout = null   // doLayout places the typing field
 			addMouseListener(object : MouseAdapter() {
 				override fun mouseClicked(e: MouseEvent) {
 					val hit = layoutDay(width).firstOrNull { it.first.event.untimed == header && it.second.contains(e.point) }
 					if (hit != null) {
+						endTyping(true)
 						selectedId = hit.first.event.id
 						editBtn.isEnabled = true
 						repaintDay()
 						if (e.clickCount == 2) EventDialog.edit(this@DatePanel, hit.first.event, App.day)
-					} else if (!header && e.x >= TIME_W) {
-						selectedId = null
-						editBtn.isEnabled = false
-						repaintDay()
-						if (e.clickCount == 2) {
-							val min = (minAt(e.y) / 30 * 30).coerceIn(0, 23 * 60 + 30)
-							EventDialog.edit(this@DatePanel, null, App.day, min)
-						}
+					} else if (!header && e.x >= TIME_W && e.clickCount == 1) {
+						// A click in an empty hour opens a field to type a new event, as in Palm Desktop.
+						startTyping((minAt(e.y) / 60 * 60).coerceIn(0, 23 * 60))
 					}
 				}
 			})
@@ -589,6 +652,15 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				g2.drawString(ev.title, x, ty)
 				g2.dispose()
 			}
+			// The hour being typed into: a white box, drawn as selected. The text field is on top of it.
+			if (!header) typingBox(width)?.let { drawBox(g, it, Color.WHITE, true) }
+		}
+
+		override fun doLayout() {
+			if (header) return
+			val f = typing ?: return
+			val r = typingBox(width) ?: return
+			f.setBounds(r.x + 3, r.y + 1, r.width - BAR_W - 4, f.preferredSize.height)
 		}
 
 		// The column header viewport takes its height from here, so the header returns its own size.
