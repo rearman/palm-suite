@@ -120,3 +120,13 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
   HotSync did.
 - `sync-server/` holds `palmsync`. See `sync-server/README.md` to install the
   server and `sync-server/PROTOCOL.md` for the protocol.
+
+## Desktop
+
+- Palm Desktop runs on Windows and Linux. At this stage it shows the list of
+  synced records. It reads from the sync server and never writes.
+- Download `palm-desktop-windows.zip` or `palm-desktop-linux.tar.gz` from a
+  `desktop-v*` release, unpack it and run `palm-desktop`. It holds its own
+  Java runtime.
+- Enter the server, a device token and the sync passphrase, then click Sync.
+  The app saves the server and the token. It never saves the passphrase.

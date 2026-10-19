@@ -1,10 +1,11 @@
 name: Build APKs
 
-# Builds and tests both apps and the sync server. A tag datebook-v*, launcher-v* or server-v* also releases that one part.
+# Builds and tests both apps, the sync server and the desktop app. A tag datebook-v*, launcher-v*, server-v* or
+# desktop-v* also releases that one part.
 on:
   push:
     branches: [ main, master ]
-    tags: [ 'datebook-v*', 'launcher-v*', 'server-v*' ]
+    tags: [ 'datebook-v*', 'launcher-v*', 'server-v*', 'desktop-v*' ]
   workflow_dispatch:
 
 jobs:
@@ -132,3 +133,62 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" palmsync-linux-amd64 palmsync-linux-arm64 --title "$GITHUB_REF_NAME" --generate-notes
           fi
+
+  # The desktop app for Windows and Linux. jpackage builds for the system it runs on, so each OS has its own runner.
+  desktop:
+    strategy:
+      matrix:
+        os: [ windows-latest, ubuntu-latest ]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write # to create the release on a desktop tag build
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      # configure-on-demand leaves the Android projects out of this build.
+      - name: Test and build
+        run: gradle --configure-on-demand :desktop:test :desktop:installDist --stacktrace
+
+      # An app image holds the app and its own Java runtime, so nothing else needs to be installed.
+      - name: Package
+        id: pkg
+        shell: bash
+        run: |
+          jpackage --type app-image --name palm-desktop --input desktop/build/install/desktop/lib             --main-jar desktop.jar --main-class com.rearman.palmdesktop.MainKt --dest out
+          if [ "$RUNNER_OS" = Windows ]; then
+            file=palm-desktop-windows.zip
+            (cd out && 7z a -tzip "../$file" palm-desktop > /dev/null)
+          else
+            file=palm-desktop-linux.tar.gz
+            tar -C out -czf "$file" palm-desktop
+          fi
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+
+      - name: Upload desktop app
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.pkg.outputs.file }}
+          archive: false
+
+      # On a desktop tag, attach the package to the GitHub Release of the tag. The two OS jobs can
+      # both try to create the release; the one that loses uploads to it.
+      - name: Attach package to release
+        if: startsWith(github.ref_name, 'desktop-v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FILE: ${{ steps.pkg.outputs.file }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" "$FILE" --clobber             || gh release create "$GITHUB_REF_NAME" "$FILE" --title "$GITHUB_REF_NAME" --generate-notes             || gh release upload "$GITHUB_REF_NAME" "$FILE" --clobber
