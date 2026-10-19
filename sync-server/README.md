@@ -44,10 +44,13 @@ Replace `sync.example.com` with your domain.
    sudo cp deploy/nginx-palmsync.conf /etc/nginx/sites-available/palmsync
    sudo nano /etc/nginx/sites-available/palmsync   # set server_name to sync.example.com
    sudo ln -s /etc/nginx/sites-available/palmsync /etc/nginx/sites-enabled/
-   sudo certbot --nginx -d sync.example.com
    sudo nginx -t
    sudo systemctl reload nginx
+   sudo certbot --nginx -d sync.example.com --redirect
    ```
+
+   The file serves only port 80. certbot gets the certificate, then adds the TLS lines and the redirect from port 80 to the file.
+   The certbot timer renews the certificate.
 
 5. Check the server. Use a token from step 3:
 
