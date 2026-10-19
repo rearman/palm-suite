@@ -38,4 +38,10 @@ class DupKeyTest {
         assertEquals(a.dupKey(), Memo(text = "Shopping").dupKey())
         assertNotEquals(a.dupKey(), Memo(text = "Shopping", isPrivate = true).dupKey())
     }
+
+    @Test fun recordsIgnoreUid() {
+        assertEquals(Event(title = "A", date = 20000, uid = "x").dupKey(), Event(title = "A", date = 20000, uid = "y").dupKey())
+        assertEquals(Todo(title = "A", uid = "x").dupKey(), Todo(title = "A", uid = "y").dupKey())
+        assertEquals(Memo(text = "A", uid = "x").dupKey(), Memo(text = "A", uid = "y").dupKey())
+    }
 }

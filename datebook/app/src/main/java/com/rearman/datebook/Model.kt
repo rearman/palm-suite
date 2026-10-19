@@ -32,7 +32,9 @@ data class Event(
     var repeatEnd: Long = -1,                      // epoch day, -1 = no end date
     var weekDays: Int = 0,                         // bit 0 = Sunday ... bit 6 = Saturday
     var exceptions: MutableSet<Long> = mutableSetOf(),
-    var isPrivate: Boolean = false
+    var isPrivate: Boolean = false,
+    // The same id on every device, for sync.
+    var uid: String = ""
 ) {
     val repeats: Boolean get() = repeat != Repeat.NONE
 
@@ -46,12 +48,12 @@ data class Event(
 }
 
 /**
- * The record without its database id and without the fields that change nothing on screen (the
- * times of an untimed event, the advance of no alarm, the repeat fields of a one-time event).
- * Equal keys mean the same event. Import uses it to skip duplicates.
+ * The record without its database id and sync uid and without the fields that change nothing on
+ * screen (the times of an untimed event, the advance of no alarm, the repeat fields of a one-time
+ * event). Equal keys mean the same event. Import uses it to skip duplicates.
  */
 fun Event.dupKey(): Event {
-    val k = copy(id = 0, date = Recur.firstDay(this))
+    val k = copy(id = 0, uid = "", date = Recur.firstDay(this))
     if (untimed) { k.start = 0; k.end = 0 }
     if (!alarm) { k.alarmAdvance = 0; k.alarmUnit = 0 }
     if (repeat == Repeat.NONE) { k.every = 1; k.repeatEnd = -1; k.weekDays = 0; k.exceptions = mutableSetOf() }
@@ -68,13 +70,21 @@ data class Todo(
     var due: Long = -1,          // epoch day, -1 = no date
     var done: Boolean = false,
     var category: Int = 0,       // 0 = Unfiled
-    var isPrivate: Boolean = false
+    var isPrivate: Boolean = false,
+    // The same id on every device, for sync.
+    var uid: String = ""
 )
 
-fun Todo.dupKey() = copy(id = 0)
+fun Todo.dupKey() = copy(id = 0, uid = "")
 
 /** A category of one app: [app] 0 is To Do, 1 is Memo Pad. */
-data class Category(val id: Int, var name: String, val app: Int = 0)
+data class Category(
+    val id: Int,
+    var name: String,
+    val app: Int = 0,
+    // The same id on every device, for sync.
+    val uid: String = ""
+)
 
 /** A Memo Pad record. Its first line is its title in the Memo List. */
 data class Memo(
@@ -82,13 +92,15 @@ data class Memo(
     var text: String = "",
     var category: Int = 0,
     var isPrivate: Boolean = false,
-    var pos: Int = 0
+    var pos: Int = 0,
+    // The same id on every device, for sync.
+    var uid: String = ""
 ) {
     val title: String get() = text.lineSequence().firstOrNull()?.trim().orEmpty()
 }
 
-/** The memo without its database id and Memo List position. */
-fun Memo.dupKey() = copy(id = 0, pos = 0)
+/** The memo without its database id, sync uid and Memo List position. */
+fun Memo.dupKey() = copy(id = 0, pos = 0, uid = "")
 
 /** Memo List order: by first line (ignoring case) when [alphabetic], else by manual position. */
 fun memoOrder(memos: List<Memo>, alphabetic: Boolean): List<Memo> =

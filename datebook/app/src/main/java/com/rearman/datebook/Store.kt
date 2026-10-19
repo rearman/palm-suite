@@ -10,9 +10,12 @@ import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** All records live in one SQLite file on the phone. The lists are cached in memory. */
+/**
+ * All records live in one SQLite file on the phone. The lists are cached in memory.
+ * Deleted rows stay as tombstones until sync; the lists hold only live rows.
+ */
 class Store private constructor(ctx: Context) :
-    SQLiteOpenHelper(ctx, "datebook.db", null, 2) {
+    SQLiteOpenHelper(ctx, "datebook.db", null, 3) {
 
     companion object {
         @Volatile private var inst: Store? = null
@@ -21,6 +24,7 @@ class Store private constructor(ctx: Context) :
                 inst ?: Store(ctx.applicationContext).also { inst = it }
             }
         const val MAX_CATEGORIES = 15
+        private const val SYNC_COLS = "uid TEXT, rev INTEGER DEFAULT 0, dirty INTEGER DEFAULT 1, deleted INTEGER DEFAULT 0"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -28,26 +32,27 @@ class Store private constructor(ctx: Context) :
             "CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, note TEXT, " +
                 "date INTEGER, untimed INTEGER, start INTEGER, end_ INTEGER, alarm INTEGER, " +
                 "adv INTEGER, unit INTEGER, rep INTEGER, every INTEGER, rep_end INTEGER, " +
-                "days INTEGER, exc TEXT, priv INTEGER)"
+                "days INTEGER, exc TEXT, priv INTEGER, $SYNC_COLS)"
         )
         db.execSQL(
             "CREATE TABLE todos (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, note TEXT, " +
-                "pri INTEGER, due INTEGER, done INTEGER, cat INTEGER, priv INTEGER)"
+                "pri INTEGER, due INTEGER, done INTEGER, cat INTEGER, priv INTEGER, $SYNC_COLS)"
         )
-        db.execSQL("CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT, app INTEGER DEFAULT 0)")
-        db.execSQL("INSERT INTO categories VALUES (1, 'Business', 0)")
-        db.execSQL("INSERT INTO categories VALUES (2, 'Personal', 0)")
-        db.execSQL("INSERT INTO categories VALUES (3, 'Business', 1)")
-        db.execSQL("INSERT INTO categories VALUES (4, 'Personal', 1)")
+        db.execSQL("CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT, app INTEGER DEFAULT 0, $SYNC_COLS)")
+        db.execSQL("INSERT INTO categories (id, name, app, uid) VALUES (1, 'Business', 0, 'default-0-business')")
+        db.execSQL("INSERT INTO categories (id, name, app, uid) VALUES (2, 'Personal', 0, 'default-0-personal')")
+        db.execSQL("INSERT INTO categories (id, name, app, uid) VALUES (3, 'Business', 1, 'default-1-business')")
+        db.execSQL("INSERT INTO categories (id, name, app, uid) VALUES (4, 'Personal', 1, 'default-1-personal')")
         db.execSQL(
             "CREATE TABLE memos (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT, cat INTEGER, " +
-                "priv INTEGER, pos INTEGER)"
+                "priv INTEGER, pos INTEGER, $SYNC_COLS)"
         )
     }
 
     /**
      * Version 2 adds Memo Pad: the memos table and per-app categories.
      * Existing categories get app 0 (To Do). The Memo Pad categories get new ids.
+     * Version 3 adds the sync columns (uid, rev, dirty, deleted) to all tables.
      */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
@@ -59,7 +64,46 @@ class Store private constructor(ctx: Context) :
             db.execSQL("INSERT INTO categories (id, name, app) SELECT IFNULL(MAX(id), 0) + 1, 'Business', 1 FROM categories")
             db.execSQL("INSERT INTO categories (id, name, app) SELECT IFNULL(MAX(id), 0) + 1, 'Personal', 1 FROM categories")
         }
+        if (oldVersion < 3) {
+            for (t in listOf("events", "todos", "memos", "categories")) {
+                db.execSQL("ALTER TABLE $t ADD COLUMN uid TEXT")
+                db.execSQL("ALTER TABLE $t ADD COLUMN rev INTEGER DEFAULT 0")
+                db.execSQL("ALTER TABLE $t ADD COLUMN dirty INTEGER DEFAULT 1")
+                db.execSQL("ALTER TABLE $t ADD COLUMN deleted INTEGER DEFAULT 0")
+            }
+            for (t in listOf("events", "todos", "memos")) {
+                val ids = mutableListOf<Long>()
+                db.rawQuery("SELECT id FROM $t", null).use { c -> while (c.moveToNext()) ids.add(c.getLong(0)) }
+                for (id in ids) {
+                    db.update(t, ContentValues().apply { put("uid", java.util.UUID.randomUUID().toString()) },
+                        "id=?", arrayOf(id.toString()))
+                }
+            }
+            val rows = mutableListOf<Triple<Int, String, Int>>()
+            db.rawQuery("SELECT id, name, app FROM categories ORDER BY id", null).use { c ->
+                while (c.moveToNext()) rows.add(Triple(c.getInt(0), c.getString(1) ?: "", c.getInt(2)))
+            }
+            val defaultTaken = HashSet<Pair<Int, String>>()
+            for ((id, name, app) in rows) {
+                val isDefault = (name == "Business" || name == "Personal") && defaultTaken.add(app to name)
+                val uid = if (isDefault) "default-$app-${name.lowercase()}" else java.util.UUID.randomUUID().toString()
+                db.update("categories", ContentValues().apply { put("uid", uid) }, "id=?", arrayOf(id.toString()))
+            }
+        }
     }
+
+    /** Deletes a row that never reached the server. A synced row becomes a tombstone with its text cleared, so sync can tell other devices. */
+    private fun remove(table: String, id: Long) {
+        val db = writableDatabase
+        val args = arrayOf(id.toString())
+        db.delete(table, "id=? AND rev=0", args)
+        db.update(table, ContentValues().apply {
+            put("deleted", 1); put("dirty", 1)
+            for (c in cleared.getValue(table)) put(c, "")
+        }, "id=?", args)
+    }
+    private val cleared = mapOf("events" to listOf("title", "note", "exc"), "todos" to listOf("title", "note"),
+        "memos" to listOf("text"), "categories" to listOf("name"))
 
     // ---- events ----
 
@@ -76,7 +120,7 @@ class Store private constructor(ctx: Context) :
 
     private fun loadEvents(): MutableList<Event> {
         val list = mutableListOf<Event>()
-        readableDatabase.rawQuery("SELECT * FROM events", null).use { c ->
+        readableDatabase.rawQuery("SELECT * FROM events WHERE deleted=0", null).use { c ->
             while (c.moveToNext()) {
                 list.add(
                     Event(
@@ -86,7 +130,7 @@ class Store private constructor(ctx: Context) :
                         alarmAdvance = c.int("adv"), alarmUnit = c.int("unit"),
                         repeat = c.int("rep"), every = c.int("every"), repeatEnd = c.lng("rep_end"),
                         weekDays = c.int("days"), exceptions = parseExc(c.str("exc")),
-                        isPrivate = c.int("priv") != 0
+                        isPrivate = c.int("priv") != 0, uid = c.str("uid")
                     )
                 )
             }
@@ -104,9 +148,11 @@ class Store private constructor(ctx: Context) :
         put("rep", e.repeat); put("every", e.every); put("rep_end", e.repeatEnd)
         put("days", e.weekDays); put("exc", e.exceptions.sorted().joinToString(","))
         put("priv", if (e.isPrivate) 1 else 0)
+        put("uid", e.uid); put("dirty", 1)
     }
 
     fun save(e: Event) {
+        if (e.uid.isEmpty()) e.uid = java.util.UUID.randomUUID().toString()
         if (e.id == 0L) {
             e.id = writableDatabase.insert("events", null, eventValues(e))
             events.add(e)
@@ -118,7 +164,7 @@ class Store private constructor(ctx: Context) :
     }
 
     fun delete(e: Event) {
-        writableDatabase.delete("events", "id=?", arrayOf(e.id.toString()))
+        remove("events", e.id)
         events.removeAll { it.id == e.id }
     }
 
@@ -134,13 +180,13 @@ class Store private constructor(ctx: Context) :
 
     private fun loadTodos(): MutableList<Todo> {
         val list = mutableListOf<Todo>()
-        readableDatabase.rawQuery("SELECT * FROM todos", null).use { c ->
+        readableDatabase.rawQuery("SELECT * FROM todos WHERE deleted=0", null).use { c ->
             while (c.moveToNext()) {
                 list.add(
                     Todo(
                         id = c.lng("id"), title = c.str("title"), note = c.str("note"),
                         priority = c.int("pri"), due = c.lng("due"), done = c.int("done") != 0,
-                        category = c.int("cat"), isPrivate = c.int("priv") != 0
+                        category = c.int("cat"), isPrivate = c.int("priv") != 0, uid = c.str("uid")
                     )
                 )
             }
@@ -151,9 +197,11 @@ class Store private constructor(ctx: Context) :
     private fun todoValues(t: Todo) = ContentValues().apply {
         put("title", t.title); put("note", t.note); put("pri", t.priority); put("due", t.due)
         put("done", if (t.done) 1 else 0); put("cat", t.category); put("priv", if (t.isPrivate) 1 else 0)
+        put("uid", t.uid); put("dirty", 1)
     }
 
     fun save(t: Todo) {
+        if (t.uid.isEmpty()) t.uid = java.util.UUID.randomUUID().toString()
         if (t.id == 0L) {
             t.id = writableDatabase.insert("todos", null, todoValues(t))
             todos.add(t)
@@ -165,7 +213,7 @@ class Store private constructor(ctx: Context) :
     }
 
     fun delete(t: Todo) {
-        writableDatabase.delete("todos", "id=?", arrayOf(t.id.toString()))
+        remove("todos", t.id)
         todos.removeAll { it.id == t.id }
     }
 
@@ -175,12 +223,12 @@ class Store private constructor(ctx: Context) :
 
     private fun loadMemos(): MutableList<Memo> {
         val list = mutableListOf<Memo>()
-        readableDatabase.rawQuery("SELECT id, text, cat, priv, pos FROM memos ORDER BY pos", null).use { c ->
+        readableDatabase.rawQuery("SELECT id, text, cat, priv, pos, uid FROM memos WHERE deleted=0 ORDER BY pos", null).use { c ->
             while (c.moveToNext()) {
                 list.add(
                     Memo(
                         id = c.lng("id"), text = c.str("text"), category = c.int("cat"),
-                        isPrivate = c.int("priv") != 0, pos = c.int("pos")
+                        isPrivate = c.int("priv") != 0, pos = c.int("pos"), uid = c.str("uid")
                     )
                 )
             }
@@ -190,9 +238,11 @@ class Store private constructor(ctx: Context) :
 
     private fun memoValues(m: Memo) = ContentValues().apply {
         put("text", m.text); put("cat", m.category); put("priv", if (m.isPrivate) 1 else 0); put("pos", m.pos)
+        put("uid", m.uid); put("dirty", 1)
     }
 
     fun save(m: Memo) {
+        if (m.uid.isEmpty()) m.uid = java.util.UUID.randomUUID().toString()
         if (m.id == 0L) {
             m.pos = if (memos.isEmpty()) 0 else memos.maxOf { it.pos } + 1
             m.id = writableDatabase.insert("memos", null, memoValues(m))
@@ -205,7 +255,7 @@ class Store private constructor(ctx: Context) :
     }
 
     fun delete(m: Memo) {
-        writableDatabase.delete("memos", "id=?", arrayOf(m.id.toString()))
+        remove("memos", m.id)
         memos.removeAll { it.id == m.id }
     }
 
@@ -215,7 +265,7 @@ class Store private constructor(ctx: Context) :
         db.beginTransaction()
         try {
             for (m in changed) {
-                db.update("memos", ContentValues().apply { put("pos", m.pos) }, "id=?", arrayOf(m.id.toString()))
+                db.update("memos", ContentValues().apply { put("pos", m.pos); put("dirty", 1) }, "id=?", arrayOf(m.id.toString()))
             }
             db.setTransactionSuccessful()
         } finally {
@@ -227,8 +277,8 @@ class Store private constructor(ctx: Context) :
 
     private fun loadCategories(app: Int): MutableList<Category> {
         val list = mutableListOf<Category>()
-        readableDatabase.rawQuery("SELECT * FROM categories WHERE app=? ORDER BY id", arrayOf(app.toString())).use { c ->
-            while (c.moveToNext()) list.add(Category(c.int("id"), c.str("name"), c.int("app")))
+        readableDatabase.rawQuery("SELECT * FROM categories WHERE app=? AND deleted=0 ORDER BY id", arrayOf(app.toString())).use { c ->
+            while (c.moveToNext()) list.add(Category(c.int("id"), c.str("name"), c.int("app"), uid = c.str("uid")))
         }
         return list
     }
@@ -239,10 +289,10 @@ class Store private constructor(ctx: Context) :
     fun addCategory(name: String, app: Int = 0): Category? {
         val list = categoriesFor(app)
         if (list.size >= MAX_CATEGORIES) return null
-        val id = ((categories + memoCategories).maxOfOrNull { it.id } ?: 0) + 1
-        val cat = Category(id, name, app)
+        val id = writableDatabase.rawQuery("SELECT IFNULL(MAX(id), 0) + 1 FROM categories", null).use { it.moveToFirst(); it.getInt(0) }
+        val cat = Category(id, name, app, uid = java.util.UUID.randomUUID().toString())
         writableDatabase.insert("categories", null, ContentValues().apply {
-            put("id", id); put("name", name); put("app", app)
+            put("id", id); put("name", name); put("app", app); put("uid", cat.uid); put("dirty", 1)
         })
         list.add(cat)
         return cat
@@ -250,19 +300,19 @@ class Store private constructor(ctx: Context) :
 
     fun renameCategory(cat: Category, name: String) {
         cat.name = name
-        writableDatabase.update("categories", ContentValues().apply { put("name", name) },
+        writableDatabase.update("categories", ContentValues().apply { put("name", name); put("dirty", 1) },
             "id=?", arrayOf(cat.id.toString()))
     }
 
     /** Deletes a category. Its items move to Unfiled, as on the Palm. */
     fun deleteCategory(cat: Category) {
-        writableDatabase.delete("categories", "id=?", arrayOf(cat.id.toString()))
+        remove("categories", cat.id.toLong())
         if (cat.app == 1) {
-            writableDatabase.execSQL("UPDATE memos SET cat=0 WHERE cat=${cat.id}")
+            writableDatabase.execSQL("UPDATE memos SET cat=0, dirty=1 WHERE cat=${cat.id} AND deleted=0")
             memos.filter { it.category == cat.id }.forEach { it.category = 0 }
             memoCategories.removeAll { it.id == cat.id }
         } else {
-            writableDatabase.execSQL("UPDATE todos SET cat=0 WHERE cat=${cat.id}")
+            writableDatabase.execSQL("UPDATE todos SET cat=0, dirty=1 WHERE cat=${cat.id} AND deleted=0")
             todos.filter { it.category == cat.id }.forEach { it.category = 0 }
             categories.removeAll { it.id == cat.id }
         }
