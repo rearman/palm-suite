@@ -110,6 +110,9 @@ open class MainActivity : Activity() {
         ShortCuts.list = prefs.shortCuts
         ShortCuts.date = { Fmt.shortDate(LocalDate.now().toEpochDay()) }
         ShortCuts.time = { LocalTime.now().let { Fmt.time(it.hour * 60 + it.minute) } }
+        // A local change starts a sync 30 s later, when sync is on.
+        val app = applicationContext
+        store.onWrite = { if (Prefs(app).syncOn) SyncJob.scheduleSoon(app) }
         mode = if (isMemoApp) MEMO else if (isTodoApp) TODO else prefs.lastView
         root = TypingRoot(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -131,6 +134,12 @@ open class MainActivity : Activity() {
         super.onResume()
         render()
         Alarms.scheduleNext(this)
+        SyncEngine.onApplied = { ShortCuts.list = prefs.shortCuts; changed() }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        SyncEngine.onApplied = null
     }
 
     /**
@@ -1250,12 +1259,14 @@ open class MainActivity : Activity() {
             MenuItem("Font...", 'F') { showFont() },
             MenuItem("Preferences...", 'R') { showMemoPreferences() },
             MenuItem("Edit Categories...") { showEditCategories(1) },
+            MenuItem("Sync...") { showSync() },
             MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About Memo Pad") { showMemoAbout() }
         ) else if (todo) listOf(
             MenuItem("Font...", 'F') { showFont() },
             MenuItem("Edit Categories...") { showEditCategories() },
+            MenuItem("Sync...") { showSync() },
             MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About To Do List") { showAbout(true) }
@@ -1263,6 +1274,7 @@ open class MainActivity : Activity() {
             MenuItem("Font...", 'F') { showFont() },
             MenuItem("Preferences...", 'R') { showPreferences() },
             MenuItem("Display Options...", 'Y') { showDisplayOptions() },
+            MenuItem("Sync...") { showSync() },
             MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About Date Book") { showAbout(false) }
