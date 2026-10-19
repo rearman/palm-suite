@@ -111,3 +111,10 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
   letters after ^ match a full name, the ^ and the name change to the
   ShortCut text. For example, ^me gives Meeting. Options > ShortCuts...
   edits the list. Export Backup does not include ShortCuts.
+
+## Sync server (in progress)
+
+- `sync-server/` holds `palmsync`, a small sync server for your own VPS. It
+  stores only records that the devices encrypt, so the server cannot read them.
+- The apps do not sync yet. See `sync-server/README.md` to install the server
+  and `sync-server/PROTOCOL.md` for the protocol.

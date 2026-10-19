@@ -1,10 +1,10 @@
 name: Build APKs
 
-# Builds and tests both apps. A tag datebook-v* or launcher-v* also releases that one app.
+# Builds and tests both apps and the sync server. A tag datebook-v*, launcher-v* or server-v* also releases that one part.
 on:
   push:
     branches: [ main, master ]
-    tags: [ 'datebook-v*', 'launcher-v*' ]
+    tags: [ 'datebook-v*', 'launcher-v*', 'server-v*' ]
   workflow_dispatch:
 
 jobs:
@@ -66,7 +66,7 @@ jobs:
 
       # On a release tag, attach the APK of that app to the GitHub Release of the tag. A rerun replaces it.
       - name: Attach APK to release
-        if: github.ref_type == 'tag'
+        if: startsWith(github.ref_name, 'datebook-v') || startsWith(github.ref_name, 'launcher-v')
         env:
           GH_TOKEN: ${{ github.token }}
           APK: ${{ steps.apk.outputs.release }}
@@ -75,4 +75,60 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" "$APK" --clobber
           else
             gh release create "$GITHUB_REF_NAME" "$APK" --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+
+  server:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to create the release on a server tag build
+    defaults:
+      run:
+        working-directory: sync-server
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: sync-server/go.mod
+          cache-dependency-path: sync-server/go.mod
+
+      - name: Check format
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+      - name: Vet and test
+        run: |
+          go vet ./... && go test ./...
+
+      - name: Build
+        run: |
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags='-s -w' -o palmsync-linux-$arch .
+          done
+
+      # archive: false uploads the file itself and accepts only one file, so each binary has its own step.
+      - name: Upload amd64 binary
+        uses: actions/upload-artifact@v7
+        with:
+          path: sync-server/palmsync-linux-amd64
+          archive: false
+
+      - name: Upload arm64 binary
+        uses: actions/upload-artifact@v7
+        with:
+          path: sync-server/palmsync-linux-arm64
+          archive: false
+
+      # On a server tag, attach both binaries to the GitHub Release of the tag. A rerun replaces them.
+      - name: Attach binaries to release
+        if: startsWith(github.ref_name, 'server-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" palmsync-linux-amd64 palmsync-linux-arm64 --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" palmsync-linux-amd64 palmsync-linux-arm64 --title "$GITHUB_REF_NAME" --generate-notes
           fi
