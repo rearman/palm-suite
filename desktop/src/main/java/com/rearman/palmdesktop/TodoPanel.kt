@@ -125,11 +125,11 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		table.font = Theme.font
 		table.tableHeader.font = Theme.bold
 		table.rowHeight = 18
-		table.showGrid = false
+		table.setShowGrid(false)
 		table.intercellSpacing = Dimension(0, 0)
 		table.selectionBackground = Theme.select
 		table.selectionForeground = Color.WHITE
-		table.selectionMode = ListSelectionModel.SINGLE_SELECTION
+		table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
 		val cell = Cell()
 		val widths = intArrayOf(45, 60, 300, 75, 110)
 		for (c in widths.indices) {
