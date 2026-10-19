@@ -10,13 +10,14 @@ import java.time.LocalDateTime
 /**
  * Sync with the sync server. The wire format and the endpoints are in sync-server/PROTOCOL.md.
  *
- * Each record goes to the server as one blob sealed with the sync key. A round pushes the dirty
- * rows, applies the server's answer to them, then applies the changes made on other devices.
+ * The round logic is in sync-core [SyncRunner]: it collects the dirty rows, applies the server
+ * answer, and applies the changes made on other devices. This object runs the rounds on the
+ * threads and gives SyncRunner the Android side through [AndroidSyncStore].
  *
- * Keep-both rule: a record that changed here and on the server is kept twice. The local copy
- * becomes a new record with its own uid, which goes to the server on the next round, and the
- * server copy takes the place of the original. SyncLogic.decide gives the action for each case.
- * Shortcuts do not follow this rule: the last writer wins.
+ * Keep-both rule (in SyncRunner): a record that changed here and on the server is kept twice.
+ * The local copy becomes a new record with its own uid, which goes to the server on the next round,
+ * and the server copy takes the place of the original. Shortcuts do not follow this rule: the last
+ * writer wins.
  *
  * Threads: network calls and key derivation run on [worker]. Store, Prefs and ShortCuts are
  * used only on [main]. [done] is always called on [main].
@@ -24,9 +25,6 @@ import java.time.LocalDateTime
 object SyncEngine {
     /** Called on the main thread after a sync changed records. */
     var onApplied: (() -> Unit)? = null
-
-    /** Each run stops after this many rounds. A later run finishes what is left. */
-    private const val MAX_ROUNDS = 5
 
     private val main = Handler(Looper.getMainLooper())
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
@@ -134,210 +132,39 @@ object SyncEngine {
         var changed = false
     }
 
-    /** The push items of one round, with the plaintext of each pushed row (null for a delete). */
-    private class Plan(val items: List<PushItem>, val pushed: Map<String, String?>, val url: String, val since: Long)
-
     /** Main thread. Starts the next round: collects the dirty rows, then sends them on the worker. */
     private fun nextRound(s: Session) {
         s.rounds++
+        val prefs = Prefs(s.ctx)
         val plan = try {
-            collect(s)
+            SyncRunner.collect(adapter(s.ctx), s.key)
         } catch (e: Exception) {
             finish(s, e.message ?: "Sync failed.")
             return
         }
+        val url = prefs.syncUrl
         worker.execute {
-            val net = runCatching { SyncClient(plan.url, s.token).sync(plan.since, plan.items) }
+            val net = runCatching { SyncClient(url, s.token).sync(plan.since, plan.items) }
             main.post { applyNet(s, plan, net) }
         }
     }
 
-    /** Main thread. Step A: builds the push items from the dirty rows and the shortcuts. */
-    private fun collect(s: Session): Plan {
-        val store = Store.get(s.ctx)
-        val prefs = Prefs(s.ctx)
-        val items = mutableListOf<PushItem>()
-        val pushed = HashMap<String, String?>()
-        for (row in store.dirtyRows()) {
-            if (row.deleted) {
-                items.add(PushItem(row.uid, row.rev, true, ""))
-                pushed[row.uid] = null
-                continue
-            }
-            val rec = recordOf(store, row.table, row.id) ?: continue
-            val plain = encode(store, rec)
-            items.add(PushItem(row.uid, row.rev, false, SyncCrypto.seal(s.key, row.uid, plain.toByteArray(Charsets.UTF_8))))
-            pushed[row.uid] = plain
-        }
-        if (prefs.shortCutsDirty) {
-            val plain = SyncCodec.shortcuts(prefs.shortCuts)
-            items.add(PushItem("shortcuts", prefs.shortCutsRev, false,
-                SyncCrypto.seal(s.key, "shortcuts", plain.toByteArray(Charsets.UTF_8))))
-            pushed["shortcuts"] = plain
-        }
-        return Plan(items, pushed, prefs.syncUrl, prefs.syncSince)
-    }
-
-    /** Main thread. Gets the server answer of a round, then applies it. */
-    private fun applyNet(s: Session, plan: Plan, net: Result<SyncResult>) {
+    /** Main thread. Applies the server answer of a round, then starts the next round when needed. */
+    private fun applyNet(s: Session, plan: SyncPlan, net: Result<SyncResult>) {
         val result = net.getOrNull()
         if (result == null) {
             finish(s, net.exceptionOrNull()?.message ?: "Sync failed.")
             return
         }
-        val noConflicts = try {
-            applyResult(s, plan, result)
+        val outcome = try {
+            SyncRunner.apply(adapter(s.ctx), s.key, plan, result)
         } catch (e: Exception) {
             finish(s, e.message ?: "Sync failed.")
             return
         }
-        if (noConflicts || s.rounds >= MAX_ROUNDS) finish(s, null) else nextRound(s)
-    }
-
-    /** Main thread. Steps C.1 to C.4. Returns true when the server reported no conflicts. */
-    private fun applyResult(s: Session, plan: Plan, result: SyncResult): Boolean {
-        val store = Store.get(s.ctx)
-        val prefs = Prefs(s.ctx)
-
-        // C.1: the accepted pushes. A row that did not change since the push becomes clean.
-        for ((uid, rev) in result.accepted) {
-            if (uid == "shortcuts") {
-                if (SyncCodec.shortcuts(prefs.shortCuts) == plan.pushed[uid]) {
-                    prefs.setShortCutsFromSync(prefs.shortCuts, rev)
-                } else {
-                    prefs.shortCutsRev = rev
-                }
-                continue
-            }
-            val row = store.syncRow(uid) ?: continue
-            val now = plainOf(store, row)
-            val same = if (row.deleted) plan.pushed[uid] == null else now != null && now == plan.pushed[uid]
-            store.markSynced(row.table, uid, rev, clean = same)
-        }
-
-        // C.2: the changes from the server. Echoes of our own accepted pushes are skipped.
-        // Every live change is decrypted before any change is applied, so a bad key changes nothing.
-        val changes = result.changes.filter { result.accepted[it.id] != it.rev }
-        val plains = HashMap<String, String>()
-        for (c in changes) {
-            if (!c.deleted) plains[c.id] = openPlain(s.key, c)
-        }
-        val kindOf = plains.mapValues { SyncCodec.kind(it.value) }
-        val live = changes.filter { !it.deleted }
-
-        // C.3: live categories first, then other live changes, then deleted ones.
-        val order = live.filter { kindOf[it.id] == "category" } +
-            live.filter { kindOf[it.id] != "category" } +
-            changes.filter { it.deleted }
-        for (c in order) {
-            if (applyChange(s, c, plains[c.id].orEmpty())) s.changed = true
-        }
-
-        // C.4: the server revision is saved only when every change above applied.
-        prefs.syncSince = result.rev
-        return result.conflicts.isEmpty()
-    }
-
-    /** Main thread. Step C.3 for one change. Returns true when a record changed. */
-    private fun applyChange(s: Session, c: Change, text: String): Boolean {
-        val store = Store.get(s.ctx)
-        val prefs = Prefs(s.ctx)
-
-        if (c.id == "shortcuts") {
-            val local = if (prefs.shortCutsDirty) LocalState.DIRTY else LocalState.CLEAN
-            when (decide(local, c.deleted, same = false, lastWins = true)) {
-                Action.APPLY -> {
-                    val list = SyncCodec.toShortcuts(text)
-                    prefs.setShortCutsFromSync(list, c.rev)
-                    ShortCuts.list = list
-                }
-                Action.REBASE -> prefs.shortCutsRev = c.rev
-                else -> Unit
-            }
-            return false
-        }
-
-        val row = store.syncRow(c.id)
-        val local = when {
-            row == null -> LocalState.NONE
-            row.deleted -> LocalState.TOMB
-            row.dirty -> LocalState.DIRTY
-            else -> LocalState.CLEAN
-        }
-        val kind = if (c.deleted) "" else SyncCodec.kind(text)
-        if (!c.deleted && kind.isEmpty()) return false // unknown kind: skip
-        val mine = row?.let { recordOf(store, it.table, it.id) }
-        val same = local == LocalState.DIRTY && !c.deleted && mine != null &&
-            sameContent(store, kind, text, c.id, mine)
-
-        return when (decide(local, c.deleted, same, lastWins = false)) {
-            Action.SKIP -> false
-            Action.APPLY -> applyRemote(store, kind, text, c)
-            Action.COPY_THEN_APPLY -> {
-                mine?.let { copyLocal(store, it) }
-                applyRemote(store, kind, text, c)
-            }
-            Action.COPY_THEN_DROP -> {
-                mine?.let { copyLocal(store, it) }
-                dropLocal(store, row, c)
-            }
-            Action.DROP -> dropLocal(store, row, c)
-            Action.REBASE -> false
-        }
-    }
-
-    /** Main thread. Saves the server copy of a record, with the local ids of its categories. */
-    private fun applyRemote(store: Store, kind: String, text: String, c: Change): Boolean {
-        when (kind) {
-            "event" -> store.putRemote(SyncCodec.toEvent(text, c.id), c.rev)
-            "todo" -> store.putRemote(SyncCodec.toTodo(text, c.id) { store.categoryIdForUid(it, 0) }, c.rev)
-            "memo" -> store.putRemote(SyncCodec.toMemo(text, c.id) { store.categoryIdForUid(it, 1) }, c.rev)
-            "category" -> store.putRemote(SyncCodec.toCategory(text, c.id, 0), c.rev)
-            else -> return false
-        }
-        return true
-    }
-
-    /** Main thread. Removes a record that the server deleted. */
-    private fun dropLocal(store: Store, row: SyncRow?, c: Change): Boolean {
-        if (row == null) return false
-        store.dropRemote(row.table, c.id)
-        return true
-    }
-
-    /** Main thread. Keeps a copy of a local record as a new record, for the keep-both rule. */
-    private fun copyLocal(store: Store, rec: Any) {
-        when (rec) {
-            is Event -> store.save(rec.deepCopy().copy(id = 0, uid = ""))
-            is Todo -> store.save(rec.copy(id = 0, uid = ""))
-            is Memo -> store.save(rec.copy(id = 0, uid = ""))
-            is Category -> {
-                if (store.addCategory(rec.name + " (copy)", rec.app) == null) {
-                    throw IllegalStateException("Categories are full. Delete one, then sync again.")
-                }
-            }
-        }
-    }
-
-    /** Main thread. Step C.2 check: true when the local record has the same content as the server copy. */
-    private fun sameContent(store: Store, kind: String, text: String, uid: String, local: Any): Boolean = when (kind) {
-        "event" -> (local as? Event)?.dupKey() == SyncCodec.toEvent(text, uid).dupKey()
-        "todo" -> (local as? Todo)?.dupKey() ==
-            SyncCodec.toTodo(text, uid) { store.categoryIdForUid(it, 0) }.dupKey()
-        "memo" -> (local as? Memo)?.dupKey() ==
-            SyncCodec.toMemo(text, uid) { store.categoryIdForUid(it, 1) }.dupKey()
-        "category" -> (local as? Category)?.let {
-            val remote = SyncCodec.toCategory(text, uid, 0)
-            it.name == remote.name && it.app == remote.app
-        } ?: false
-        else -> false
-    }
-
-    /** Decrypts a live change. A failure ends the round with a message about the passphrase. */
-    private fun openPlain(key: ByteArray, c: Change): String = try {
-        String(SyncCrypto.open(key, c.id, c.blob), Charsets.UTF_8)
-    } catch (e: Exception) {
-        throw IllegalStateException("A record could not be decrypted. Check the passphrase.")
+        if (outcome.shortCutsChanged) ShortCuts.list = Prefs(s.ctx).shortCuts
+        if (outcome.changed) s.changed = true
+        if (outcome.noConflicts || s.rounds >= SyncRunner.MAX_ROUNDS) finish(s, null) else nextRound(s)
     }
 
     /** Main thread. Ends a run: saves the result, tells the UI, then calls [Session.done]. */
@@ -348,6 +175,8 @@ object SyncEngine {
         s.done(error)
     }
 
+    private fun adapter(ctx: Context): AndroidSyncStore = AndroidSyncStore(Store.get(ctx), Prefs(ctx))
+
     private fun lastSyncText(): String {
         val now = LocalDateTime.now()
         return "Last sync: " + Fmt.dowDate(now.toLocalDate().toEpochDay()) + " " +
@@ -357,26 +186,66 @@ object SyncEngine {
     private fun report(done: (String?) -> Unit, msg: String?) {
         main.post { done(msg) }
     }
+}
 
-    // Local records
+/** Connects sync-core to Android: Store holds the rows, Prefs holds the ShortCuts and the pull position. */
+private class AndroidSyncStore(private val store: Store, private val prefs: Prefs) : SyncStore {
+    override fun dirtyRows(): List<SyncRow> = store.dirtyRows()
+
+    override fun syncRow(uid: String): SyncRow? = store.syncRow(uid)
 
     /** The live record of a row from the in-memory lists, or null when it is not there. */
-    private fun recordOf(store: Store, table: String, id: Long): Any? = when (table) {
-        "events" -> store.events.firstOrNull { it.id == id }
-        "todos" -> store.todos.firstOrNull { it.id == id }
-        "memos" -> store.memos.firstOrNull { it.id == id }
-        "categories" -> (store.categories + store.memoCategories).firstOrNull { it.id.toLong() == id }
+    override fun record(row: SyncRow): Any? = when (row.table) {
+        "events" -> store.events.firstOrNull { it.id == row.id }
+        "todos" -> store.todos.firstOrNull { it.id == row.id }
+        "memos" -> store.memos.firstOrNull { it.id == row.id }
+        "categories" -> (store.categories + store.memoCategories).firstOrNull { it.id.toLong() == row.id }
         else -> null
     }
 
-    /** The plaintext of a row, or null when the row has no live record. */
-    private fun plainOf(store: Store, row: SyncRow): String? = recordOf(store, row.table, row.id)?.let { encode(store, it) }
+    override fun categoryUid(id: Int): String = store.categoryUid(id)
 
-    private fun encode(store: Store, rec: Any): String = when (rec) {
-        is Event -> SyncCodec.event(rec)
-        is Todo -> SyncCodec.todo(rec, store.categoryUid(rec.category))
-        is Memo -> SyncCodec.memo(rec, store.categoryUid(rec.category))
-        is Category -> SyncCodec.category(rec)
-        else -> ""
+    override fun categoryIdForUid(uid: String, app: Int): Int = store.categoryIdForUid(uid, app)
+
+    override fun markSynced(table: String, uid: String, rev: Long, clean: Boolean) =
+        store.markSynced(table, uid, rev, clean)
+
+    override fun putRemote(e: Event, rev: Long) = store.putRemote(e, rev)
+
+    override fun putRemote(t: Todo, rev: Long) = store.putRemote(t, rev)
+
+    override fun putRemote(m: Memo, rev: Long) = store.putRemote(m, rev)
+
+    override fun putRemote(c: Category, rev: Long) = store.putRemote(c, rev)
+
+    override fun dropRemote(table: String, uid: String) = store.dropRemote(table, uid)
+
+    /** Keeps a copy of a local record as a new record, for the keep-both rule. False when categories are full. */
+    override fun saveCopy(record: Any): Boolean {
+        when (record) {
+            is Event -> store.save(record.deepCopy().copy(id = 0, uid = ""))
+            is Todo -> store.save(record.copy(id = 0, uid = ""))
+            is Memo -> store.save(record.copy(id = 0, uid = ""))
+            is Category -> return store.addCategory(record.name + " (copy)", record.app) != null
+        }
+        return true
     }
+
+    override val shortCuts: List<Pair<String, String>>
+        get() = prefs.shortCuts.map { it.name to it.text }
+
+    override var shortCutsDirty: Boolean
+        get() = prefs.shortCutsDirty
+        set(v) { prefs.shortCutsDirty = v }
+
+    override var shortCutsRev: Long
+        get() = prefs.shortCutsRev
+        set(v) { prefs.shortCutsRev = v }
+
+    override fun setShortCutsFromSync(list: List<Pair<String, String>>, rev: Long) =
+        prefs.setShortCutsFromSync(list.map { ShortCut(it.first, it.second) }, rev)
+
+    override var syncSince: Long
+        get() = prefs.syncSince
+        set(v) { prefs.syncSince = v }
 }

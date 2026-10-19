@@ -1,6 +1,5 @@
 package com.rearman.datebook
 
-import com.rearman.palmui.ShortCut
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -50,9 +49,10 @@ object SyncCodec {
         .put("app", c.app)
         .toString()
 
-    fun shortcuts(list: List<ShortCut>): String {
+    /** The ShortCuts list as (name, text) pairs. */
+    fun shortcuts(list: List<Pair<String, String>>): String {
         val items = JSONArray()
-        for (s in list) items.put(JSONObject().put("name", s.name).put("text", s.text))
+        for ((name, text) in list) items.put(JSONObject().put("name", name).put("text", text))
         return JSONObject().put("kind", "shortcuts").put("list", items).toString()
     }
 
@@ -119,11 +119,11 @@ object SyncCodec {
         return Category(id = id, name = o.optString("name"), app = o.optInt("app"), uid = uid)
     }
 
-    fun toShortcuts(text: String): List<ShortCut> {
+    fun toShortcuts(text: String): List<Pair<String, String>> {
         val arr = JSONObject(text).optJSONArray("list") ?: return emptyList()
         return (0 until arr.length()).map { i ->
             val s = arr.getJSONObject(i)
-            ShortCut(s.optString("name"), s.optString("text"))
+            s.optString("name") to s.optString("text")
         }
     }
 }

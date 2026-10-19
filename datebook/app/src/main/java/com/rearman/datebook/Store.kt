@@ -10,9 +10,6 @@ import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** One row that sync reads: its table, local id, uid, last server rev, and the dirty and deleted flags. */
-data class SyncRow(val table: String, val id: Long, val uid: String, val rev: Long, val dirty: Boolean, val deleted: Boolean)
-
 /**
  * All records live in one SQLite file on the phone. The lists are cached in memory.
  * Deleted rows stay as tombstones until sync; the lists hold only live rows.

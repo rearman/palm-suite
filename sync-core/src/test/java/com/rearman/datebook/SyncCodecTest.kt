@@ -1,6 +1,5 @@
 package com.rearman.datebook
 
-import com.rearman.palmui.ShortCut
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -55,7 +54,7 @@ class SyncCodecTest {
     }
 
     @Test fun shortcutsRoundTrip() {
-        val list = listOf(ShortCut("Dentist", "Dentist at ^T"), ShortCut("Mtg", "Meeting"))
+        val list = listOf("Dentist" to "Dentist at ^T", "Mtg" to "Meeting")
         val text = SyncCodec.shortcuts(list)
         assertEquals("shortcuts", SyncCodec.kind(text))
         assertEquals(list, SyncCodec.toShortcuts(text))

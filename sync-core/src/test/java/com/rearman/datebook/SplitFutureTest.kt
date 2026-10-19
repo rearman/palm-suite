@@ -1,6 +1,5 @@
 package com.rearman.datebook
 
-import com.rearman.palmui.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

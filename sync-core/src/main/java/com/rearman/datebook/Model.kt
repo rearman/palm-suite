@@ -1,6 +1,5 @@
 package com.rearman.datebook
 
-import com.rearman.palmui.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
