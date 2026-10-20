@@ -509,9 +509,10 @@ class WeekView : JPanel(BorderLayout()) {
 				g.drawLine(TIME_W - 7, mid, TIME_W - 3, mid)
 			}
 
-			// Day column lines.
+			// Day column lines. The first hour line is black: it parts the untimed area from the hours.
 			g.color = Color.BLACK
 			for (i in 0..7) g.drawLine(TIME_W + i * cw, 0, TIME_W + i * cw, height - 1)
+			g.drawLine(TIME_W, hourY(0), w, hourY(0))
 
 			// The selected box last, so its blue bar is on top of its neighbors.
 			val sel = selectedOcc()

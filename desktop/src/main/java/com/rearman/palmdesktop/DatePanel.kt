@@ -857,17 +857,17 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			g.font = Theme.time
 			val fm = g.fontMetrics
 			if (header) {
-				// Each untimed row is a raised cell with its diamond. Any height below the rows is a raised cell too.
+				// Each untimed row is a raised cell with its diamond. The last cell also takes the height below
+				// the rows, so one bevel ends the column. A single black line parts the rows from the hours.
 				val rows = untimedH / UNTIMED_H
 				for (i in 0 until rows) {
-					raisedCell(g, 0, i * UNTIMED_H, TIME_W, UNTIMED_H)
+					val cellH = if (i == rows - 1) height - i * UNTIMED_H else UNTIMED_H
+					raisedCell(g, 0, i * UNTIMED_H, TIME_W, cellH)
 					g.color = Color.BLACK
 					drawDiamond(g, TIME_W / 2, i * UNTIMED_H + UNTIMED_H / 2)
 				}
-				val used = rows * UNTIMED_H
-				if (used < height) raisedCell(g, 0, used, TIME_W, height - used)
-				g.color = Theme.grid
-				g.drawLine(0, height - 1, width, height - 1)
+				g.color = Color.BLACK
+				g.drawLine(TIME_W, height - 1, width, height - 1)
 			} else {
 				for (h in 0 until 24) {
 					val y = yOf(h * 60)

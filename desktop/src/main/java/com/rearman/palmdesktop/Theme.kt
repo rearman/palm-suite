@@ -109,9 +109,15 @@ object Theme {
 fun arrowButton(direction: Int, action: () -> Unit): javax.swing.JButton =
 	javax.swing.plaf.basic.BasicArrowButton(direction).apply { addActionListener { action() } }
 
-/** Draws the Palm untimed-row mark, a filled diamond, centered on (cx, cy). */
+/**
+ * Draws the Palm untimed-row mark centered on (cx, cy): a diamond of 2r + 1 pixel rows, 7 by 7 pixels
+ * as in Palm Desktop. Each row is a line, so the shape is the same on every pixel grid.
+ */
 fun drawDiamond(g: java.awt.Graphics, cx: Int, cy: Int, r: Int = 3) {
-	g.fillPolygon(intArrayOf(cx, cx + r, cx, cx - r), intArrayOf(cy - r, cy, cy + r, cy), 4)
+	for (dy in -r..r) {
+		val half = r - kotlin.math.abs(dy)
+		g.drawLine(cx - half, cy + dy, cx + half, cy + dy)
+	}
 }
 
 /** Draws a raised cell as Palm Desktop draws each hour of the time column: panel gray, a white top edge and a shadow bottom edge. */
