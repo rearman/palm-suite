@@ -118,7 +118,7 @@ class SyncRunnerTest {
         val live = plan.items[0]
         assertEquals("e1", live.id)
         assertFalse(live.deleted)
-        val plain = String(SyncCrypto.open(key, "e1", live.blob), Charsets.UTF_8)
+        val plain = PlainBytes.unpack(SyncCrypto.open(key, "e1", live.blob))
         assertEquals("event", SyncCodec.kind(plain))
         assertEquals("Dentist", SyncCodec.toEvent(plain, "e1").title)
         assertEquals(plain, plan.pushed["e1"])
