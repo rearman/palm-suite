@@ -368,7 +368,7 @@ class MainFrame : JFrame("Palm Desktop") {
 		bar.background = Theme.panel
 		bar.border = BorderFactory.createCompoundBorder(
 			BorderFactory.createRaisedBevelBorder(),
-			BorderFactory.createEmptyBorder(6, 2, 6, 2)
+			BorderFactory.createEmptyBorder(6, 5, 6, 5)   // a 72 px bar around the 58 px buttons
 		)
 		addLauncher(bar, "date", "Date", Icons.date())
 		addLauncher(bar, "address", "Address", Icons.address())
@@ -385,9 +385,10 @@ class MainFrame : JFrame("Palm Desktop") {
 		button.isFocusPainted = false
 		button.font = Theme.launcher
 		button.alignmentX = JComponent.CENTER_ALIGNMENT
-		button.maximumSize = Dimension(72, 60)
-		// Small margins, so the longest label ("Address") fits the 72 px button, as in Palm Desktop.
+		// Palm Desktop launcher buttons are 58 px wide on a 72 px bar. Small margins let "Address" fit.
 		button.margin = java.awt.Insets(2, 2, 2, 2)
+		button.preferredSize = Dimension(58, button.preferredSize.height)
+		button.maximumSize = Dimension(58, 60)
 		button.addActionListener { showView(name, null) }
 		launcherGroup.add(button)
 		launcherButtons[name] = button
