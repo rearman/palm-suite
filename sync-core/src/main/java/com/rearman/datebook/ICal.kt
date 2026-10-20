@@ -93,11 +93,11 @@ object ICal {
         return r.toString()
     }
 
-    private fun escape(s: String) =
+    internal fun escape(s: String) =
         s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\r", "").replace("\n", "\\n")
 
     /** Appends [s] as content lines of at most 75 octets, each with a CRLF end. */
-    private fun fold(s: String, out: StringBuilder) {
+    internal fun fold(s: String, out: StringBuilder) {
         var n = 0
         var i = 0
         while (i < s.length) {
@@ -361,7 +361,7 @@ object ICal {
         return Prop(head[0].substringAfterLast('.').uppercase(), params, line.substring(colon + 1))
     }
 
-    private fun unescape(s: String): String {
+    internal fun unescape(s: String): String {
         val b = StringBuilder()
         var i = 0
         while (i < s.length) {

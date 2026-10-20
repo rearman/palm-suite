@@ -118,6 +118,77 @@ fun moveMemo(ordered: List<Memo>, from: Int, to: Int): List<Memo> {
     return changed
 }
 
+/**
+ * An Address Book record, after the Palm OS 3.5 Address Book. The five phone fields each have a
+ * label, an index into [Address.LABELS]; a new entry has Work, Home, Fax, Other and E-mail.
+ * [showPhone] is the phone field (0 to 4) that the Address List shows.
+ */
+data class Address(
+    var id: Long = 0,
+    var lastName: String = "",
+    var firstName: String = "",
+    var title: String = "",
+    var company: String = "",
+    var phoneLabels: List<Int> = listOf(0, 1, 2, 3, 4),
+    var phones: List<String> = listOf("", "", "", "", ""),
+    var address: String = "",
+    var city: String = "",
+    var state: String = "",
+    var zip: String = "",
+    var country: String = "",
+    var custom: List<String> = listOf("", "", "", ""),
+    var note: String = "",
+    var showPhone: Int = 0,
+    var category: Int = 0,       // 0 = Unfiled
+    var isPrivate: Boolean = false,
+    // The same id on every device, for sync.
+    var uid: String = ""
+) {
+    companion object {
+        /** The phone field labels of the Palm Address Book, in pop-up order. */
+        val LABELS = listOf("Work", "Home", "Fax", "Other", "E-mail", "Main", "Pager", "Mobile")
+        /** The letter the Address List shows after a number, one per label. Main and Mobile are both M, as on the Palm. */
+        const val LETTERS = "WHFOEMPM"
+        const val WORK = 0
+        const val HOME = 1
+        const val FAX = 2
+        const val OTHER = 3
+        const val EMAIL = 4
+        const val MAIN = 5
+        const val PAGER = 6
+        const val MOBILE = 7
+    }
+
+    /** True when no field has text. */
+    val isEmpty: Boolean
+        get() = listOf(lastName, firstName, title, company, address, city, state, zip, country, note).all { it.isBlank() } &&
+            phones.all { it.isBlank() } && custom.all { it.isBlank() }
+
+    /**
+     * The Address List name. By last name: "Last, First", else the one that is set, else the company.
+     * By company ([byCompany]): "Company, Last", else the company or the last name, else the first name.
+     */
+    fun listName(byCompany: Boolean): String {
+        fun join(a: String, b: String) = listOf(a, b).filter { it.isNotBlank() }.joinToString(", ")
+        val name = if (byCompany) join(company, lastName).ifBlank { firstName } else join(lastName, firstName).ifBlank { company }
+        return name.ifBlank { "-Unnamed-" }
+    }
+
+    /** The number the Address List shows and its letter: the [showPhone] field, else the first field with text. Null when all are empty. */
+    fun listPhone(): Pair<String, Char>? {
+        val i = if (phones.getOrElse(showPhone) { "" }.isNotBlank()) showPhone else phones.indexOfFirst { it.isNotBlank() }
+        if (i < 0) return null
+        return phones[i] to LETTERS[phoneLabels[i]]
+    }
+}
+
+/** The address without its database id and sync uid. */
+fun Address.dupKey() = copy(id = 0, uid = "")
+
+/** Address List order: by the list name, ignoring case, then by id. */
+fun addressOrder(list: List<Address>, byCompany: Boolean): List<Address> =
+    list.sortedWith(compareBy<Address>({ it.listName(byCompany).lowercase() }, { it.id }))
+
 /** An event as it appears on one particular day. */
 data class Occ(val event: Event, val day: Long)
 
