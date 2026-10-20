@@ -232,7 +232,7 @@ class WeekView : JPanel(BorderLayout()) {
 		typingLine = line
 		if (min == null) untimedH = maxOf(untimedH, (line + 1) * UNTIMED_LINE + 4)
 		val f = JTextField()
-		f.font = Theme.font
+		f.font = Theme.view
 		f.border = null
 		f.isOpaque = false
 		val day = typingDay
@@ -284,7 +284,7 @@ class WeekView : JPanel(BorderLayout()) {
 		val r = hit.rect
 		val x = EventBox.titleX(r, hit.occ.event)
 		val f = JTextField(hit.occ.event.title)
-		f.font = Theme.font
+		f.font = Theme.view
 		f.border = null
 		f.isOpaque = false
 		f.setBounds(x, r.y + 1, r.x + r.width - EventBox.BAR_W - x, f.preferredSize.height)
@@ -489,7 +489,7 @@ class WeekView : JPanel(BorderLayout()) {
 			super.paintComponent(g)
 			val w = width
 			val cw = colW(w)
-			g.font = Theme.font
+			g.font = Theme.view
 			val fm = g.fontMetrics
 			g.color = Color.WHITE
 			g.fillRect(0, 0, w, height)

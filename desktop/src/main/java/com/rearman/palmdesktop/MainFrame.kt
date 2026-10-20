@@ -77,6 +77,7 @@ class MainFrame : JFrame("Palm Desktop") {
 	init {
 		defaultCloseOperation = EXIT_ON_CLOSE
 		setSize(1000, 700)
+		iconImages = Icons.appImages()
 		TextUndo.install()
 		jMenuBar = buildMenuBar()
 		center.add(datePanel, "date")
@@ -325,7 +326,7 @@ class MainFrame : JFrame("Palm Desktop") {
 		bar.addSeparator()
 		bar.add(toolButton(Icons.find(), "Find") { FindDialog.show(this) })
 		bar.addSeparator()
-		bar.add(toolButton(Icons.note(), "New Item") { newRecord() })
+		bar.add(toolButton(Icons.newItem(), "New Item") { newRecord() })
 		bar.add(Box.createHorizontalGlue())
 		bar.add(privateLabel)
 		return bar
@@ -361,7 +362,7 @@ class MainFrame : JFrame("Palm Desktop") {
 		button.verticalTextPosition = SwingConstants.BOTTOM
 		button.horizontalTextPosition = SwingConstants.CENTER
 		button.isFocusPainted = false
-		button.font = Theme.font
+		button.font = Theme.launcher
 		button.alignmentX = JComponent.CENTER_ALIGNMENT
 		button.maximumSize = Dimension(72, 60)
 		button.addActionListener { showView(name, null) }

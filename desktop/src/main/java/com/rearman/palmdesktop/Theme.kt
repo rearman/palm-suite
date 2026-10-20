@@ -12,13 +12,26 @@ import javax.swing.UIManager
 import javax.swing.plaf.metal.DefaultMetalTheme
 import javax.swing.plaf.metal.MetalLookAndFeel
 
-/** The Palm Desktop look: the Windows classic look and feel where it exists, one font and the Palm colors. */
+/** The Palm Desktop look: the Windows classic look and feel where it exists, the Palm Desktop fonts and the Palm colors. */
 object Theme {
-	/** The small Windows dialog font. Tahoma when it is installed, else the logical dialog font. */
-	private val family: String =
-		if (GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.contains("Tahoma")) "Tahoma" else Font.DIALOG
-	val font: Font = Font(family, Font.PLAIN, 11)
-	val bold: Font = Font(family, Font.BOLD, 11)
+	/** The installed font family names, read once. */
+	private val installed: Set<String> = GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.toSet()
+	/** The first of [names] that is installed, else the logical dialog font. */
+	private fun pick(vararg names: String): String = names.firstOrNull { it in installed } ?: Font.DIALOG
+	/** The TrueType MS Sans Serif, the Palm Desktop dialog font. */
+	private val sans = pick("Microsoft Sans Serif", "Liberation Sans", "Arial")
+	/** Arial, the Palm Desktop view and launcher font. */
+	private val arial = pick("Arial", "Liberation Sans")
+	/** MS Sans Serif 8 pt, the small Windows dialog font. */
+	val font: Font = Font(sans, Font.PLAIN, 11)
+	/** MS Sans Serif 8 pt, bold. */
+	val bold: Font = Font(sans, Font.BOLD, 11)
+	/** The launcher button labels: Arial, 16 px cell. */
+	val launcher: Font = Font(arial, Font.PLAIN, 14)
+	/** The Date view title: Arial Bold 10 pt. */
+	val title: Font = Font(arial, Font.BOLD, 13)
+	/** The Day and Week view time labels and event text: Arial, 15 px cell. */
+	val view: Font = Font(arial, Font.PLAIN, 13)
 	val dateRed: Color = Color(255, 0, 0)
 	val select: Color = Color(0, 120, 215)
 	val grid: Color = Color(160, 160, 160)
@@ -55,7 +68,7 @@ object Theme {
 }
 
 /**
- * A small arrow button. Tahoma has no arrow characters, so the arrow is drawn. [direction] is a
+ * A small arrow button. The UI font has no arrow characters, so the arrow is drawn. [direction] is a
  * SwingConstants value such as WEST or EAST.
  */
 fun arrowButton(direction: Int, action: () -> Unit): javax.swing.JButton =

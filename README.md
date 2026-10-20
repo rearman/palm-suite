@@ -140,3 +140,24 @@ Import and Export use iCalendar files and the Date Book backup file.
 - The app syncs with `palmsync` at start, 30 seconds after a change, every
   hour, and when you choose Tools > Sync Now.
 - When the same record changed on two devices, the app keeps both copies.
+- The app uses the fonts of Palm Desktop 3.1.1. Dialogs, lists and buttons
+  use MS Sans Serif 8 pt, through its TrueType version Microsoft Sans Serif.
+  The launcher labels, the Date view title and the Day and Week views use
+  Arial. On Linux, Liberation Sans replaces both fonts.
+- The toolbar, launcher, window and marker icons are the Palm Desktop 3.1.1
+  bitmaps. See [Palm Desktop artwork](#palm-desktop-artwork).
+
+# Palm Desktop artwork
+
+The icons in `desktop/src/main/resources/com/rearman/palmdesktop/icons/` come
+from Palm Desktop 3.1.1 for Windows (`palm.exe`, `date20.dll`, `todo20.dll`,
+`memo20.dll` and `addr20.dll`). They are Copyright © 2000 Palm, Inc. or its
+subsidiaries. All rights reserved by their current rights holders.
+
+This project is not affiliated with the former Palm Computing company or its
+current rights holders in any official capacity. The project treats Palm
+Desktop 3.1.1 as abandonware and uses its artwork only to match the original
+look. The artwork comes without guarantee or support.
+
+If you hold the rights to this artwork and want it removed, open an issue on
+this repository and it will be removed.

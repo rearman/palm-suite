@@ -126,7 +126,7 @@ internal object EventBox {
 			icon.paintIcon(c, g2, x, iy)
 			x += icon.iconWidth + 2
 		}
-		g2.font = Theme.font
+		g2.font = Theme.view
 		val fm = g2.fontMetrics
 		val ty = if (centered) r.y + (r.height + fm.ascent - fm.descent) / 2 else r.y + fm.ascent + 1
 		g2.color = Color.BLACK

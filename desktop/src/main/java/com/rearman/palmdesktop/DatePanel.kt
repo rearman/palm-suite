@@ -246,7 +246,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	}
 
 	private fun buildDayPanel(): JPanel {
-		titleLabel.font = Theme.bold.deriveFont(14f)
+		titleLabel.font = Theme.title
 		titleLabel.foreground = Theme.dateRed
 		titleLabel.isOpaque = true
 		titleLabel.background = Color.WHITE
@@ -794,7 +794,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		/** Opens an in-place editor on the title of the box [occ] at [r]. Enter or focus loss saves it. */
 		private fun editTitle(occ: Occ, r: Rectangle) {
 			val f = JTextField(occ.event.title)
-			f.font = Theme.font
+			f.font = Theme.view
 			f.border = null
 			f.isOpaque = false
 			val x = EventBox.titleX(r, occ.event)
@@ -823,7 +823,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			super.paintComponent(g)
 			g.color = Theme.panel
 			g.fillRect(0, 0, TIME_W, height)
-			g.font = Theme.font
+			g.font = Theme.view
 			val fm = g.fontMetrics
 			if (header) {
 				g.color = Color.BLACK

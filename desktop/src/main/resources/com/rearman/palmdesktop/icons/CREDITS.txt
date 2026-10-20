@@ -1,0 +1,4 @@
+The icons in this folder are bitmaps from Palm Desktop 3.1.1 for Windows (palm.exe, date20.dll,
+todo20.dll, memo20.dll and addr20.dll), Copyright (c) 2000 Palm, Inc. or its subsidiaries. All rights
+reserved by their current rights holders. See "Palm Desktop artwork" in the README.md at the root of
+the repository.
