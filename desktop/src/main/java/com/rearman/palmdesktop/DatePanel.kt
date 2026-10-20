@@ -979,7 +979,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 					g.fillRect(x, y, cw, ch)
 					color = if (isToday) Theme.dateRed else Color.WHITE
 				}
-				drawCentered(g, d.dayOfMonth.toString(), x, y, cw, ch, Theme.font, color)
+				drawCentered(g, d.dayOfMonth.toString(), x, y, cw, ch, if (isToday) Theme.bold else Theme.font, color)
 			}
 		}
 	}

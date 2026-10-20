@@ -151,11 +151,17 @@ Import and Export use iCalendar files and the Date Book backup file.
 - The app syncs with `palmsync` at start, 30 seconds after a change, every
   hour, and when you choose Tools > Sync Now.
 - When the same record changed on two devices, the app keeps both copies.
-- The app uses the fonts of Palm Desktop 3.1.1. Dialogs, lists and buttons
-  use MS Sans Serif 8 pt, through its TrueType version Microsoft Sans Serif.
-  The launcher labels, the To Do List and Memo Pad captions, the Date view
-  title and the Day, Week and Month views use Arial. On Linux, Liberation
-  Sans replaces both fonts.
+- The app uses the fonts and sizes that Palm Desktop 3.1.1 draws with, in
+  their TrueType versions.
+- Dialogs, lists, buttons, the time labels and the calendars use MS Sans
+  Serif 8 pt, through its TrueType version Microsoft Sans Serif (11 px).
+  Today's date is bold.
+- The status bar uses Microsoft Sans Serif 12 px, and the launcher labels
+  use Segoe UI 12 px.
+- Arial: the Date view title (bold 13 px), the To Do List and Memo Pad
+  captions (bold 14 px), the Day, Week and Month event text (13 px) and the
+  Memo Pad text (12 px).
+- On Linux, Liberation Sans replaces these fonts.
 - The toolbar, launcher, window and marker icons are the Palm Desktop 3.1.1
   bitmaps. See [Palm Desktop artwork](#palm-desktop-artwork).
 - Each category list ends with Edit Categories..., which opens the category

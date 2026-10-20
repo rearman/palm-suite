@@ -73,7 +73,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 
 		editor.lineWrap = true
 		editor.wrapStyleWord = true
-		editor.font = Theme.font
+		editor.font = Theme.memo
 		category.font = Theme.font
 		applyButton.font = Theme.font
 		applyButton.mnemonic = KeyEvent.VK_A

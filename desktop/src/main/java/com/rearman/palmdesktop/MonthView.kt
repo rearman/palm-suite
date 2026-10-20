@@ -182,7 +182,8 @@ class MonthView : JPanel(BorderLayout()) {
 
 				// Date number at the top right. The selected day fills with the select color.
 				// Today is red; on the fill it is red too when it is also selected, else white.
-				cg.font = Theme.font
+				// Today is bold, as in Palm Desktop.
+				cg.font = if (gridStart + i == today) Theme.bold else Theme.font
 				val nfm = cg.fontMetrics
 				val num = date.dayOfMonth.toString()
 				val nw = nfm.stringWidth(num)

@@ -540,8 +540,6 @@ class WeekView : JPanel(BorderLayout()) {
 		override fun paintComponent(g: Graphics) {
 			super.paintComponent(g)
 			val cw = colW(width)
-			g.font = Theme.font
-			val fm = g.fontMetrics
 			val today = todayEpoch()
 			for (i in 0 until 7) {
 				val x = TIME_W + i * cw
@@ -549,8 +547,11 @@ class WeekView : JPanel(BorderLayout()) {
 				g.color = if (day == today) Theme.select else Theme.panel
 				g.fillRect(x, 0, cw, height)
 				val text = "${Fmt.dowShort[dowIndex(i)]} ${Fmt.ld(day).dayOfMonth}"
+				// Today is bold, as in Palm Desktop.
+				g.font = if (day == today) Theme.bold else Theme.font
+				val tfm = g.fontMetrics
 				g.color = if (day == today) Theme.dateRed else Color.BLACK
-				g.drawString(text, x + (cw - fm.stringWidth(text)) / 2, (height + fm.ascent - fm.descent) / 2)
+				g.drawString(text, x + (cw - tfm.stringWidth(text)) / 2, (height + tfm.ascent - tfm.descent) / 2)
 				g.color = Theme.grid
 				g.drawLine(x, 0, x, height - 1)
 			}

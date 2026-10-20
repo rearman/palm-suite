@@ -389,14 +389,14 @@ class MainFrame : JFrame("Palm Desktop") {
 			BorderFactory.createEtchedBorder(),
 			BorderFactory.createEmptyBorder(2, 4, 2, 6)
 		)
-		statusLabel.font = Theme.font
-		positionLabel.font = Theme.font
+		statusLabel.font = Theme.status
+		positionLabel.font = Theme.status
 		positionLabel.border = BorderFactory.createCompoundBorder(
 			BorderFactory.createLoweredBevelBorder(),
 			BorderFactory.createEmptyBorder(0, 3, 0, 3)
 		)
 		// The label is empty here, so its height comes from the font and the bevel.
-		positionLabel.preferredSize = Dimension(90, positionLabel.getFontMetrics(Theme.font).height + 6)
+		positionLabel.preferredSize = Dimension(90, positionLabel.getFontMetrics(Theme.status).height + 6)
 		bar.add(statusLabel, BorderLayout.WEST)
 		bar.add(positionLabel, BorderLayout.EAST)
 		return bar

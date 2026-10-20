@@ -20,22 +20,28 @@ object Theme {
 	private fun pick(vararg names: String): String = names.firstOrNull { it in installed } ?: Font.DIALOG
 	/** The TrueType MS Sans Serif, the Palm Desktop dialog font. */
 	private val sans = pick("Microsoft Sans Serif", "Liberation Sans", "Arial")
-	/** Arial, the Palm Desktop view and launcher font. */
+	/** Arial, the Palm Desktop view, title and caption font. */
 	private val arial = pick("Arial", "Liberation Sans")
+	/** Segoe UI, the Windows message font that Palm Desktop uses for the launcher. */
+	private val segoe = pick("Segoe UI", "Microsoft Sans Serif", "Liberation Sans", "Arial")
 	/** MS Sans Serif 8 pt, the small Windows dialog font. */
 	val font: Font = Font(sans, Font.PLAIN, 11)
 	/** MS Sans Serif 8 pt, bold. */
 	val bold: Font = Font(sans, Font.BOLD, 11)
-	/** The launcher button labels: Arial 12 px. */
-	val launcher: Font = Font(arial, Font.PLAIN, 12)
+	/** The launcher button labels: Segoe UI 12 px, the Windows message font as in Palm Desktop. */
+	val launcher: Font = Font(segoe, Font.PLAIN, 12)
+	/** The status bar: Microsoft Sans Serif 12 px. */
+	val status: Font = Font(sans, Font.PLAIN, 12)
 	/** The Date view title: Arial Bold 10 pt. */
 	val title: Font = Font(arial, Font.BOLD, 13)
-	/** The To Do List and Memo Pad captions: Arial Bold 13 px, as in Palm Desktop. */
-	val caption: Font = Font(arial, Font.BOLD, 13)
-	/** The Day, Week and Month event text: Arial 12 px. */
-	val view: Font = Font(arial, Font.PLAIN, 12)
-	/** The Day and Week view time labels: Arial 11 px. */
-	val time: Font = Font(arial, Font.PLAIN, 11)
+	/** The To Do List and Memo Pad captions: Arial Bold 14 px, as in Palm Desktop. */
+	val caption: Font = Font(arial, Font.BOLD, 14)
+	/** The Day, Week and Month event text: Arial 13 px. */
+	val view: Font = Font(arial, Font.PLAIN, 13)
+	/** The Memo Pad text: Arial 12 px. */
+	val memo: Font = Font(arial, Font.PLAIN, 12)
+	/** The Day and Week view time labels: MS Sans Serif 11 px, as in Palm Desktop (8 pt). */
+	val time: Font = Font(sans, Font.PLAIN, 11)
 	val dateRed: Color = Color(255, 0, 0)
 	val select: Color = Color(0, 120, 215)
 	val grid: Color = Color(160, 160, 160)
