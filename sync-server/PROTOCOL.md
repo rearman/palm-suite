@@ -116,8 +116,114 @@ The device encrypts every record. The server stores only ciphertext.
 
 ## 6. Record plaintext
 
-The plaintext of a blob is UTF-8 JSON. The field `kind` gives the record type.
-Each kind has these keys:
+The plaintext of a blob is UTF-8 JSON, in one of two formats. Readers accept
+both formats. Writers write format 2 only.
+
+### Compression
+
+The bytes that a device seals (encrypts) are the UTF-8 JSON. When the form
+below is shorter, they are the byte 0x01 followed by the raw deflate (RFC 1951)
+of the UTF-8 JSON.
+
+A UTF-8 JSON always starts with `{`. A reader checks the first byte. If the
+first byte is 0x01, the reader inflates the rest.
+
+### Format 2
+
+The field `k` gives the record type. Its value is `e` (event), `t` (to do),
+`m` (memo), `a` (address), `c` (category) or `s` (shortcuts).
+
+A writer leaves out each key that has its default. A reader uses the default
+for a key that is missing. An array is written whole when any entry differs
+from its default. The JSON has no spaces.
+
+#### Event
+
+| Key | Field                     | Default |
+| --- | ------------------------- | ------- |
+| k   | Kind (`e`)                | Always  |
+| t   | title                     | ""      |
+| n   | note                      | ""      |
+| d   | date                      | 0       |
+| u   | untimed                   | false   |
+| s   | start                     | 480     |
+| e   | end                       | 540     |
+| a   | alarm                     | false   |
+| aa  | alarmAdvance              | 5       |
+| au  | alarmUnit                 | 0       |
+| r   | repeat                    | 0       |
+| ev  | every                     | 1       |
+| re  | repeatEnd                 | -1      |
+| w   | weekDays                  | 0       |
+| x   | exceptions (sorted longs) | []      |
+| p   | private                   | false   |
+
+#### To Do
+
+| Key | Field        | Default |
+| --- | ------------ | ------- |
+| k   | Kind (`t`)   | Always  |
+| t   | title        | ""      |
+| n   | note         | ""      |
+| pr  | priority     | 1       |
+| du  | due          | -1      |
+| dn  | done         | false   |
+| c   | category uid | ""      |
+| p   | private      | false   |
+
+#### Memo
+
+| Key | Field        | Default |
+| --- | ------------ | ------- |
+| k   | Kind (`m`)   | Always  |
+| t   | text         | ""      |
+| c   | category uid | ""      |
+| p   | private      | false   |
+| o   | pos          | 0       |
+
+#### Address
+
+| Key | Field                    | Default          |
+| --- | ------------------------ | ---------------- |
+| k   | Kind (`a`)               | Always           |
+| ln  | lastName                 | ""               |
+| fn  | firstName                | ""               |
+| ti  | title                    | ""               |
+| co  | company                  | ""               |
+| pl  | phoneLabels (5 integers) | [0,1,2,3,4]      |
+| ph  | phones (5 strings)       | ["","","","",""] |
+| ad  | address                  | ""               |
+| ci  | city                     | ""               |
+| st  | state                    | ""               |
+| z   | zip                      | ""               |
+| cn  | country                  | ""               |
+| cu  | custom (4 strings)       | ["","","",""]    |
+| n   | note                     | ""               |
+| sp  | showPhone                | 0                |
+| c   | category uid             | ""               |
+| p   | private                  | false            |
+
+#### Category
+
+| Key | Field      | Default |
+| --- | ---------- | ------- |
+| k   | Kind (`c`) | Always  |
+| n   | name       | ""      |
+| ap  | app        | 0       |
+
+#### ShortCuts
+
+| Key | Field          | Default |
+| --- | -------------- | ------- |
+| k   | Kind (`s`)     | Always  |
+| l   | list (objects) | Always  |
+
+Each item in `l` is an object: `{"n":"name","t":"text"}`.
+
+### Format 1
+
+Format 1 uses long key names and the field `kind`. Readers accept it. Writers
+do not write it. Each kind has these keys:
 
 - Event: `{"kind":"event","title","note","date","untimed","start","end","alarm","alarmAdvance","alarmUnit","repeat","every","repeatEnd","weekDays","exceptions":[sorted longs],"private"}`
 - To Do: `{"kind":"todo","title","note","priority","due","done","category":uid or "","private"}`
@@ -128,8 +234,16 @@ Each kind has these keys:
 
 Rules:
 
-- A record refers to its category by the category uid in `category`.
-  An empty string means no category.
-- The value of `app` is 0 for To Do or 1 for Memo Pad.
+- A record refers to its category by the category uid in `category` (format 1)
+  or `c` (format 2). An empty string means no category.
+- The value of `app` (format 1) or `ap` (format 2) is 0 for To Do or 1 for
+  Memo Pad.
 - The ShortCuts record has the id `shortcuts`. The device that syncs the record last wins.
 - A client compares two records by their content, without the `uid`. If the content is the same, the two versions are the same.
+
+### Server log
+
+The server stores its log as binary, in `log.bin` in its data directory. The
+wire protocol does not change. When the server starts and finds an old
+`log.jsonl`, it converts that file to `log.bin` and keeps the old file as
+`log.jsonl.bak`.

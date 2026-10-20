@@ -4,6 +4,9 @@ import com.rearman.palmsync.Change
 import com.rearman.palmsync.PushItem
 import com.rearman.palmsync.SyncCrypto
 import com.rearman.palmsync.SyncResult
+import java.io.ByteArrayOutputStream
+import java.util.zip.Deflater
+import java.util.zip.Inflater
 
 /** One row of a sync table. A tombstone has deleted = true and no live record. */
 data class SyncRow(val table: String, val id: Long, val uid: String, val rev: Long, val dirty: Boolean, val deleted: Boolean)
@@ -222,7 +225,7 @@ object SyncRunner {
 
     /** Decrypts a live change. A failure ends the round with a message about the passphrase. */
     private fun openPlain(key: ByteArray, c: Change): String = try {
-        String(SyncCrypto.open(key, c.id, c.blob), Charsets.UTF_8)
+        PlainBytes.unpack(SyncCrypto.open(key, c.id, c.blob))
     } catch (e: Exception) {
         throw IllegalStateException(DECRYPT_MESSAGE)
     }
@@ -240,5 +243,64 @@ object SyncRunner {
     }
 
     private fun seal(key: ByteArray, id: String, plain: String): String =
-        SyncCrypto.seal(key, id, plain.toByteArray(Charsets.UTF_8))
+        SyncCrypto.seal(key, id, PlainBytes.pack(plain))
+}
+
+/**
+ * The bytes that are sealed for one record. The plain text is JSON, and JSON always starts with
+ * "{". So a first byte of 0x01 marks deflated bytes, and it never occurs in a plain record. A
+ * record that is not deflated is sealed as its UTF-8 text, as before.
+ */
+internal object PlainBytes {
+    private const val DEFLATED: Byte = 0x01
+    private const val BUFFER = 1024
+
+    /** The bytes to seal: the marker and the raw deflate when that is shorter, else the UTF-8 text. */
+    fun pack(plain: String): ByteArray {
+        val bytes = plain.toByteArray(Charsets.UTF_8)
+        val deflated = deflate(bytes)
+        return if (1 + deflated.size < bytes.size) byteArrayOf(DEFLATED) + deflated else bytes
+    }
+
+    /** The text of opened bytes. Bytes that start with the marker are inflated first. */
+    fun unpack(raw: ByteArray): String {
+        if (raw.isEmpty() || raw[0] != DEFLATED) return String(raw, Charsets.UTF_8)
+        return String(inflate(raw, 1), Charsets.UTF_8)
+    }
+
+    private fun deflate(bytes: ByteArray): ByteArray {
+        val deflater = Deflater(Deflater.BEST_COMPRESSION, true)
+        try {
+            deflater.setInput(bytes)
+            deflater.finish()
+            val out = ByteArrayOutputStream()
+            val buf = ByteArray(BUFFER)
+            while (!deflater.finished()) {
+                val n = deflater.deflate(buf)
+                out.write(buf, 0, n)
+            }
+            return out.toByteArray()
+        } finally {
+            deflater.end()
+        }
+    }
+
+    private fun inflate(raw: ByteArray, offset: Int): ByteArray {
+        val inflater = Inflater(true)
+        try {
+            inflater.setInput(raw, offset, raw.size - offset)
+            val out = ByteArrayOutputStream()
+            val buf = ByteArray(BUFFER)
+            while (!inflater.finished()) {
+                val n = inflater.inflate(buf)
+                // Stops when the input ends early, so truncated data cannot loop forever.
+                if (n == 0 && (inflater.needsInput() || inflater.needsDictionary())) break
+                out.write(buf, 0, n)
+            }
+            check(inflater.finished()) { "Truncated deflate data" }
+            return out.toByteArray()
+        } finally {
+            inflater.end()
+        }
+    }
 }

@@ -155,6 +155,10 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 
 - The apps sync through `palmsync` on your own VPS (Options > Sync...).
 - Records are encrypted on the device. The server stores only ciphertext.
+- Records are packed small before they are encrypted: short keys, fields with
+  their default left out, and compression when it is shorter. All devices must
+  run the versions with format 2 (Date Book 1.9 and later, desktop 0.14 and
+  later) before they sync. Each app uploads its records once after the update.
 - Address Book records and their categories sync with the other records.
 - When a record changed on two devices, the apps keep both copies, as Palm
   HotSync did.
