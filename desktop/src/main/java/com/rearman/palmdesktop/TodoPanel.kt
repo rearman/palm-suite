@@ -43,6 +43,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 	private var rows: List<Todo> = emptyList()   // the items the table shows
 	private var selectedId: Long? = null         // the item selected in the table
+	private var loaded: Todo? = null             // a copy of the item as the details panel shows it
 	private var loadedId: Long? = null           // the item whose values are in the details panel
 	private var busy = false                     // true while code changes the controls
 	private var pendingDue = -1L                 // due date chosen in the panel, saved by Apply
@@ -412,6 +413,8 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		when {
 			idx < 0 -> clearDetails()
 			loadedId != keep -> loadDetails(rows[idx])
+			// A sync changed the item: show the new copy. Edits that are not applied yet stay, and Apply saves them.
+			rows[idx] != loaded && !hasEdits() -> loadDetails(rows[idx])
 		}
 		App.positionChanged()
 	}
@@ -494,6 +497,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		quiet {
 			selectedId = t.id
 			loadedId = t.id
+			loaded = t.copy()
 			todoText.text = t.title
 			radios[t.priority.coerceIn(1, 5) - 1].isSelected = true
 			pendingDue = t.due
@@ -510,6 +514,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	private fun clearDetails() {
 		selectedId = null
 		loadedId = null
+		loaded = null
 		quiet {
 			todoText.text = ""
 			group.clearSelection()
@@ -529,6 +534,14 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		dueBox.selectedIndex = -1
 		dueBox.repaint()
 		dueField.text = if (pendingDue < 0) "" else LocalDate.ofEpochDay(pendingDue).dayOfWeek.getDisplayName(TextStyle.FULL, Locale.US)
+	}
+
+	/** True when a field of the details panel differs from the item as it was loaded (an edit that is not applied yet). */
+	private fun hasEdits(): Boolean {
+		val t = loaded ?: return false
+		return todoText.text != t.title || radios.indexOfFirst { it.isSelected } + 1 != t.priority ||
+			pendingDue != t.due || (categoryBox.selectedItem as? Choice)?.id != t.category ||
+			pendingNote != t.note || privateBox.isSelected != t.isPrivate || completeBox.isSelected != t.done
 	}
 
 	private fun setControlsEnabled(on: Boolean) {
