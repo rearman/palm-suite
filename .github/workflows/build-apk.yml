@@ -200,6 +200,12 @@ jobs:
               --main-jar desktop.jar --main-class com.rearman.palmdesktop.MainKt --dest out
             file=palm-desktop-linux.tar.gz
             tar -C out -czf "$file" palm-desktop
+            # The jars and the icon alone, for the Gentoo ebuild in gentoo/, which runs them on the system Java.
+            mkdir -p jars/palm-desktop
+            cp -r desktop/build/install/desktop/lib jars/palm-desktop/
+            cp desktop/src/main/resources/com/rearman/palmdesktop/icons/app32.png jars/palm-desktop/palm-desktop.png
+            tar -C jars -czf palm-desktop-jars.tar.gz palm-desktop
+            echo "jars=palm-desktop-jars.tar.gz" >> "$GITHUB_OUTPUT"
           fi
           echo "file=$file" >> "$GITHUB_OUTPUT"
 
@@ -209,13 +215,23 @@ jobs:
           path: ${{ steps.pkg.outputs.file }}
           archive: false
 
-      # On a desktop tag, attach the package to the GitHub Release of the tag. The two OS jobs can
-      # both try to create the release; the one that loses uploads to it.
-      - name: Attach package to release
+      - name: Upload desktop jars
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.pkg.outputs.jars }}
+          archive: false
+
+      # On a desktop tag, attach the packages to the GitHub Release of the tag. The two OS jobs can
+      # both try to create the release; the one that loses uploads to it. FILES is unquoted on
+      # purpose: it holds one or two file names with no spaces.
+      - name: Attach packages to release
         if: startsWith(github.ref_name, 'desktop-v')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          FILE: ${{ steps.pkg.outputs.file }}
+          FILES: ${{ steps.pkg.outputs.file }} ${{ steps.pkg.outputs.jars }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" "$FILE" --clobber             || gh release create "$GITHUB_REF_NAME" "$FILE" --title "$GITHUB_REF_NAME" --generate-notes             || gh release upload "$GITHUB_REF_NAME" "$FILE" --clobber
+          gh release upload "$GITHUB_REF_NAME" $FILES --clobber \
+            || gh release create "$GITHUB_REF_NAME" $FILES --title "$GITHUB_REF_NAME" --generate-notes \
+            || gh release upload "$GITHUB_REF_NAME" $FILES --clobber
