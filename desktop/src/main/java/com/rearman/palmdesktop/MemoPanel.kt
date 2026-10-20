@@ -43,7 +43,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 	init {
 		val title = JLabel("Memo Pad").apply {
 			font = Theme.caption
-			border = BorderFactory.createCompoundBorder(BorderFactory.createRaisedBevelBorder(), BorderFactory.createEmptyBorder(1, 16, 1, 16))
+			border = BorderFactory.createCompoundBorder(Theme.sunken, BorderFactory.createEmptyBorder(1, 16, 1, 16))
 		}
 		val top = JPanel(BorderLayout()).apply {
 			border = EmptyBorder(4, 4, 4, 4)

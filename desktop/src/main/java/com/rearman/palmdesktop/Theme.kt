@@ -81,6 +81,9 @@ object Theme {
 		TexturePaint(img, Rectangle(0, 0, 2, 2))
 	}
 	val panel: Color get() = UIManager.getColor("Panel.background")
+	/** The Windows sunken edge of Palm Desktop: gray then black at the top and left, white then panel gray at the bottom and right. */
+	val sunken: javax.swing.border.Border
+		get() = javax.swing.BorderFactory.createBevelBorder(javax.swing.border.BevelBorder.LOWERED, Color.WHITE, panel, Color.BLACK, shadow)
 
 	/** Sets the look and feel and the default fonts. Call it once, before any window is built. */
 	fun install() {

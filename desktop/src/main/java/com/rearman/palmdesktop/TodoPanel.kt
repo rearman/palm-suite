@@ -143,7 +143,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	init {
 		val tab = JLabel("To Do List").apply {
 			font = Theme.caption
-			border = BorderFactory.createCompoundBorder(BorderFactory.createRaisedBevelBorder(), BorderFactory.createEmptyBorder(1, 16, 1, 16))
+			border = BorderFactory.createCompoundBorder(Theme.sunken, BorderFactory.createEmptyBorder(1, 16, 1, 16))
 		}
 		val top = JPanel(BorderLayout())
 		top.border = EmptyBorder(4, 4, 4, 4)
