@@ -407,6 +407,10 @@ fun visibleAddresses(): List<Address> {
 /** True when the Address List sorts by company (Settings "addressListBy" 1). */
 private fun listByCompany() = Settings.getInt("addressListBy", 0) == 1
 
+/** The title of an event made by dragging [a] to the Day view: the name and the number of its Address List row. */
+internal fun eventTitle(a: Address, byCompany: Boolean = listByCompany()): String =
+	listOfNotNull(a.listName(byCompany), a.listPhone()?.first).joinToString(" ")
+
 /** The text lines of the card below the name. Empty fields are skipped. */
 private fun cardLines(a: Address, labels: List<String>): List<String> {
 	val lines = mutableListOf<String>()

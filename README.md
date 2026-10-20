@@ -173,6 +173,10 @@ Book. It also has categories, private records, Find, Purge, Import and Export,
 and Print. Import and Export use iCalendar files and the Date Book backup file,
 and vCard (.vcf) files for the Address Book.
 
+In Day view, drag an address or a to-do from the list at the right to an hour
+to make a one-hour event, or to the untimed row to make an untimed event. An
+address gives its list line (the name and the number) as the event text.
+
 The desktop keeps the Address Book records for sync.
 
 - Windows: download `palm-desktop-windows.msi` from a `desktop-v*` release

@@ -18,6 +18,8 @@ import java.awt.GridLayout
 import java.awt.Insets
 import java.awt.Point
 import java.awt.Rectangle
+import java.awt.datatransfer.DataFlavor
+import java.awt.datatransfer.Transferable
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
 import java.awt.event.KeyEvent
@@ -47,6 +49,7 @@ import javax.swing.ListCellRenderer
 import javax.swing.Scrollable
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
+import javax.swing.TransferHandler
 import javax.swing.border.BevelBorder
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
@@ -400,6 +403,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				}
 			}
 		})
+		// A To Do item or an address dragged to the Day grid becomes an event, as in Palm Desktop.
+		todoList.dragEnabled = true
+		todoList.transferHandler = TitleExport { todoList.selectedValue?.title }
 		addressList.font = Theme.font
 		addressList.fixedCellHeight = 16
 		addressList.cellRenderer = AddressRowRenderer()
@@ -411,6 +417,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				AddressDialog.edit(this@DatePanel, addressModel.getElementAt(idx))
 			}
 		})
+		addressList.dragEnabled = true
+		addressList.transferHandler = TitleExport { addressList.selectedValue?.let { eventTitle(it) } }
 		// The Look up field: typing selects the first address whose list name starts with the text.
 		lookUp.font = Theme.font
 		lookUp.preferredSize = Dimension(10, 20)
@@ -717,15 +725,53 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		repaintDay()
 		val title = f.text.trim()
 		if (!save || title.isEmpty()) return
-		val ev = if (typingUntimed) {
-			Event(title = title, date = typingDay, untimed = true)
+		addEvent(title, typingDay, typingMin, typingUntimed)
+	}
+
+	/** Saves a new event titled [title] on [day]: untimed, or one hour from [min]. It becomes the selected event. */
+	private fun addEvent(title: String, day: Long, min: Int, untimed: Boolean) {
+		val ev = if (untimed) {
+			Event(title = title, date = day, untimed = true)
 		} else {
-			Event(title = title, date = typingDay, start = typingMin, end = typingMin + 60, untimed = false)
+			Event(title = title, date = day, start = min, end = min + 60, untimed = false)
 		}
 		applyAlarmPreset(ev)
 		App.store.save(ev)
 		selectedId = ev.id
 		App.refresh()
+	}
+
+	/** Gives the selected row of a right pane list as the title of a new event. */
+	private class TitleExport(private val title: () -> String?) : TransferHandler() {
+		override fun getSourceActions(c: JComponent): Int = COPY
+		override fun createTransferable(c: JComponent): Transferable? = title()?.let { TitleTransfer(it) }
+	}
+
+	/** A dragged event title. Its flavor is local to this app, so text from other programs is not dropped. */
+	private class TitleTransfer(private val title: String) : Transferable {
+		companion object {
+			val FLAVOR = DataFlavor(DataFlavor.javaJVMLocalObjectMimeType + ";class=java.lang.String")
+		}
+		override fun getTransferDataFlavors(): Array<DataFlavor> = arrayOf(FLAVOR)
+		override fun isDataFlavorSupported(f: DataFlavor): Boolean = f == FLAVOR
+		override fun getTransferData(f: DataFlavor): Any = title
+	}
+
+	/** Takes a dragged title: an untimed event on the [header], else a one-hour event at the hour under the drop. */
+	private inner class DayDrop(private val header: Boolean) : TransferHandler() {
+		override fun canImport(s: TransferHandler.TransferSupport): Boolean =
+			s.isDrop && s.isDataFlavorSupported(TitleTransfer.FLAVOR)
+
+		override fun importData(s: TransferHandler.TransferSupport): Boolean {
+			if (!canImport(s)) return false
+			val title = (s.transferable.getTransferData(TitleTransfer.FLAVOR) as String).trim()
+			if (title.isEmpty()) return false
+			endTyping(true)
+			endTitleEdit(true)
+			val min = (minAt(s.dropLocation.dropPoint.y) / 60 * 60).coerceIn(0, 23 * 60)
+			addEvent(title, App.day, min, header)
+			return true
+		}
 	}
 
 	/** Closes the in-place title editor. With [save], a changed title that is not empty is saved for its occurrence. */
@@ -810,6 +856,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			isOpaque = true
 			background = Color.WHITE
 			layout = null   // doLayout places the typing field and the title editor
+			transferHandler = DayDrop(header)
 			addMouseListener(object : MouseAdapter() {
 				override fun mousePressed(e: MouseEvent) {
 					suppressClick = false
