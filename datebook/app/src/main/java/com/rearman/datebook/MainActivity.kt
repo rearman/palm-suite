@@ -1357,6 +1357,7 @@ open class MainActivity : Activity() {
             MenuItem("Preferences...", 'R') { showAddressPreferences() },
             MenuItem("Rename Custom Fields...") { showRenameCustomFields() },
             MenuItem("Edit Categories...") { showEditCategories(2) },
+            MenuItem("Sync...") { showSync() },
             MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About Address Book") { showAddressAbout() }
