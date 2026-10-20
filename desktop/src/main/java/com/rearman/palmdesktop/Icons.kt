@@ -12,6 +12,8 @@ object Icons {
 
 	fun date(): Icon = load("date")
 
+	fun address(): Icon = load("address")
+
 	fun todo(): Icon = load("todo")
 
 	fun memo(): Icon = load("memo")

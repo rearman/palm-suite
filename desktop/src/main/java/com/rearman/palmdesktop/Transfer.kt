@@ -14,33 +14,47 @@ import javax.swing.JFileChooser
 import javax.swing.JOptionPane
 import javax.swing.filechooser.FileNameExtensionFilter
 
-/** Import and export of Date Book records: iCalendar files and the Date Book backup file. */
+/** Import and export of Date Book records: iCalendar files, the Date Book backup file and vCard files. */
 object Transfer {
 	private const val FORMAT = "datebook-backup-1"
 
-	fun exportFile(owner: Component) {
+	/** Exports the records of [view]: the visible addresses as vCard in the Address Book, else the Date Book. */
+	fun exportFile(owner: Component, view: String) {
 		val ics = FileNameExtensionFilter("iCalendar (*.ics)", "ics")
 		val json = FileNameExtensionFilter("Date Book backup (*.json)", "json")
+		val vcf = FileNameExtensionFilter("vCard (*.vcf)", "vcf")
+		val addresses = view == "address"
 		val c = JFileChooser()
 		c.dialogTitle = "Export"
 		c.isAcceptAllFileFilterUsed = false
-		c.addChoosableFileFilter(ics)
-		c.addChoosableFileFilter(json)
-		c.fileFilter = ics
+		if (addresses) {
+			c.addChoosableFileFilter(vcf)
+			c.fileFilter = vcf
+		} else {
+			c.addChoosableFileFilter(ics)
+			c.addChoosableFileFilter(json)
+			c.fileFilter = ics
+		}
 		if (c.showSaveDialog(owner) != JFileChooser.APPROVE_OPTION) return
 
-		// The typed extension wins. Without one, the selected filter gives the format.
 		val typed = c.selectedFile.path
-		val known = typed.endsWith(".json", true) || typed.endsWith(".ics", true)
-		val asJson = when {
-			typed.endsWith(".json", true) -> true
-			typed.endsWith(".ics", true) -> false
-			else -> c.fileFilter === json
+		val file: File
+		val text: String
+		if (addresses) {
+			file = if (typed.endsWith(".vcf", true)) File(typed) else File("$typed.vcf")
+			text = VCard.export(visibleAddresses()) { App.store.categoryName(it) }
+		} else {
+			// The typed extension wins. Without one, the selected filter gives the format.
+			val known = typed.endsWith(".json", true) || typed.endsWith(".ics", true)
+			val asJson = when {
+				typed.endsWith(".json", true) -> true
+				typed.endsWith(".ics", true) -> false
+				else -> c.fileFilter === json
+			}
+			file = if (known) File(typed) else File("$typed.${if (asJson) "json" else "ics"}")
+			val visible = App.store.events.filter { App.showPrivate || !it.isPrivate }
+			text = if (asJson) backupJson() else ICal.export(visible)
 		}
-		val file = if (known) File(typed) else File("$typed.${if (asJson) "json" else "ics"}")
-
-		val visible = App.store.events.filter { App.showPrivate || !it.isPrivate }
-		val text = if (asJson) backupJson() else ICal.export(visible)
 		try {
 			Files.writeString(file.toPath(), text, StandardCharsets.UTF_8)
 		} catch (e: IOException) {
@@ -55,6 +69,7 @@ object Transfer {
 		c.dialogTitle = "Import"
 		c.addChoosableFileFilter(FileNameExtensionFilter("iCalendar (*.ics)", "ics"))
 		c.addChoosableFileFilter(FileNameExtensionFilter("Date Book backup (*.json)", "json"))
+		c.addChoosableFileFilter(FileNameExtensionFilter("vCard (*.vcf)", "vcf"))
 		if (c.showOpenDialog(owner) != JFileChooser.APPROVE_OPTION) return
 		val text = try {
 			Files.readString(c.selectedFile.toPath(), StandardCharsets.UTF_8)
@@ -64,7 +79,11 @@ object Transfer {
 		}
 		val body = text.removePrefix("﻿").trimStart()
 		try {
-			val message = if (body.startsWith("BEGIN:VCALENDAR", true)) importIcs(text) else importJson(body)
+			val message = when {
+				body.startsWith("BEGIN:VCALENDAR", true) -> importIcs(text)
+				body.startsWith("BEGIN:VCARD", true) -> importVcard(body)
+				else -> importJson(body)
+			}
 			App.refresh()
 			JOptionPane.showMessageDialog(owner, message, "Import", JOptionPane.INFORMATION_MESSAGE)
 		} catch (e: JSONException) {
@@ -87,6 +106,24 @@ object Transfer {
 		var message = "Added $added events. Skipped $skipped duplicate events."
 		if (parsed.simplified > 0) message += " ${parsed.simplified} events were simplified to fit Date Book."
 		return message
+	}
+
+	/** Adds the vCards in [text] as Address Book records. A category name is matched ignoring case, else Unfiled. */
+	private fun importVcard(text: String): String {
+		val parsed = VCard.parse(text)
+		val store = App.store
+		val have = store.addresses.mapTo(HashSet()) { it.dupKey() }
+		var added = 0
+		for (p in parsed) {
+			val cat = store.addressCategories.firstOrNull { it.name.equals(p.categoryName, true) }?.id ?: 0
+			val a = p.address.copy(id = 0, category = cat, uid = "")
+			// A card equal to one already stored, or to one earlier in this file, is skipped.
+			if (a.dupKey() in have) continue
+			have.add(a.dupKey())
+			store.save(a)
+			added++
+		}
+		return "Added $added addresses. Skipped ${parsed.size - added} duplicate addresses."
 	}
 
 	private fun importJson(text: String): String {

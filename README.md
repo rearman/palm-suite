@@ -164,12 +164,12 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 ## Desktop
 
 Palm Desktop for Windows and Linux follows Palm Desktop 3.1.1. It has the Date
-Book (Day, Week and Month views), the To Do List and the Memo Pad. It also has
-categories, private records, Find, Purge, Import and Export, and Print.
-Import and Export use iCalendar files and the Date Book backup file.
+Book (Day, Week and Month views), the To Do List, the Memo Pad and the Address
+Book. It also has categories, private records, Find, Purge, Import and Export,
+and Print. Import and Export use iCalendar files and the Date Book backup file,
+and vCard (.vcf) files for the Address Book.
 
-The desktop keeps the Address Book records for sync. It shows no Address view
-yet.
+The desktop keeps the Address Book records for sync.
 
 - Windows: download `palm-desktop-windows.msi` from a `desktop-v*` release
   and run it. It installs Palm Desktop for your user account. The installer
@@ -213,6 +213,22 @@ yet.
   editor of the To Do List or the Memo Pad.
 - The category lists show the categories in alphabetical order. Edit
   Categories... stays last in each list.
+
+### Address Book
+
+- The Address List shows the names by category. Choose a category in the
+  pop-up, or All.
+- Look up: type a name in the Look up field to go to the first match.
+- The details card shows the selected name, with its title, company, phone
+  numbers, address, custom fields and note.
+- Edit... opens the Name, Address and Note tabs. New... starts an empty address.
+- List By... sets the name order: Last name, First name, or Company, Last name.
+- Custom Field Labels... names the four custom fields.
+- Address has its own categories.
+- Find searches the address records.
+- Import and Export read and write vCard (.vcf) files.
+- Day view: the Address | To Do switch in the right pane shows the address list
+  and its Look up field.
 
 ### Gentoo
 

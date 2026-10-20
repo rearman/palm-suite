@@ -55,9 +55,12 @@ private const val CTRL = InputEvent.CTRL_DOWN_MASK
  */
 class MainFrame : JFrame("Palm Desktop") {
 	private val datePanel = DatePanel()
+	private val addressPanel = AddressPanel()
 	private val todoPanel = TodoPanel()
 	private val memoPanel = MemoPanel()
-	private val panels = linkedMapOf<String, AppView>("date" to datePanel, "todo" to todoPanel, "memo" to memoPanel)
+	private val panels = linkedMapOf<String, AppView>(
+		"date" to datePanel, "address" to addressPanel, "todo" to todoPanel, "memo" to memoPanel
+	)
 	private val cards = CardLayout()
 	private val center = JPanel(cards)
 	private val launcherGroup = ButtonGroup()
@@ -81,6 +84,7 @@ class MainFrame : JFrame("Palm Desktop") {
 		TextUndo.install()
 		jMenuBar = buildMenuBar()
 		center.add(datePanel, "date")
+		center.add(addressPanel, "address")
 		center.add(todoPanel, "todo")
 		center.add(memoPanel, "memo")
 		contentPane.layout = BorderLayout()
@@ -210,7 +214,7 @@ class MainFrame : JFrame("Palm Desktop") {
 			m.add(item("Save All", 'S', KeyEvent.VK_S, CTRL) { saveAll() })
 			m.addSeparator()
 			m.add(item("Import...", 'I') { Transfer.importFile(this) })
-			m.add(item("Export...", 'E') { Transfer.exportFile(this) })
+			m.add(item("Export...", 'E') { Transfer.exportFile(this, current) })
 			m.addSeparator()
 			m.add(item("Page Setup...", 'u') {
 				val job = PrinterJob.getPrinterJob()
@@ -236,12 +240,14 @@ class MainFrame : JFrame("Palm Desktop") {
 			m.add(onlyIn(item("Delete Event", 'l') { currentView().deleteSelected() }, "date"))
 			m.add(onlyIn(item("New To Do", 'N', KeyEvent.VK_N, CTRL) { newRecord() }, "todo"))
 			m.add(onlyIn(item("New Memo", 'N', KeyEvent.VK_N, CTRL) { newRecord() }, "memo"))
+			m.add(onlyIn(item("New Address...", 'N', KeyEvent.VK_N, CTRL) { newRecord() }, "address"))
 			m.addSeparator()
 			m.add(item("Find...", 'F', KeyEvent.VK_F, CTRL) { FindDialog.show(this) })
 		})
 		bar.add(menu("View", 'V').also { m ->
 			val views = ButtonGroup()
 			viewRadio(m, views, "date", "Date Book", 'D', KeyEvent.VK_F2)
+			viewRadio(m, views, "address", "Address Book", 'A', KeyEvent.VK_F3)
 			viewRadio(m, views, "todo", "To Do List", 'o', KeyEvent.VK_F4)
 			viewRadio(m, views, "memo", "Memo Pad", 'M', KeyEvent.VK_F5)
 			m.addSeparator()
@@ -254,12 +260,15 @@ class MainFrame : JFrame("Palm Desktop") {
 			m.add(onlyIn(item("Show...", 'o') { (todoPanel as? TodoPanel)?.showOptions() }, "todo"))
 			m.add(onlyIn(JPopupMenu.Separator(), "memo"))
 			m.add(onlyIn(item("List By...", 'L') { (memoPanel as? MemoPanel)?.listBy() }, "memo"))
+			m.add(onlyIn(JPopupMenu.Separator(), "address"))
+			m.add(onlyIn(item("List By...", 'L') { ListByDialog.show(this) }, "address"))
 		})
 		bar.add(menu("Tools", 'T').also { m ->
 			categoriesItem = item("Categories...", 'C') {
-				CategoriesDialog.show(this, if (current == "memo") 1 else 0)
+				CategoriesDialog.show(this, when (current) { "memo" -> 1; "address" -> 2; else -> 0 })
 			}
 			m.add(categoriesItem)
+			m.add(onlyIn(item("Custom Field Labels...", 'F') { CustomLabelsDialog.show(this) }, "address"))
 			m.addSeparator()
 			purgeItem = item("Purge Events...", 'P') {
 				PurgeDialog.show(this, if (current == "todo") "todos" else "events")
@@ -362,6 +371,7 @@ class MainFrame : JFrame("Palm Desktop") {
 			BorderFactory.createEmptyBorder(6, 2, 6, 2)
 		)
 		addLauncher(bar, "date", "Date", Icons.date())
+		addLauncher(bar, "address", "Address", Icons.address())
 		addLauncher(bar, "todo", "To Do", Icons.todo())
 		addLauncher(bar, "memo", "Memo", Icons.memo())
 		return bar

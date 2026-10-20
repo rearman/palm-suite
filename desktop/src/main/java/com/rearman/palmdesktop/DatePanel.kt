@@ -1,5 +1,6 @@
 package com.rearman.palmdesktop
 
+import com.rearman.datebook.Address
 import com.rearman.datebook.Category
 import com.rearman.datebook.Event
 import com.rearman.datebook.Fmt
@@ -48,9 +49,11 @@ import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 import javax.swing.border.BevelBorder
 import javax.swing.border.EmptyBorder
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 
 /**
- * The Date view: the Day grid, the right pane (calendar and To Do list) and the view tabs.
+ * The Date view: the Day grid, the right pane (calendar, then the Address or To Do list) and the view tabs.
  * The Week and Month views share the right pane and the tabs.
  */
 class DatePanel : JPanel(BorderLayout()), AppView {
@@ -80,7 +83,18 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private val todoList = object : JList<Todo>(todoModel) {
 		override fun getScrollableTracksViewportWidth(): Boolean = true
 	}
-	private val catCombo = JComboBox<String>()
+	private val catCombo = JComboBox<CatChoice>()
+	// The right pane shows the To Do list or the Address list, as Settings "datePane" says.
+	private val addressModel = DefaultListModel<Address>()
+	private val addressList = object : JList<Address>(addressModel) {
+		override fun getScrollableTracksViewportWidth(): Boolean = true
+	}
+	private val listCards = CardLayout()
+	private val listPanel = JPanel(listCards)
+	private val lookRow = JPanel(BorderLayout(4, 0))
+	private val lookUp = JTextField()
+	private val addressSeg = segment("Address", "address")
+	private val todoSeg = segment("To Do", "todo")
 	private val rightPane = JPanel(BorderLayout())
 	private val tabGroup = ButtonGroup()
 	// The keys of Palm Desktop: Alt+D, Alt+W and Alt+M. The launcher buttons use F2, F4 and F5.
@@ -338,24 +352,30 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		top.add(months)
 		top.add(calendarPart)
 
-		val todoLabel = JLabel("To Do")
-		// Palm Desktop shows the list under a selected "To Do" tab.
-		todoLabel.font = Theme.font
-		todoLabel.isOpaque = true
-		todoLabel.background = Theme.select
-		todoLabel.foreground = Color.WHITE
-		todoLabel.border = BorderFactory.createCompoundBorder(
-			BorderFactory.createLineBorder(Color.BLACK), BorderFactory.createEmptyBorder(1, 8, 1, 8)
-		)
+		// The two-segment switch of Palm Desktop: 113 by 21 px, the selected segment in the highlight color.
+		val switchBox = JPanel(GridLayout(1, 2))
+		switchBox.border = BorderFactory.createLineBorder(Color.BLACK)
+		switchBox.preferredSize = Dimension(113, 21)
+		switchBox.add(addressSeg)
+		switchBox.add(todoSeg)
+		val switchRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+		switchRow.add(switchBox)
 		catCombo.font = Theme.font
 		catCombo.addActionListener {
 			if (!updating) {
-				catId = shownCats.getOrNull(catCombo.selectedIndex - 1)?.id
-				refreshAll()
+				val choice = catCombo.selectedItem as? CatChoice ?: return@addActionListener
+				if (addressMode()) {
+					// The category is shared with the Address view.
+					Settings.setInt("addressCategory", choice.id)
+					App.refresh()
+				} else {
+					catId = shownCats.getOrNull(catCombo.selectedIndex - 1)?.id
+					refreshAll()
+				}
 			}
 		}
-		val head = JPanel(BorderLayout())
-		head.add(todoLabel, BorderLayout.WEST)
+		val head = JPanel(BorderLayout(4, 0))
+		head.add(switchRow, BorderLayout.WEST)
 		head.add(catCombo, BorderLayout.CENTER)
 
 		todoList.font = Theme.font
@@ -380,13 +400,54 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				}
 			}
 		})
-		val todoPart = JPanel(BorderLayout())
-		todoPart.add(head, BorderLayout.NORTH)
-		todoPart.add(JScrollPane(todoList).apply { border = BorderFactory.createLoweredBevelBorder() }, BorderLayout.CENTER)
+		addressList.font = Theme.font
+		addressList.fixedCellHeight = 16
+		addressList.cellRenderer = AddressRowRenderer(119)
+		addressList.addMouseListener(object : MouseAdapter() {
+			override fun mouseClicked(e: MouseEvent) {
+				if (e.clickCount != 2) return
+				val idx = addressList.locationToIndex(e.point)
+				if (idx < 0 || addressList.getCellBounds(idx, idx)?.contains(e.point) != true) return
+				AddressDialog.edit(this@DatePanel, addressModel.getElementAt(idx))
+			}
+		})
+		// The Look up field: typing selects the first address whose list name starts with the text.
+		lookUp.font = Theme.font
+		lookUp.preferredSize = Dimension(10, 20)
+		lookUp.document.addDocumentListener(object : DocumentListener {
+			override fun insertUpdate(e: DocumentEvent) = seekAddress()
+			override fun removeUpdate(e: DocumentEvent) = seekAddress()
+			override fun changedUpdate(e: DocumentEvent) = seekAddress()
+		})
+		val lookLabel = JLabel("Look up:")
+		lookLabel.font = Theme.font
+		lookLabel.preferredSize = Dimension(44, 20)
+		lookRow.add(lookLabel, BorderLayout.WEST)
+		lookRow.add(lookUp, BorderLayout.CENTER)
+
+		listPanel.add(JScrollPane(todoList).apply { border = BorderFactory.createLoweredBevelBorder() }, "todo")
+		listPanel.add(JScrollPane(addressList).apply { border = BorderFactory.createLoweredBevelBorder() }, "address")
+		val listPart = JPanel(BorderLayout())
+		listPart.add(head, BorderLayout.NORTH)
+		listPart.add(listPanel, BorderLayout.CENTER)
+		listPart.add(lookRow, BorderLayout.SOUTH)
 
 		rightPane.add(top, BorderLayout.NORTH)
-		rightPane.add(todoPart, BorderLayout.CENTER)
+		rightPane.add(listPart, BorderLayout.CENTER)
 		return rightPane
+	}
+
+	/** One segment of the Address | To Do switch. A click shows its list in the right pane. */
+	private fun segment(text: String, pane: String): JLabel = JLabel(text, SwingConstants.CENTER).apply {
+		font = Theme.font
+		isOpaque = true
+		addMouseListener(object : MouseAdapter() {
+			override fun mouseClicked(e: MouseEvent) {
+				if (e.button != MouseEvent.BUTTON1) return
+				Settings.set("datePane", pane)
+				App.refresh()
+			}
+		})
 	}
 
 	private fun buildTabs(): JPanel {
@@ -429,6 +490,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		for ((i, b) in monthButtons.withIndex()) styleMonth(b, i == day.monthValue - 1)
 		rebuildCategories()
 		rebuildTodos()
+		rebuildAddresses()
+		showListPane()
 		dayHeader.revalidate()   // the untimed rows change the header height
 		repaintDay()
 		calendar.repaint()
@@ -460,19 +523,65 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		App.refresh()
 	}
 
+	/** True when the right pane shows the Address list (Settings "datePane"). */
+	private fun addressMode(): Boolean = Settings.get("datePane", "todo") == "address"
+
+	/** The category drop-down: the To Do categories, or in Address mode the Address categories and Unfiled. */
 	private fun rebuildCategories() {
 		updating = true
 		try {
-			shownCats = App.store.categories.toList()
-			catCombo.model = CategoryModel(listOf("All") + shownCats.map { it.name }, EDIT_CATEGORIES) {
-				CategoriesDialog.show(this, 0)
+			if (addressMode()) {
+				val items = listOf(CatChoice(-1, "All")) + App.store.categoriesFor(2).map { CatChoice(it.id, it.name) } +
+					CatChoice(0, "Unfiled")
+				catCombo.model = CategoryModel(items, CatChoice(-2, EDIT_CATEGORIES)) { CategoriesDialog.show(this, 2) }
+				val id = Settings.getInt("addressCategory", -1)
+				catCombo.selectedItem = items.firstOrNull { it.id == id } ?: items[0]
+			} else {
+				shownCats = App.store.categories.toList()
+				val items = listOf(CatChoice(-1, "All")) + shownCats.map { CatChoice(it.id, it.name) }
+				catCombo.model = CategoryModel(items, CatChoice(-2, EDIT_CATEGORIES)) { CategoriesDialog.show(this, 0) }
+				val idx = shownCats.indexOfFirst { it.id == catId }
+				if (idx < 0) catId = null
+				catCombo.selectedIndex = if (idx < 0) 0 else idx + 1
 			}
-			val idx = shownCats.indexOfFirst { it.id == catId }
-			if (idx < 0) catId = null
-			catCombo.selectedIndex = if (idx < 0) 0 else idx + 1
 		} finally {
 			updating = false
 		}
+	}
+
+	/** Shows the list of the pane mode, its switch segment, and the Look up row in Address mode. */
+	private fun showListPane() {
+		val addr = addressMode()
+		listCards.show(listPanel, if (addr) "address" else "todo")
+		lookRow.isVisible = addr
+		styleSegment(addressSeg, addr)
+		styleSegment(todoSeg, !addr)
+	}
+
+	private fun styleSegment(label: JLabel, on: Boolean) {
+		label.background = if (on) Theme.select else Color.WHITE
+		label.foreground = if (on) Color.WHITE else Color.BLACK
+	}
+
+	/** Rebuilds the Address list from visibleAddresses(), keeping the selected address by id. */
+	private fun rebuildAddresses() {
+		val keep = addressList.selectedValue?.id
+		addressModel.clear()
+		visibleAddresses().forEach { addressModel.addElement(it) }
+		addressList.selectedIndex = (0 until addressModel.size()).indexOfFirst { addressModel.getElementAt(it).id == keep }
+	}
+
+	/** Selects the first address whose list name starts with the typed text, ignoring case, and scrolls to it. */
+	private fun seekAddress() {
+		val text = lookUp.text
+		if (text.isEmpty()) return
+		val byCompany = Settings.getInt("addressListBy", 0) == 1
+		val idx = (0 until addressModel.size()).indexOfFirst {
+			addressModel.getElementAt(it).listName(byCompany).startsWith(text, ignoreCase = true)
+		}
+		if (idx < 0) return
+		addressList.selectedIndex = idx
+		addressList.ensureIndexIsVisible(idx)
 	}
 
 	private fun rebuildTodos() {
@@ -982,6 +1091,11 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				drawCentered(g, d.dayOfMonth.toString(), x, y, cw, ch, if (isToday) Theme.bold else Theme.font, color)
 			}
 		}
+	}
+
+	/** An item of a category drop-down: the category id and its name. */
+	private class CatChoice(val id: Int, private val label: String) {
+		override fun toString(): String = label
 	}
 
 	/** A vertical tab on the right edge, with its caption turned clockwise. */

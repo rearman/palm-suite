@@ -1,5 +1,6 @@
 package com.rearman.palmdesktop
 
+import com.rearman.datebook.Address
 import com.rearman.datebook.Category
 import com.rearman.datebook.Event
 import com.rearman.datebook.Fmt
@@ -23,6 +24,7 @@ import java.awt.event.MouseEvent
 import java.time.LocalDate
 import java.util.Vector
 import javax.swing.AbstractButton
+import javax.swing.BorderFactory
 import javax.swing.ButtonGroup
 import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListCellRenderer
@@ -50,6 +52,7 @@ import javax.swing.WindowConstants
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+import org.json.JSONArray
 
 // Palm Desktop dialogs: Options, Edit Categories, Find and Purge.
 // Each dialog is modal, Enter runs the default button and Escape closes it.
@@ -64,7 +67,7 @@ fun confirmDelete(owner: Component, message: String): Boolean {
 // Options has three tabs: General (startup view and delete confirmation), Date Book and Sync.
 // General and Date Book values are saved on OK, and also when Set Up or Turn Off closes the dialog.
 object OptionsDialog {
-	private val startViews = listOf("date" to "Date Book", "todo" to "To Do List", "memo" to "Memo Pad")
+	private val startViews = listOf("date" to "Date Book", "address" to "Address Book", "todo" to "To Do List", "memo" to "Memo Pad")
 
 	fun show(owner: Component, tab: String = "general") {
 		val d = dialog(owner, "Options")
@@ -256,15 +259,18 @@ object CategoriesDialog {
 	}
 
 	// True when a record of the category's app holds [cat]: To Dos for app 0, Memos for app 1.
-	private fun inUse(cat: Category): Boolean =
-		if (cat.app == 1) App.store.memos.any { it.category == cat.id } else App.store.todos.any { it.category == cat.id }
+	private fun inUse(cat: Category): Boolean = when (cat.app) {
+		1 -> App.store.memos.any { it.category == cat.id }
+		2 -> App.store.addresses.any { it.category == cat.id }
+		else -> App.store.todos.any { it.category == cat.id }
+	}
 
 	// Deletes every record of the category's app that holds [cat].
 	private fun deleteItems(cat: Category) {
-		if (cat.app == 1) {
-			App.store.memos.filter { it.category == cat.id }.forEach { App.store.delete(it) }
-		} else {
-			App.store.todos.filter { it.category == cat.id }.forEach { App.store.delete(it) }
+		when (cat.app) {
+			1 -> App.store.memos.filter { it.category == cat.id }.forEach { App.store.delete(it) }
+			2 -> App.store.addresses.filter { it.category == cat.id }.forEach { App.store.delete(it) }
+			else -> App.store.todos.filter { it.category == cat.id }.forEach { App.store.delete(it) }
 		}
 	}
 
@@ -295,7 +301,7 @@ object CategoriesDialog {
 	}
 
 	fun show(owner: Component, app: Int) {
-		val d = dialog(owner, if (app == 0) "Edit To Do Categories" else "Edit Memo Categories")
+		val d = dialog(owner, when (app) { 1 -> "Edit Memo Categories"; 2 -> "Edit Address Categories"; else -> "Edit To Do Categories" })
 		val names = DefaultListModel<String>()
 		val list = JList(names).withFont()
 		list.selectionMode = ListSelectionModel.SINGLE_SELECTION
@@ -402,6 +408,7 @@ object FindDialog {
 				is Event -> App.show("date", record)
 				is Todo -> App.show("todo", record)
 				is Memo -> App.show("memo", record)
+				is Address -> App.show("address", record)
 			}
 		}
 
@@ -469,6 +476,8 @@ object FindDialog {
 		is Event -> record.title + "\n" + record.note
 		is Todo -> record.title + "\n" + record.note
 		is Memo -> record.text
+		is Address -> (listOf(record.lastName, record.firstName, record.title, record.company, record.address,
+			record.city, record.state, record.zip, record.country, record.note) + record.phones + record.custom).joinToString("\n")
 		else -> ""
 	}
 
@@ -476,6 +485,7 @@ object FindDialog {
 		is Event -> record.isPrivate
 		is Todo -> record.isPrivate
 		is Memo -> record.isPrivate
+		is Address -> record.isPrivate
 		else -> false
 	}
 
@@ -483,7 +493,15 @@ object FindDialog {
 		is Event -> "Date Book: ${record.title} (${Fmt.shortDate(record.date)})"
 		is Todo -> "To Do: ${record.title}"
 		is Memo -> "Memo: ${record.text.lineSequence().firstOrNull().orEmpty()}"
+		is Address -> addressLine(record)
 		else -> ""
+	}
+
+	// The list name and the list phone of an address, as the Address List shows them.
+	private fun addressLine(a: Address): String {
+		val name = a.listName(Settings.getInt("addressListBy", 0) == 1)
+		val phone = a.listPhone() ?: return "Address: $name"
+		return "Address: $name, ${phone.first} ${phone.second}"
 	}
 
 	private class ResultRenderer : DefaultListCellRenderer() {
@@ -544,6 +562,66 @@ object PurgeDialog {
 		d.rootPane.defaultButton = okBtn
 
 		present(d, owner, label("Delete all completed To Do items?"), bar(okBtn, cancelBtn))
+	}
+}
+
+// Address Book: sets the order of the list. Saves "addressListBy" (0 last name first, 1 company first).
+object ListByDialog {
+	fun show(owner: Component) {
+		val d = dialog(owner, "List By")
+		val byName = JRadioButton("Last name, first name").withFont().key('L')
+		val byCompany = JRadioButton("Company, last name").withFont().key('C')
+		ButtonGroup().apply {
+			add(byName)
+			add(byCompany)
+		}
+		byCompany.isSelected = Settings.getInt("addressListBy", 0) == 1
+		byName.isSelected = !byCompany.isSelected
+
+		val okBtn = button("OK")
+		val cancelBtn = button("Cancel")
+		okBtn.onClick {
+			Settings.setInt("addressListBy", if (byCompany.isSelected) 1 else 0)
+			d.dispose()
+			App.refresh()
+		}
+		cancelBtn.onClick { d.dispose() }
+		d.rootPane.defaultButton = okBtn
+
+		val group = JPanel(GridLayout(0, 1, 0, 6)).apply {
+			border = BorderFactory.createTitledBorder("Field Order").apply { titleFont = Theme.font }
+			add(byName)
+			add(byCompany)
+			// Template 2049 is 132 x 85 dlu, so the dialog is about 198 x 138 px.
+			preferredSize = Dimension(182, 78)
+		}
+		present(d, owner, group, bar(okBtn, cancelBtn))
+	}
+}
+
+// Address Book: the four custom field names. Saves "addressLabels" as a JSON array of four strings.
+object CustomLabelsDialog {
+	fun show(owner: Component) {
+		val d = dialog(owner, "Custom Field Labels")
+		val labels = customLabels()
+		val fields = List(4) { i -> JTextField(labels[i], 20).withFont() }
+		val rows = fields.mapIndexed { i, f -> label("Label ${i + 1}:") to f }
+
+		val okBtn = button("OK")
+		val cancelBtn = button("Cancel")
+		okBtn.onClick {
+			// A blank label keeps the default name "Custom n".
+			val values = fields.mapIndexed { i, f -> f.text.trim().ifEmpty { "Custom ${i + 1}" } }
+			Settings.set("addressLabels", JSONArray(values).toString())
+			d.dispose()
+			App.refresh()
+		}
+		cancelBtn.onClick { d.dispose() }
+		d.rootPane.defaultButton = okBtn
+
+		// Template 2043 is 129 x 113 dlu, so the dialog is about 194 x 184 px.
+		val form = formPanel(rows).apply { preferredSize = Dimension(182, 110) }
+		present(d, owner, form, bar(okBtn, cancelBtn))
 	}
 }
 

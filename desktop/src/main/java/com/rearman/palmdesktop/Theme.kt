@@ -43,6 +43,10 @@ object Theme {
 	val view: Font = Font(arial, Font.PLAIN, 13)
 	/** The Memo Pad text: Arial 12 px. */
 	val memo: Font = Font(arial, Font.PLAIN, 12)
+	/** The name in the Address details card: MS Sans Serif 12 pt bold, Microsoft Sans Serif 16 px. */
+	val cardName: Font = Font(sans, Font.BOLD, 16)
+	/** The other lines of the Address details card: MS Sans Serif 10 pt, Microsoft Sans Serif 13 px. */
+	val cardText: Font = Font(sans, Font.PLAIN, 13)
 	/** The Day and Week view time labels: MS Sans Serif 11 px, as in Palm Desktop (8 pt). */
 	val time: Font = Font(sans, Font.PLAIN, 11)
 	val dateRed: Color = Color(255, 0, 0)

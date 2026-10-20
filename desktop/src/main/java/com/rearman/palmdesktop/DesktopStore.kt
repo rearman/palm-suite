@@ -98,12 +98,16 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 			.sortedWith(compareBy<Event>({ !it.untimed }, { it.start }, { it.end }))
 			.map { Occ(it, day) }
 
-	/** Events, To Dos and Memos whose text contains [text], ignoring case. */
+	/** Events, To Dos, Memos and Addresses whose text contains [text], ignoring case. */
 	fun find(text: String): List<Any> {
 		val out = mutableListOf<Any>()
 		events.filterTo(out) { it.title.contains(text, true) || it.note.contains(text, true) }
 		todos.filterTo(out) { it.title.contains(text, true) || it.note.contains(text, true) }
 		memos.filterTo(out) { it.text.contains(text, true) }
+		addresses.filterTo(out) { a ->
+			(listOf(a.lastName, a.firstName, a.title, a.company, a.address, a.city, a.state, a.zip, a.country, a.note) + a.phones + a.custom)
+				.any { it.contains(text, true) }
+		}
 		return out
 	}
 
@@ -124,6 +128,11 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		changed()
 	}
 
+	fun save(a: Address) {
+		putAddress(a)
+		changed()
+	}
+
 	fun delete(e: Event) {
 		removeLocal("events", e.id)
 		events.removeAll { it.id == e.id }
@@ -139,6 +148,12 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 	fun delete(m: Memo) {
 		removeLocal("memos", m.id)
 		memos.removeAll { it.id == m.id }
+		changed()
+	}
+
+	fun delete(a: Address) {
+		removeLocal("addresses", a.id)
+		addresses.removeAll { it.id == a.id }
 		changed()
 	}
 
