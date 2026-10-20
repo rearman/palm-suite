@@ -85,6 +85,13 @@ data class Category(
     val uid: String = ""
 )
 
+/**
+ * Sorts [list] in place by name, ignoring case, so every category list shows in alphabetical order.
+ * Equal names keep id order. All and Unfiled are not in the stored lists; each list adds them itself.
+ */
+fun sortCategories(list: MutableList<Category>) =
+    list.sortWith(compareBy<Category, String>(String.CASE_INSENSITIVE_ORDER) { it.name }.thenBy { it.id })
+
 /** A Memo Pad record. Its first line is its title in the Memo List. */
 data class Memo(
     var id: Long = 0,

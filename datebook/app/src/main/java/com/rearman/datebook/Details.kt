@@ -330,7 +330,14 @@ fun MainActivity.showEditCategories(app: Int = 0) {
     d.button("OK", 22) { d.dismiss(); render() }
     d.button("New", 27) {
         if (store.categoriesFor(app).size >= Store.MAX_CATEGORIES) toast("You can have only 15 categories.")
-        else renameCategory(null, app) { fill() }
+        else {
+            val before = store.categoriesFor(app).mapTo(HashSet()) { it.id }
+            renameCategory(null, app) {
+                // Select the new category, found by its id, after the sorted list is shown.
+                sel = store.categoriesFor(app).firstOrNull { it.id !in before } ?: sel
+                fill()
+            }
+        }
     }
     d.button("Rename", 42) { sel?.let { renameCategory(it, app) { fill() } } }
     d.button("Delete", 37) {

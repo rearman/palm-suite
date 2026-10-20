@@ -413,6 +413,7 @@ class Store private constructor(ctx: Context) :
         readableDatabase.rawQuery("SELECT * FROM categories WHERE app=? AND deleted=0 ORDER BY id", arrayOf(app.toString())).use { c ->
             while (c.moveToNext()) list.add(Category(c.int("id"), c.str("name"), c.int("app"), uid = c.str("uid")))
         }
+        sortCategories(list)
         return list
     }
 
@@ -428,12 +429,14 @@ class Store private constructor(ctx: Context) :
             put("id", id); put("name", name); put("app", app); put("uid", cat.uid); put("dirty", 1)
         })
         list.add(cat)
+        sortCategories(list)
         onWrite?.invoke()
         return cat
     }
 
     fun renameCategory(cat: Category, name: String) {
         cat.name = name
+        sortCategories(categoriesFor(cat.app))
         writableDatabase.update("categories", ContentValues().apply { put("name", name); put("dirty", 1) },
             "id=?", arrayOf(cat.id.toString()))
         onWrite?.invoke()
@@ -607,6 +610,7 @@ class Store private constructor(ctx: Context) :
             val stored = Category(id, c.name, c.app, c.uid)
             val i = mine.indexOfFirst { it.uid == c.uid }
             if (i >= 0) mine[i] = stored else mine.add(stored)
+            sortCategories(mine)
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()

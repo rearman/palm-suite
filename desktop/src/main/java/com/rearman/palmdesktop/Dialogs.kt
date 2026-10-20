@@ -300,19 +300,23 @@ object CategoriesDialog {
 		val list = JList(names).withFont()
 		list.selectionMode = ListSelectionModel.SINGLE_SELECTION
 
-		fun reload() {
+		// Selects the row of [selectId] after the sort moves it. Without an id, keeps the row index.
+		fun reload(selectId: Int? = null) {
 			val keep = list.selectedIndex
 			names.clear()
-			App.store.categoriesFor(app).forEach { names.addElement(it.name) }
-			if (keep in 0 until names.size) list.selectedIndex = keep
+			val cats = App.store.categoriesFor(app)
+			cats.forEach { names.addElement(it.name) }
+			val row = cats.indexOfFirst { it.id == selectId }
+			if (row >= 0) list.selectedIndex = row
+			else if (keep in 0 until names.size) list.selectedIndex = keep
 		}
 
 		fun selected(): Category? = App.store.categoriesFor(app).getOrNull(list.selectedIndex)
 
-		fun changed() {
+		fun changed(selectId: Int? = null) {
 			App.store.persist()
 			App.refresh()
-			reload()
+			reload(selectId)
 		}
 
 		val okBtn = button("OK")
@@ -329,10 +333,11 @@ object CategoriesDialog {
 		newBtn.onClick {
 			val name: String? = JOptionPane.showInputDialog(d, "Name:", "New Category", JOptionPane.PLAIN_MESSAGE)
 			if (name.isNullOrBlank() || tooLong(d, name, "New Category")) return@onClick
-			if (App.store.addCategory(name.trim(), app) == null) {
+			val added = App.store.addCategory(name.trim(), app)
+			if (added == null) {
 				JOptionPane.showMessageDialog(d, "You can have at most 15 categories.", "New Category", JOptionPane.WARNING_MESSAGE)
 			}
-			changed()
+			changed(added?.id)
 		}
 
 		renameBtn.onClick {
@@ -340,7 +345,7 @@ object CategoriesDialog {
 			val name = JOptionPane.showInputDialog(d, "Name:", "Rename Category", JOptionPane.PLAIN_MESSAGE, null, null, cat.name) as String?
 			if (name.isNullOrBlank() || tooLong(d, name, "Rename Category")) return@onClick
 			App.store.renameCategory(cat, name.trim())
-			changed()
+			changed(cat.id)
 		}
 
 		deleteBtn.onClick {

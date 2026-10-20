@@ -148,6 +148,8 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
   letters after ^ match a full name, the ^ and the name change to the
   ShortCut text. For example, ^me gives Meeting. Options > ShortCuts...
   edits the list. Export Backup does not include ShortCuts.
+- The category pop-ups and Edit Categories list the categories in
+  alphabetical order. All is first and Unfiled is last.
 
 ## Sync
 
@@ -202,6 +204,8 @@ Import and Export use iCalendar files and the Date Book backup file.
   bitmaps. See [Palm Desktop artwork](#palm-desktop-artwork).
 - Each category list ends with Edit Categories..., which opens the category
   editor of the To Do List or the Memo Pad.
+- The category lists show the categories in alphabetical order. Edit
+  Categories... stays last in each list.
 
 ### Gentoo
 

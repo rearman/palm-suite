@@ -148,11 +148,13 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		val cat = Category(id, name, app, UUID.randomUUID().toString())
 		markDirty("categories", id.toLong(), cat.uid)
 		list.add(cat)
+		sortCategories(list)
 		return cat
 	}
 
 	fun renameCategory(cat: Category, name: String) {
 		cat.name = name
+		sortCategories(categoriesFor(cat.app))
 		markDirty("categories", cat.id.toLong(), cat.uid)
 		changed()
 	}
@@ -245,7 +247,7 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		memoCategories.removeAll { it.uid == c.uid }
 		categoriesFor(c.app).apply {
 			add(Category(id, c.name, c.app, c.uid))
-			sortBy { it.id }
+			sortCategories(this)
 		}
 		setServer("categories", id.toLong(), c.uid, rev)
 		persist()
@@ -322,6 +324,8 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		// Categories load first, so that the other rows can map category uids to ids.
 		all.filter { it.getString("table") == "categories" }.forEach { loadRow(it) }
 		all.filter { it.getString("table") != "categories" }.forEach { loadRow(it) }
+		sortCategories(categories)
+		sortCategories(memoCategories)
 		memos.sortBy { it.pos }
 	}
 
@@ -381,6 +385,8 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 			categoriesFor(c.app).add(c)
 			markDirty("categories", c.id.toLong(), c.uid)
 		}
+		sortCategories(categories)
+		sortCategories(memoCategories)
 	}
 
 	private fun putEvent(e: Event) {
