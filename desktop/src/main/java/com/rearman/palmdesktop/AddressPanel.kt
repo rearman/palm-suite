@@ -9,8 +9,6 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Graphics
-import java.awt.event.ComponentAdapter
-import java.awt.event.ComponentEvent
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
@@ -25,8 +23,6 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 	companion object {
 		private const val ALL = -1
 		private const val UNFILED = 0
-		// The list name takes this share of the list width. The number column starts there.
-		private const val NAME_SHARE = 0.86
 	}
 
 	private class Choice(val label: String, val id: Int) {
@@ -59,13 +55,7 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 
 		list.font = Theme.font
 		list.fixedCellHeight = 16
-		list.cellRenderer = AddressRowRenderer(200)
-		// The renderer takes the list width, so it is made again on each resize.
-		list.addComponentListener(object : ComponentAdapter() {
-			override fun componentResized(e: ComponentEvent) {
-				list.cellRenderer = AddressRowRenderer((list.width * NAME_SHARE).toInt())
-			}
-		})
+		list.cellRenderer = AddressRowRenderer()
 		list.addListSelectionListener {
 			if (it.valueIsAdjusting) return@addListSelectionListener
 			if (!busy) {
@@ -314,28 +304,68 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 }
 
 /**
- * One row of the Address List: the list name in [nameWidth] px, then the number and its letter.
+ * One row of the Address List, laid out as Palm Desktop 3.1.1 does. The number column is as wide as
+ * the widest number of the list and ends [RIGHT] px from the right edge; the name gets the rest. When
+ * the list is too narrow, the number column takes at most [MAX_SHARE] of the room and both columns end
+ * in "...", the name part by part ("Fitzger..., Alexan..."). The letter after the number always shows.
  * A selected row is filled from the left edge to the end of the number.
  */
-class AddressRowRenderer(private val nameWidth: Int) : ListCellRenderer<Address> {
+class AddressRowRenderer : ListCellRenderer<Address> {
 	private val row = Row()
+
+	private companion object {
+		const val RIGHT = 36          // gap after the number column, measured in Palm Desktop
+		const val MAX_SHARE = 0.55    // the most of a narrow row the number column takes
+	}
 
 	override fun getListCellRendererComponent(
 		list: JList<out Address>, value: Address?, index: Int, isSelected: Boolean, cellHasFocus: Boolean
 	): Component {
-		row.rowName = value?.listName(listByCompany()) ?: ""
-		row.rowNumber = value?.listPhone()?.let { "${it.first} ${it.second}" } ?: ""
+		val fm = list.getFontMetrics(Theme.font)
+		val byCompany = listByCompany()
+		row.rowName = value?.listName(byCompany) ?: ""
+		row.rowNumber = value?.listPhone()?.first ?: ""
+		row.rowLetter = value?.listPhone()?.second?.toString() ?: ""
 		row.rowSelected = isSelected
+		// The widest "number L" of the list sets the column. Limit: it measures every row for each
+		// painted row, fine for a few hundred addresses; cache it by the model to go further.
+		val model = list.model
+		val widest = (0 until model.size).maxOfOrNull { i ->
+			model.getElementAt(i).listPhone()?.let { fm.stringWidth("${it.first} ${it.second}") } ?: 0
+		} ?: 0
+		val room = (list.width - RIGHT).coerceAtLeast(0)
+		row.numberWidth = minOf(widest, (room * MAX_SHARE).toInt())
+		row.numberX = room - row.numberWidth
 		return row
 	}
 
 	private inner class Row : JPanel() {
 		var rowName = ""
 		var rowNumber = ""
+		var rowLetter = ""
 		var rowSelected = false
+		var numberX = 0
+		var numberWidth = 0
 
 		init {
 			font = Theme.font
+		}
+
+		/** [text] cut to [w] px with "..." at its end, as Palm Desktop cuts a list column. */
+		private fun fit(text: String, w: Int, fm: java.awt.FontMetrics): String {
+			if (fm.stringWidth(text) <= w) return text
+			var n = text.length
+			while (n > 0 && fm.stringWidth(text.take(n) + "...") > w) n--
+			return text.take(n) + "..."
+		}
+
+		/** The list name cut to [w] px. "Last, First" is cut part by part, so both parts keep their start. */
+		private fun fitName(w: Int, fm: java.awt.FontMetrics): String {
+			if (fm.stringWidth(rowName) <= w) return rowName
+			val parts = rowName.split(", ", limit = 2)
+			if (parts.size < 2) return fit(rowName, w, fm)
+			val each = (w - fm.stringWidth(", ")) / 2
+			return fit(parts[0], each, fm) + ", " + fit(parts[1], each, fm)
 		}
 
 		override fun paintComponent(g: Graphics) {
@@ -343,18 +373,17 @@ class AddressRowRenderer(private val nameWidth: Int) : ListCellRenderer<Address>
 			g.fillRect(0, 0, width, height)
 			val fm = getFontMetrics(font)
 			val baseline = (height - fm.height) / 2 + fm.ascent
+			val letterW = if (rowLetter.isEmpty()) 0 else fm.stringWidth(" $rowLetter")
+			val number = if (rowNumber.isEmpty()) "" else fit(rowNumber, numberWidth - letterW, fm) + " $rowLetter"
 			if (rowSelected) {
-				val end = if (rowNumber.isEmpty()) nameWidth else nameWidth + fm.stringWidth(rowNumber) + 4
+				val end = if (number.isEmpty()) numberX else numberX + fm.stringWidth(number) + 4
 				g.color = Theme.select
 				g.fillRect(0, 0, end, height)
 			}
 			g.color = if (rowSelected) Color.WHITE else Color.BLACK
-			// The name stops 4 px short of the number column.
-			val clip = g.create()
-			clip.clipRect(0, 0, nameWidth - 4, height)
-			clip.drawString(rowName, 3, baseline)
-			clip.dispose()
-			g.drawString(rowNumber, nameWidth, baseline)
+			// The name stops 6 px short of the number column.
+			g.drawString(fitName(numberX - 9, fm), 3, baseline)
+			g.drawString(number, numberX, baseline)
 		}
 	}
 }
