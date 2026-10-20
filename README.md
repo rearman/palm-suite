@@ -129,8 +129,10 @@ categories, private records, Find, Purge, Import and Export, and Print.
 Import and Export use iCalendar files and the Date Book backup file.
 
 - Windows: download `palm-desktop-windows.msi` from a `desktop-v*` release
-  and run it. It installs Palm Desktop for your user account, with a Start
-  menu entry and a desktop shortcut. Run a newer MSI to update. Your
+  and run it. It installs Palm Desktop for your user account. The installer
+  asks whether to add a Start menu entry and a desktop shortcut. If the
+  official Palm Desktop is installed, clear the desktop shortcut box: both
+  shortcuts are named "Palm Desktop". Run a newer MSI to update. Your
   records stay.
 - Linux: download `palm-desktop-linux.tar.gz`, unpack it and run
   `palm-desktop/bin/palm-desktop`.

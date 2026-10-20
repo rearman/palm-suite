@@ -172,7 +172,9 @@ jobs:
           echo "C:\Program Files (x86)\WiX Toolset v3.14\bin" >> "$GITHUB_PATH"
 
       # Each package holds the app and its own Java runtime, so nothing else needs to be installed.
-      # Windows: an MSI that installs for the current user and upgrades an older version in place.
+      # Windows: an MSI that installs for the current user and upgrades an older version in place. The
+      # installer asks for the shortcuts: the official Palm Desktop puts a "Palm Desktop" shortcut on the
+      # desktop too, and clearing the box keeps it.
       # The upgrade UUID must never change. A desktop-v1.2.3 tag gives version 1.2.3, other builds 0.0.<run>.
       # Linux: an app image in a tar.gz.
       - name: Package
@@ -190,7 +192,7 @@ jobs:
               --input desktop/build/install/desktop/lib --main-jar desktop.jar \
               --main-class com.rearman.palmdesktop.MainKt \
               --win-upgrade-uuid 9703d1fd-0a96-45b3-8842-4b8bbcad48dc --win-per-user-install \
-              --win-menu --win-menu-group "Palm" --win-shortcut --dest out
+              --win-menu --win-menu-group "Palm" --win-shortcut --win-shortcut-prompt --dest out
             file=palm-desktop-windows.msi
             mv out/*.msi "$file"
           else
