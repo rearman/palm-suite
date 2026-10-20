@@ -48,6 +48,8 @@ object Theme {
 	val dateRed: Color = Color(255, 0, 0)
 	val select: Color = Color(0, 120, 215)
 	val grid: Color = Color(160, 160, 160)
+	/** The hour lines of the Day and Week grids: gray 128, as in Palm Desktop. */
+	val hourLine: Color = Color(128, 128, 128)
 	/** The Windows application workspace gray around the Date view and behind its tabs, as in Palm Desktop. */
 	val workspace: Color = Color(171, 171, 171)
 	/** Days of other months: the panel gray, as in the Palm Desktop Month view. */

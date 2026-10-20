@@ -494,7 +494,7 @@ class WeekView : JPanel(BorderLayout()) {
 			g.color = Color.WHITE
 			g.fillRect(0, 0, w, height)
 			// Hour lines and the time labels. A label and its tick sit in the middle of the hour, as in the Day view.
-			g.color = Theme.grid
+			g.color = Theme.hourLine
 			for (h in 0..24) g.drawLine(0, hourY(h), w, hourY(h))
 			// The time column: a raised cell for the untimed area, then one per hour.
 			raisedCell(g, 0, 0, TIME_W, untimedH)

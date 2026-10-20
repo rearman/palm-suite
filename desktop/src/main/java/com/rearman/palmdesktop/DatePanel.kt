@@ -872,7 +872,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				for (h in 0 until 24) {
 					val y = yOf(h * 60)
 					raisedCell(g, 0, y, TIME_W, yOf((h + 1) * 60) - y)
-					g.color = Theme.grid
+					g.color = Theme.hourLine
 					g.drawLine(TIME_W, y, width, y)
 					// The label and its tick sit in the middle of the hour, as in Palm Desktop.
 					val mid = y + HALF
@@ -881,7 +881,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 					g.drawString(label, TIME_W - 10 - fm.stringWidth(label), mid + (fm.ascent - fm.descent) / 2)
 					g.drawLine(TIME_W - 7, mid, TIME_W - 3, mid)
 				}
-				g.color = Theme.grid
+				g.color = Theme.hourLine
 				g.drawLine(TIME_W, yOf(24 * 60), width, yOf(24 * 60))
 			}
 			g.color = Color.BLACK
