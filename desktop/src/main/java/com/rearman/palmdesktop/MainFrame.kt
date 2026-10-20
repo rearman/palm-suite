@@ -386,6 +386,8 @@ class MainFrame : JFrame("Palm Desktop") {
 		button.font = Theme.launcher
 		button.alignmentX = JComponent.CENTER_ALIGNMENT
 		button.maximumSize = Dimension(72, 60)
+		// Small margins, so the longest label ("Address") fits the 72 px button, as in Palm Desktop.
+		button.margin = java.awt.Insets(2, 2, 2, 2)
 		button.addActionListener { showView(name, null) }
 		launcherGroup.add(button)
 		launcherButtons[name] = button

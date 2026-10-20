@@ -144,7 +144,7 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 
 		// The card pane, with the raised edge between the list and the card as in the Memo Pad.
 		val right = JPanel(BorderLayout()).apply {
-			preferredSize = Dimension(315, 0)
+			preferredSize = Dimension(302, 0)   // the AddressCard width of Palm Desktop
 			border = BorderFactory.createCompoundBorder(
 				BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.grid),
 				BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Color.WHITE), EmptyBorder(8, 8, 4, 8))
@@ -215,6 +215,10 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 			val idx = selectedId?.let { id -> shown.indexOfFirst { it.id == id } } ?: -1
 			if (idx >= 0) {
 				list.selectedIndex = idx
+			} else if (shown.isNotEmpty()) {
+				// As in Palm Desktop, the card always shows a record: the first one when none is selected.
+				list.selectedIndex = 0
+				selectedId = shown[0].id
 			} else {
 				list.clearSelection()
 				selectedId = null
@@ -280,7 +284,8 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 			}
 
 		init {
-			background = Color.WHITE
+			// Palm Desktop draws the card on the panel gray, inside a sunken edge.
+			background = Theme.panel
 			border = Theme.sunken
 		}
 
