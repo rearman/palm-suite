@@ -474,20 +474,20 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		val cur = Settings.getInt("todoCategory", -1)
 		val pick = items.firstOrNull { it.id == cur } ?: items[0]
 		if (pick.id != cur) Settings.setInt("todoCategory", pick.id)
-		filterBox.model = DefaultComboBoxModel(items.toTypedArray())
+		filterBox.model = CategoryModel(items, Choice(-2, EDIT_CATEGORIES)) { CategoriesDialog.show(this, 0) }
 		filterBox.selectedItem = pick
 	}
 
 	private fun rebuildCategoryBox() {
 		val cur = (categoryBox.selectedItem as? Choice)?.id ?: 0
 		val items = choices(false)
-		categoryBox.model = DefaultComboBoxModel(items.toTypedArray())
+		categoryBox.model = CategoryModel(items, Choice(-2, EDIT_CATEGORIES)) { CategoriesDialog.show(this, 0) }
 		categoryBox.selectedItem = items.firstOrNull { it.id == cur } ?: items.last()
 	}
 
 	private fun selectCategory(id: Int) {
 		val items = (0 until categoryBox.itemCount).map { categoryBox.getItemAt(it) }
-		categoryBox.selectedItem = items.firstOrNull { it.id == id } ?: items.last()
+		categoryBox.selectedItem = items.firstOrNull { it.id == id } ?: items.first { it.id == 0 }   // else Unfiled
 	}
 
 	private fun loadDetails(t: Todo) {
@@ -596,6 +596,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 				saveFromCell(t)
 			}
 		})
+		add(JMenuItem(EDIT_CATEGORIES).apply { addActionListener { CategoriesDialog.show(this@TodoPanel, 0) } })
 	}
 
 	/** The Show Options dialog: sort order and the view filters, and which columns the list shows. */

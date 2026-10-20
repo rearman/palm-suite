@@ -464,9 +464,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		updating = true
 		try {
 			shownCats = App.store.categories.toList()
-			catCombo.removeAllItems()
-			catCombo.addItem("All")
-			shownCats.forEach { catCombo.addItem(it.name) }
+			catCombo.model = CategoryModel(listOf("All") + shownCats.map { it.name }, EDIT_CATEGORIES) {
+				CategoriesDialog.show(this, 0)
+			}
 			val idx = shownCats.indexOfFirst { it.id == catId }
 			if (idx < 0) catId = null
 			catCombo.selectedIndex = if (idx < 0) 0 else idx + 1

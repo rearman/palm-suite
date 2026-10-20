@@ -21,8 +21,10 @@ import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.time.LocalDate
+import java.util.Vector
 import javax.swing.AbstractButton
 import javax.swing.ButtonGroup
+import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
@@ -227,6 +229,20 @@ object OptionsDialog {
 
 object SyncDialog {
 	fun show(owner: Component) = OptionsDialog.show(owner, "sync")
+}
+
+/** The last item of every category drop-down list, as in Palm Desktop. */
+const val EDIT_CATEGORIES = "Edit Categories..."
+
+/**
+ * The items of a category drop-down list, then [entry], the "Edit Categories..." item of Palm Desktop.
+ * Choosing [entry] keeps the selection and calls [onEdit] after the list closes.
+ */
+class CategoryModel<T : Any>(items: List<T>, private val entry: T, private val onEdit: () -> Unit) :
+	DefaultComboBoxModel<T>(Vector(items + entry)) {
+	override fun setSelectedItem(item: Any?) {
+		if (item !== entry) super.setSelectedItem(item) else SwingUtilities.invokeLater(onEdit)
+	}
 }
 
 object CategoriesDialog {

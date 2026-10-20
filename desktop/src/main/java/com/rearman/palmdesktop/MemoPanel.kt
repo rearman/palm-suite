@@ -231,11 +231,11 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		val keep = choiceId(category)
 		quiet {
 			val filters = listOf(Choice("All", ALL)) + App.store.memoCategories.map { Choice(it.name, it.id) } + Choice("Unfiled", UNFILED)
-			filterCombo.model = DefaultComboBoxModel(filters.toTypedArray())
+			filterCombo.model = CategoryModel(filters, Choice(EDIT_CATEGORIES, -2)) { CategoriesDialog.show(this, 1) }
 			filterId = choiceFor(filterCombo, filterId).id
 			filterCombo.selectedItem = choiceFor(filterCombo, filterId)
 			val cats = listOf(Choice("Unfiled", UNFILED)) + App.store.memoCategories.map { Choice(it.name, it.id) }
-			category.model = DefaultComboBoxModel(cats.toTypedArray())
+			category.model = CategoryModel(cats, Choice(EDIT_CATEGORIES, -2)) { CategoriesDialog.show(this, 1) }
 			category.selectedItem = choiceFor(category, keep)
 		}
 	}
