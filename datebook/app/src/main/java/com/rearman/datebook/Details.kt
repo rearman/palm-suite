@@ -119,7 +119,7 @@ class TodoDetails(private val act: MainActivity, private val t: Todo) : PalmDial
 // ---------------- Option dialogs ----------------
 
 /** A full-width layer in the dialog body for views placed at Palm form coordinates. It does not clip, so a view can sit at form x 2. */
-private fun Context.formArea(d: PalmDialog): FrameLayout {
+internal fun Context.formArea(d: PalmDialog): FrameLayout {
     d.body.clipChildren = false
     d.body.clipToPadding = false
     val area = FrameLayout(this).apply { clipChildren = false }
@@ -128,7 +128,7 @@ private fun Context.formArea(d: PalmDialog): FrameLayout {
 }
 
 /** Puts [v] at Palm form (x, y) in [area], [w] by [h] Palm px. WRAP keeps the view's own size. */
-private fun Context.placeForm(area: FrameLayout, v: View, x: Int, y: Int, w: Int = WRAP, h: Int = WRAP) {
+internal fun Context.placeForm(area: FrameLayout, v: View, x: Int, y: Int, w: Int = WRAP, h: Int = WRAP) {
     val lp = FrameLayout.LayoutParams(if (w == WRAP) WRAP else pp(w), if (h == WRAP) WRAP else pp(h))
     // The body origin is form (4, 16). Form x below 4 gives a negative margin.
     lp.leftMargin = if (x >= 4) pp(x - 4) else -pp(4 - x)
@@ -137,7 +137,7 @@ private fun Context.placeForm(area: FrameLayout, v: View, x: Int, y: Int, w: Int
 }
 
 /** A bold label that ends at form x [right], with its top at form y [y]. */
-private fun Context.rightLabel(area: FrameLayout, text: String, right: Int, y: Int) =
+internal fun Context.rightLabel(area: FrameLayout, text: String, right: Int, y: Int) =
     placeForm(area, label(text, bold = true).apply { gravity = Gravity.END }, 4, y, right - 4, 11)
 
 fun MainActivity.showPreferences() {
@@ -339,6 +339,7 @@ fun MainActivity.showEditCategories(app: Int = 0) {
             "Yes" to {
                 store.deleteCategory(cat)
                 if (prefs.todoCategory == cat.id) prefs.todoCategory = -1
+                if (app == 2 && prefs.addressCategory == cat.id) prefs.addressCategory = -1
                 sel = null
                 fill()
             }, "No" to {})

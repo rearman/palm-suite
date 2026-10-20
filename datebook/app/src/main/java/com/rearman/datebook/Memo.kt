@@ -232,7 +232,7 @@ internal fun MainActivity.showMemoAbout() {
 }
 
 /** Puts [sv] in the content area with a Palm scroll bar on its right. The bar is 7 px wide. */
-private fun MainActivity.withScrollBar(content: FrameLayout, sv: ScrollView) {
+internal fun MainActivity.withScrollBar(content: FrameLayout, sv: ScrollView) {
     val bar = PalmScrollBar(this).apply { attach(sv) }
     val row = hbox(Gravity.TOP).apply {
         addView(sv, LP(0, MATCH, 1f))
