@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -204,6 +205,10 @@ func validatePush(items []pushItem) error {
 		}
 		if len(it.Blob) > maxBlobBytes {
 			return fmt.Errorf("blob of item %q is over %d bytes", it.ID, maxBlobBytes)
+		}
+		// The log stores the raw ciphertext, so a blob must be valid base64.
+		if _, err := base64.StdEncoding.DecodeString(it.Blob); err != nil {
+			return fmt.Errorf("blob of item %q is not base64", it.ID)
 		}
 	}
 	return nil

@@ -2,10 +2,11 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -23,6 +24,16 @@ func mustClose(t *testing.T, s *Store) {
 	if err := s.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
+}
+
+// logBytes returns a whole log file for vs: the magic, then one record for each version.
+func logBytes(t *testing.T, vs ...Version) []byte {
+	t.Helper()
+	data, err := encodeRecords([]byte(logMagic), vs)
+	if err != nil {
+		t.Fatalf("encodeRecords: %v", err)
+	}
+	return data
 }
 
 func TestAppendSurvivesReopen(t *testing.T) {
@@ -45,14 +56,61 @@ func TestAppendSurvivesReopen(t *testing.T) {
 	}
 }
 
+func TestStoreKeepsLiveAndTombstonesAcrossReopen(t *testing.T) {
+	dir := t.TempDir()
+	s := mustOpen(t, dir)
+	err := s.Append([]Version{
+		{ID: "a", Rev: 1, Blob: "AAAA"},
+		{ID: "b", Rev: 2, Blob: "BBBB"},
+		{ID: "a", Rev: 3, Deleted: true},
+		{ID: "c", Rev: 4, Blob: "CCCC"},
+	})
+	if err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	mustClose(t, s)
+
+	// The log holds four records, one for each version written.
+	logPath := filepath.Join(dir, logName)
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	recs, good, err := scanLog(logPath, data)
+	if err != nil {
+		t.Fatalf("scanLog: %v", err)
+	}
+	if len(recs) != 4 || good != len(data) {
+		t.Fatalf("log has %d records and %d good of %d bytes, want 4 and all", len(recs), good, len(data))
+	}
+
+	s2 := mustOpen(t, dir)
+	defer mustClose(t, s2)
+	if s2.Rev() != 4 {
+		t.Fatalf("Rev() = %d, want 4", s2.Rev())
+	}
+	want := []Version{
+		{ID: "b", Rev: 2, Blob: "BBBB"},
+		{ID: "a", Rev: 3, Deleted: true},
+		{ID: "c", Rev: 4, Blob: "CCCC"},
+	}
+	if got := s2.Since(0); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Since(0) = %+v, want %+v", got, want)
+	}
+	v, ok := s2.Get("a")
+	if !ok || !v.Deleted || v.Rev != 3 {
+		t.Fatalf("Get(a) = %+v, %v; want tombstone at rev 3", v, ok)
+	}
+}
+
 func TestSinceReturnsLatestNewerVersions(t *testing.T) {
 	s := mustOpen(t, t.TempDir())
 	defer mustClose(t, s)
 	err := s.Append([]Version{
-		{ID: "a", Rev: 1, Blob: "old"},
-		{ID: "b", Rev: 2, Blob: "B"},
-		{ID: "a", Rev: 3, Blob: "new"},
-		{ID: "c", Rev: 4, Blob: "C"},
+		{ID: "a", Rev: 1, Blob: "AAAA"},
+		{ID: "b", Rev: 2, Blob: "BBBB"},
+		{ID: "a", Rev: 3, Blob: "CCCC"},
+		{ID: "c", Rev: 4, Blob: "DDDD"},
 	})
 	if err != nil {
 		t.Fatalf("Append: %v", err)
@@ -60,36 +118,41 @@ func TestSinceReturnsLatestNewerVersions(t *testing.T) {
 
 	got := s.Since(1)
 	want := []Version{
-		{ID: "b", Rev: 2, Blob: "B"},
-		{ID: "a", Rev: 3, Blob: "new"},
-		{ID: "c", Rev: 4, Blob: "C"},
+		{ID: "b", Rev: 2, Blob: "BBBB"},
+		{ID: "a", Rev: 3, Blob: "CCCC"},
+		{ID: "c", Rev: 4, Blob: "DDDD"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Since(1) = %+v, want %+v", got, want)
 	}
 
 	got = s.Since(3)
-	want = []Version{{ID: "c", Rev: 4, Blob: "C"}}
+	want = []Version{{ID: "c", Rev: 4, Blob: "DDDD"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Since(3) = %+v, want %+v", got, want)
 	}
 }
 
-func TestTornLastLineIsDropped(t *testing.T) {
+func TestTornLastRecordIsDropped(t *testing.T) {
 	dir := t.TempDir()
 	s := mustOpen(t, dir)
-	err := s.Append([]Version{{ID: "a", Rev: 1, Blob: "A"}, {ID: "b", Rev: 2, Blob: "B"}})
+	err := s.Append([]Version{{ID: "a", Rev: 1, Blob: "AAAA"}, {ID: "b", Rev: 2, Blob: "BBBB"}})
 	if err != nil {
 		t.Fatalf("Append: %v", err)
 	}
 	mustClose(t, s)
 
+	// Write the first half of a third record, as a crash in the middle of Append would leave it.
+	torn, err := encodeRecords(nil, []Version{{ID: "x", Rev: 3, Blob: "CCCC"}})
+	if err != nil {
+		t.Fatalf("encodeRecords: %v", err)
+	}
 	logPath := filepath.Join(dir, logName)
 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		t.Fatalf("open log: %v", err)
 	}
-	if _, err := f.WriteString(`{"id":"x","re`); err != nil {
+	if _, err := f.Write(torn[:len(torn)/2]); err != nil {
 		t.Fatalf("write torn bytes: %v", err)
 	}
 	if err := f.Close(); err != nil {
@@ -107,37 +170,52 @@ func TestTornLastLineIsDropped(t *testing.T) {
 	if _, ok := s2.Get("x"); ok {
 		t.Fatal("torn record x was loaded")
 	}
+	if s2.Rev() != 2 {
+		t.Fatalf("Rev() = %d, want 2", s2.Rev())
+	}
 
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("read log: %v", err)
 	}
-	if bytes.HasSuffix(data, []byte(`{"id":"x","re`)) {
-		t.Fatal("log still ends with the torn bytes")
-	}
-	if lines := bytes.Count(data, []byte("\n")); lines != 2 {
-		t.Fatalf("log has %d lines, want 2", lines)
+	want := logBytes(t, Version{ID: "a", Rev: 1, Blob: "AAAA"}, Version{ID: "b", Rev: 2, Blob: "BBBB"})
+	if !bytes.Equal(data, want) {
+		t.Fatalf("log is %d bytes after reopen, want the %d good bytes", len(data), len(want))
 	}
 }
 
-func TestBadMiddleLineIsError(t *testing.T) {
+func TestBadMiddleRecordIsError(t *testing.T) {
 	dir := t.TempDir()
-	content := `{"id":"a","rev":1}` + "\n" + "not json\n" + `{"id":"b","rev":2}` + "\n"
-	if err := os.WriteFile(filepath.Join(dir, logName), []byte(content), 0600); err != nil {
+	good1, err := encodeRecords(nil, []Version{{ID: "a", Rev: 1, Blob: "AAAA"}})
+	if err != nil {
+		t.Fatalf("encodeRecords: %v", err)
+	}
+	good2, err := encodeRecords(nil, []Version{{ID: "b", Rev: 2, Blob: "BBBB"}})
+	if err != nil {
+		t.Fatalf("encodeRecords: %v", err)
+	}
+	// A body of 2 bytes that claims a 5 byte id.
+	bad := binary.AppendUvarint(nil, 2)
+	bad = append(bad, 0x05, 'x')
+
+	data := append([]byte(logMagic), good1...)
+	data = append(data, bad...)
+	data = append(data, good2...)
+	if err := os.WriteFile(filepath.Join(dir, logName), data, 0600); err != nil {
 		t.Fatalf("write log: %v", err)
 	}
 	s, err := OpenStore(dir)
 	if err == nil {
 		mustClose(t, s)
-		t.Fatal("OpenStore accepted a corrupt middle line")
+		t.Fatal("OpenStore accepted a corrupt middle record")
 	}
 }
 
-func TestCompactionKeepsOneLinePerRecord(t *testing.T) {
+func TestCompactionKeepsOneRecordPerRecord(t *testing.T) {
 	dir := t.TempDir()
 	s := mustOpen(t, dir)
 	for i := 1; i <= 150; i++ {
-		err := s.Append([]Version{{ID: "a", Rev: int64(i), Blob: "AA"}})
+		err := s.Append([]Version{{ID: "a", Rev: int64(i), Blob: "AAAA"}})
 		if err != nil {
 			t.Fatalf("Append rev %d: %v", i, err)
 		}
@@ -150,8 +228,9 @@ func TestCompactionKeepsOneLinePerRecord(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read log: %v", err)
 	}
-	if lines := strings.Count(string(data), "\n"); lines != 1 {
-		t.Fatalf("log has %d lines after compaction, want 1", lines)
+	want := logBytes(t, Version{ID: "a", Rev: 150, Blob: "AAAA"})
+	if !bytes.Equal(data, want) {
+		t.Fatalf("log after compaction is %d bytes, want one record of %d bytes", len(data), len(want))
 	}
 	v, ok := s2.Get("a")
 	if !ok || v.Rev != 150 {
@@ -159,6 +238,48 @@ func TestCompactionKeepsOneLinePerRecord(t *testing.T) {
 	}
 	if s2.Rev() != 150 {
 		t.Fatalf("Rev() = %d, want 150", s2.Rev())
+	}
+}
+
+func TestOldJSONLogIsMigrated(t *testing.T) {
+	dir := t.TempDir()
+	old := `{"id":"a","rev":1,"deleted":false,"blob":"AAAA"}` + "\n" +
+		`{"id":"b","rev":2,"deleted":true}` + "\n" +
+		`{"id":"a","rev":3,"deleted":false,"blob":"BBBB"}` + "\n"
+	jsonPath := filepath.Join(dir, legacyLogName)
+	if err := os.WriteFile(jsonPath, []byte(old), 0600); err != nil {
+		t.Fatalf("write old log: %v", err)
+	}
+
+	s := mustOpen(t, dir)
+	if s.Rev() != 3 {
+		t.Fatalf("Rev() = %d, want 3", s.Rev())
+	}
+	want := []Version{
+		{ID: "b", Rev: 2, Deleted: true},
+		{ID: "a", Rev: 3, Blob: "BBBB"},
+	}
+	if got := s.Since(0); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Since(0) = %+v, want %+v", got, want)
+	}
+	mustClose(t, s)
+
+	for _, name := range []string{logName, legacyLogName + ".bak"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Fatalf("%s is missing after migration: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(jsonPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("%s is still there after migration: %v", legacyLogName, err)
+	}
+
+	s2 := mustOpen(t, dir)
+	defer mustClose(t, s2)
+	if s2.Rev() != 3 {
+		t.Fatalf("Rev() after reopen = %d, want 3", s2.Rev())
+	}
+	if got := s2.Since(0); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Since(0) after reopen = %+v, want %+v", got, want)
 	}
 }
 

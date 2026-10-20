@@ -60,11 +60,23 @@ Replace `sync.example.com` with your domain.
 
    The reply is `{"salt":"","check":""}` until the first device sets the sync passphrase values.
 
+## Update
+
+Install the new binary and restart the service:
+
+```
+sudo install -m 755 palmsync-linux-amd64 /usr/local/bin/palmsync
+sudo systemctl restart palmsync
+```
+
+The first start converts `log.jsonl` to `log.bin`. The old file stays as
+`log.jsonl.bak`.
+
 ## Backup
 
-Copy `/var/lib/palmsync` (`log.jsonl`, `meta.json`, `tokens.json`).
+Copy `/var/lib/palmsync` (`log.bin`, `meta.json`, `tokens.json`, and `log.jsonl.bak` after an update).
 You can copy it while the service runs, because the log is append-only.
-The last line of the copy can be torn. The server skips a torn last line.
+The last record of the copy can be torn. The server cuts a torn last record when it opens the log.
 
 ## Passphrase
 
