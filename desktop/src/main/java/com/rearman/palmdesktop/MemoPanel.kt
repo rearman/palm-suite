@@ -2,6 +2,7 @@ package com.rearman.palmdesktop
 
 import com.rearman.datebook.*
 import java.awt.BorderLayout
+import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -49,7 +50,6 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 			add(title, BorderLayout.WEST)
 			add(filterCombo, BorderLayout.EAST)
 		}
-		add(top, BorderLayout.NORTH)
 
 		list.font = Theme.font
 		list.fixedCellHeight = 16
@@ -80,18 +80,19 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		applyButton.addActionListener { applyEdits() }
 		filterCombo.addActionListener { if (!busy) setFilter(choiceId(filterCombo)) }
 		val form = JPanel(GridBagLayout())
-		val gbc = GridBagConstraints().apply { insets = Insets(2, 4, 2, 4); anchor = GridBagConstraints.WEST }
+		val gbc = GridBagConstraints().apply { insets = Insets(2, 4, 2, 4); anchor = GridBagConstraints.EAST }
 		form.add(JLabel("Category:").apply { font = Theme.font; setDisplayedMnemonic('C'); labelFor = category }, gbc)
-		gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
+		gbc.gridx = 1; gbc.anchor = GridBagConstraints.WEST; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0
 		form.add(category, gbc)
-		gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
+		gbc.gridx = 0; gbc.gridy = 1; gbc.anchor = GridBagConstraints.EAST; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0.0
 		form.add(JLabel("Private:").apply { font = Theme.font; setDisplayedMnemonic('v'); labelFor = privateBox }, gbc)
-		gbc.gridx = 1
+		gbc.gridx = 1; gbc.anchor = GridBagConstraints.WEST
 		form.add(privateBox, gbc)
 		gbc.gridx = 2; gbc.gridy = 1; gbc.anchor = GridBagConstraints.WEST
 		form.add(applyButton, gbc)
 		val right = JPanel(BorderLayout()).apply {
-			preferredSize = Dimension(300, 0)
+			preferredSize = Dimension(315, 0)
+			border = BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.grid), BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Color.WHITE), EmptyBorder(8, 8, 4, 8)))
 			add(JScrollPane(editor), BorderLayout.CENTER)
 			add(form, BorderLayout.SOUTH)
 		}
@@ -99,11 +100,12 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 
 		val listByButton = JButton("List by...").apply { font = Theme.font; mnemonic = KeyEvent.VK_L; addActionListener { listBy() } }
 		val newButton = JButton("New").apply { font = Theme.font; mnemonic = KeyEvent.VK_N; addActionListener { newRecord() } }
-		val bottom = JPanel(FlowLayout(FlowLayout.CENTER)).apply {
+		val bottom = JPanel(FlowLayout(FlowLayout.RIGHT, 6, 5)).apply {
 			add(listByButton)
 			add(newButton)
 		}
 		val listPanel = JPanel(BorderLayout()).apply {
+			add(top, BorderLayout.NORTH)
 			add(JScrollPane(list), BorderLayout.CENTER)
 			add(bottom, BorderLayout.SOUTH)
 		}

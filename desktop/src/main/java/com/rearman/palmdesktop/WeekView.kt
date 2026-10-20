@@ -489,7 +489,7 @@ class WeekView : JPanel(BorderLayout()) {
 			super.paintComponent(g)
 			val w = width
 			val cw = colW(w)
-			g.font = Theme.view
+			g.font = Theme.time
 			val fm = g.fontMetrics
 			g.color = Color.WHITE
 			g.fillRect(0, 0, w, height)

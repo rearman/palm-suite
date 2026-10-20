@@ -159,8 +159,10 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			pri.text = t.priority.toString()
 			title.text = t.title.replace('\n', ' ')
 			title.background = if (isSelected) Theme.select else Color.WHITE
+			// A selected item is yellow when it is overdue (red), white otherwise, as in Palm Desktop.
 			title.foreground = when {
-				isSelected -> Color.YELLOW
+				isSelected && isOverdue(t) -> Color.YELLOW
+				isSelected -> Color.WHITE
 				isOverdue(t) -> Theme.dateRed
 				else -> Color.BLACK
 			}
@@ -841,7 +843,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 		override fun paintComponent(g: Graphics) {
 			super.paintComponent(g)
-			g.font = Theme.view
+			g.font = Theme.time
 			val fm = g.fontMetrics
 			if (header) {
 				// Each untimed row is a raised cell with its diamond. Any height below the rows is a raised cell too.

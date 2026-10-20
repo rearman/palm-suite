@@ -61,13 +61,12 @@ class MonthView : JPanel(BorderLayout()) {
 		(SwingUtilities.getAncestorOfClass(DatePanel::class.java, this) as? DatePanel)?.showMode(mode)
 	}
 
-	/** Selects the day of a click. A double click goes to the Day view. */
+	/** Selects the day under a left press. */
 	private fun cellClicked(e: MouseEvent) {
 		val i = grid.cellAt(e.x, e.y)
 		if (i < 0) return
 		App.day = gridStart + i
 		App.refresh()
-		if (e.clickCount >= 2) showMode("day")
 	}
 
 	/** Selects the day under a popup click and shows the cell menu. */
@@ -111,12 +110,13 @@ class MonthView : JPanel(BorderLayout()) {
 				override fun mousePressed(e: MouseEvent) {
 					requestFocusInWindow()
 					cellPopup(e)
+					if (SwingUtilities.isLeftMouseButton(e)) cellClicked(e)
 				}
 
 				override fun mouseReleased(e: MouseEvent) = cellPopup(e)
 
 				override fun mouseClicked(e: MouseEvent) {
-					if (SwingUtilities.isLeftMouseButton(e)) cellClicked(e)
+					if (SwingUtilities.isLeftMouseButton(e) && e.clickCount >= 2) showMode("day")
 				}
 			})
 			addKeyListener(object : KeyAdapter() {
@@ -180,15 +180,18 @@ class MonthView : JPanel(BorderLayout()) {
 				cg.color = Theme.grid
 				cg.drawRect(r.x, r.y, r.width - 1, r.height - 1)
 
-				// Date number at the top right. Today is red on the select color.
+				// Date number at the top right. The selected day fills with the select color.
+				// Today is red; on the fill it is red too when it is also selected, else white.
 				cg.font = Theme.font
 				val nfm = cg.fontMetrics
 				val num = date.dayOfMonth.toString()
 				val nw = nfm.stringWidth(num)
 				val nx = r.x + r.width - nw - 3
-				if (gridStart + i == today) {
+				if (gridStart + i == App.day) {
 					cg.color = Theme.select
 					cg.fillRect(nx - 2, r.y + 1, nw + 4, nfm.height)
+					cg.color = if (gridStart + i == today) Theme.dateRed else Color.WHITE
+				} else if (gridStart + i == today) {
 					cg.color = Theme.dateRed
 				} else {
 					cg.color = if (other) Color.GRAY else Color.BLACK

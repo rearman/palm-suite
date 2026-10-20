@@ -26,14 +26,16 @@ object Theme {
 	val font: Font = Font(sans, Font.PLAIN, 11)
 	/** MS Sans Serif 8 pt, bold. */
 	val bold: Font = Font(sans, Font.BOLD, 11)
-	/** The launcher button labels: Arial, 16 px cell. */
-	val launcher: Font = Font(arial, Font.PLAIN, 14)
+	/** The launcher button labels: Arial 12 px. */
+	val launcher: Font = Font(arial, Font.PLAIN, 12)
 	/** The Date view title: Arial Bold 10 pt. */
 	val title: Font = Font(arial, Font.BOLD, 13)
-	/** The To Do List and Memo Pad captions: Arial Bold, as in Palm Desktop. */
-	val caption: Font = Font(arial, Font.BOLD, 14)
-	/** The Day and Week view time labels and event text: Arial, 15 px cell. */
-	val view: Font = Font(arial, Font.PLAIN, 13)
+	/** The To Do List and Memo Pad captions: Arial Bold 13 px, as in Palm Desktop. */
+	val caption: Font = Font(arial, Font.BOLD, 13)
+	/** The Day, Week and Month event text: Arial 12 px. */
+	val view: Font = Font(arial, Font.PLAIN, 12)
+	/** The Day and Week view time labels: Arial 11 px. */
+	val time: Font = Font(arial, Font.PLAIN, 11)
 	val dateRed: Color = Color(255, 0, 0)
 	val select: Color = Color(0, 120, 215)
 	val grid: Color = Color(160, 160, 160)

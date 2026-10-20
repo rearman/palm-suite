@@ -123,6 +123,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 			icon = if (kind == 5) marks(item) else null
 			// Set on every cell: DefaultTableCellRenderer keeps the last value as the unselected color.
 			foreground = when {
+				sel && isOverdue(item) -> Color.YELLOW   // a selected overdue item is yellow, as in Palm Desktop
 				sel -> Color.WHITE
 				isOverdue(item) -> Theme.dateRed
 				else -> Color.BLACK
@@ -211,11 +212,12 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		val newButton = JButton("New")
 		newButton.mnemonic = KeyEvent.VK_N
 		newButton.addActionListener { newRecord() }
-		val bottom = JPanel(FlowLayout(FlowLayout.CENTER))
+		val bottom = JPanel(FlowLayout(FlowLayout.RIGHT, 6, 5))
 		bottom.add(showButton)
 		bottom.add(newButton)
 
 		val center = JPanel(BorderLayout())
+		center.add(top, BorderLayout.NORTH)
 		center.add(scroll, BorderLayout.CENTER)
 		center.add(bottom, BorderLayout.SOUTH)
 
@@ -250,7 +252,6 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		controls.add(completeBox)
 		controls.add(applyButton)
 
-		add(top, BorderLayout.NORTH)
 		add(center, BorderLayout.CENTER)
 		add(buildDetails(), BorderLayout.EAST)
 
@@ -260,7 +261,12 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 	private fun buildDetails(): JPanel {
 		val p = JPanel(GridBagLayout())
-		p.preferredSize = Dimension(280, 0)
+		p.preferredSize = Dimension(315, 0)
+		// The raised edge between the list and the details, as in the Memo Pad.
+		p.border = BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.grid),
+			BorderFactory.createMatteBorder(0, 1, 0, 0, Color.WHITE)
+		)
 		val c = GridBagConstraints()
 		c.insets = Insets(3, 4, 3, 4)
 		c.anchor = GridBagConstraints.WEST
