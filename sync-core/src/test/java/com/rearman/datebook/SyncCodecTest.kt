@@ -60,6 +60,20 @@ class SyncCodecTest {
         assertEquals(list, SyncCodec.toShortcuts(text))
     }
 
+    @Test fun addressRoundTripsAllFields() {
+        val a = Address(
+            id = 5, lastName = "Earman", firstName = "Ross", title = "Mr.", company = "Palm Co",
+            phoneLabels = listOf(0, 1, 2, 3, 6), phones = listOf("555-0100", "555-0101", "", "", "555-0104"),
+            address = "1 Main St", city = "Springfield", state = "IL", zip = "62701", country = "USA",
+            custom = listOf("c1", "", "c3", "c4"), note = "Note \"quoted\"", showPhone = 2, category = 7,
+            isPrivate = true, uid = "a0"
+        )
+        val text = SyncCodec.address(a, "cat-7")
+        assertEquals("address", SyncCodec.kind(text))
+        val back = SyncCodec.toAddress(text, "u1") { if (it == "cat-7") 7 else 0 }
+        assertEquals(a.copy(id = 0, uid = "u1"), back)
+    }
+
     @Test fun kindOfNonJsonIsEmpty() {
         assertEquals("", SyncCodec.kind("not json"))
     }

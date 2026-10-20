@@ -199,7 +199,8 @@ private class AndroidSyncStore(private val store: Store, private val prefs: Pref
         "events" -> store.events.firstOrNull { it.id == row.id }
         "todos" -> store.todos.firstOrNull { it.id == row.id }
         "memos" -> store.memos.firstOrNull { it.id == row.id }
-        "categories" -> (store.categories + store.memoCategories).firstOrNull { it.id.toLong() == row.id }
+        "addresses" -> store.addresses.firstOrNull { it.id == row.id }
+        "categories" -> (store.categories + store.memoCategories + store.addressCategories).firstOrNull { it.id.toLong() == row.id }
         else -> null
     }
 
@@ -216,6 +217,8 @@ private class AndroidSyncStore(private val store: Store, private val prefs: Pref
 
     override fun putRemote(m: Memo, rev: Long) = store.putRemote(m, rev)
 
+    override fun putRemote(a: Address, rev: Long) = store.putRemote(a, rev)
+
     override fun putRemote(c: Category, rev: Long) = store.putRemote(c, rev)
 
     override fun dropRemote(table: String, uid: String) = store.dropRemote(table, uid)
@@ -226,6 +229,7 @@ private class AndroidSyncStore(private val store: Store, private val prefs: Pref
             is Event -> store.save(record.deepCopy().copy(id = 0, uid = ""))
             is Todo -> store.save(record.copy(id = 0, uid = ""))
             is Memo -> store.save(record.copy(id = 0, uid = ""))
+            is Address -> store.save(record.copy(id = 0, uid = ""))
             is Category -> return store.addCategory(record.name + " (copy)", record.app) != null
         }
         return true

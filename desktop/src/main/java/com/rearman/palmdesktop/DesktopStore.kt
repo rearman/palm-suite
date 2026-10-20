@@ -17,7 +17,7 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 
 	companion object {
 		const val MAX_CATEGORIES = 15
-		private val tables = listOf("categories", "events", "todos", "memos")
+		private val tables = listOf("categories", "events", "todos", "memos", "addresses")
 
 		/** Loads the store from [file]. A missing file gives a new store with the 4 default categories. */
 		fun open(file: File): DesktopStore {
@@ -37,8 +37,10 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 	val events = mutableListOf<Event>()
 	val todos = mutableListOf<Todo>()
 	val memos = mutableListOf<Memo>()
+	val addresses = mutableListOf<Address>()
 	val categories = mutableListOf<Category>()      // To Do (app 0)
 	val memoCategories = mutableListOf<Category>()  // Memo Pad (app 1)
+	val addressCategories = mutableListOf<Category>()  // Address Book (app 2)
 
 	/** Called after every local write. The SyncStore writes do not call it. */
 	var onChange: (() -> Unit)? = null
@@ -73,13 +75,19 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 
 	// lookups
 
-	fun categoriesFor(app: Int): MutableList<Category> = if (app == 1) memoCategories else categories
+	fun categoriesFor(app: Int): MutableList<Category> = when (app) {
+		1 -> memoCategories
+		2 -> addressCategories
+		else -> categories
+	}
+
+	private fun allCategories(): List<Category> = categories + memoCategories + addressCategories
 
 	fun categoryName(id: Int): String =
-		(categories + memoCategories).firstOrNull { it.id == id }?.name ?: "Unfiled"
+		allCategories().firstOrNull { it.id == id }?.name ?: "Unfiled"
 
 	override fun categoryUid(id: Int): String =
-		if (id == 0) "" else (categories + memoCategories).firstOrNull { it.id == id }?.uid ?: ""
+		if (id == 0) "" else allCategories().firstOrNull { it.id == id }?.uid ?: ""
 
 	override fun categoryIdForUid(uid: String, app: Int): Int =
 		if (uid.isBlank()) 0 else categoriesFor(app).firstOrNull { it.uid == uid }?.id ?: 0
@@ -241,10 +249,18 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		persist()
 	}
 
+	override fun putRemote(a: Address, rev: Long) {
+		a.id = idFor("addresses", a.uid)
+		putInList(addresses, a) { it.id == a.id }
+		setServer("addresses", a.id, a.uid, rev)
+		persist()
+	}
+
 	override fun putRemote(c: Category, rev: Long) {
 		val id = idFor("categories", c.uid).toInt()
 		categories.removeAll { it.uid == c.uid }
 		memoCategories.removeAll { it.uid == c.uid }
+		addressCategories.removeAll { it.uid == c.uid }
 		categoriesFor(c.app).apply {
 			add(Category(id, c.name, c.app, c.uid))
 			sortCategories(this)
@@ -261,10 +277,12 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 			"categories" -> {
 				categories.removeAll { it.id.toLong() == id }
 				memoCategories.removeAll { it.id.toLong() == id }
+				addressCategories.removeAll { it.id.toLong() == id }
 				moveToUnfiled(id.toInt(), dirty = false)
 			}
 			"events" -> events.removeAll { it.id == id }
 			"todos" -> todos.removeAll { it.id == id }
+			"addresses" -> addresses.removeAll { it.id == id }
 			else -> memos.removeAll { it.id == id }
 		}
 		persist()
@@ -276,6 +294,7 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 			is Event -> putEvent(record.deepCopy().apply { id = 0; uid = "" })
 			is Todo -> putTodo(record.copy(id = 0, uid = ""))
 			is Memo -> putMemo(record.copy(id = 0, uid = ""))
+			is Address -> putAddress(record.copy(id = 0, uid = ""))
 			is Category -> {
 				val added = newCategory(record.name, record.app) != null
 				if (added) persist()
@@ -305,6 +324,7 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 			.put("scDirty", scDirty)
 			.put("shortcuts", JSONArray(shortCutList.map { JSONObject().put("name", it.first).put("text", it.second) }))
 			.put("rows", JSONArray(rowsJson()))
+			.put("addressSync", true)
 		file.absoluteFile.parentFile?.mkdirs()
 		val tmp = File(file.path + ".tmp")
 		tmp.writeText(root.toString(), Charsets.UTF_8)
@@ -326,7 +346,11 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		all.filter { it.getString("table") != "categories" }.forEach { loadRow(it) }
 		sortCategories(categories)
 		sortCategories(memoCategories)
+		sortCategories(addressCategories)
 		memos.sortBy { it.pos }
+		// Desktop 0.10 skipped the address rows but still moved the sync position past them.
+		// A file without the addressSync key came from 0.10, so the next sync reads all rows again.
+		if (!root.has("addressSync")) since = 0
 	}
 
 	private fun loadRow(o: JSONObject) {
@@ -341,6 +365,7 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 			"categories" -> SyncCodec.toCategory(text, uid, rowId.toInt()).let { categoriesFor(it.app).add(it) }
 			"events" -> events.add(SyncCodec.toEvent(text, uid).apply { this.id = rowId })
 			"todos" -> todos.add(SyncCodec.toTodo(text, uid) { categoryIdForUid(it, 0) }.apply { this.id = rowId })
+			"addresses" -> addresses.add(SyncCodec.toAddress(text, uid) { categoryIdForUid(it, 2) }.apply { this.id = rowId })
 			else -> memos.add(SyncCodec.toMemo(text, uid) { categoryIdForUid(it, 1) }.apply { this.id = rowId })
 		}
 	}
@@ -362,6 +387,7 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		is Event -> SyncCodec.event(r)
 		is Todo -> SyncCodec.todo(r, categoryUid(r.category))
 		is Memo -> SyncCodec.memo(r, categoryUid(r.category))
+		is Address -> SyncCodec.address(r, categoryUid(r.category))
 		is Category -> SyncCodec.category(r)
 		else -> error("No live record for $table $rowId")
 	}
@@ -380,6 +406,9 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 			Category(2, "Personal", 0, "default-0-personal"),
 			Category(3, "Business", 1, "default-1-business"),
 			Category(4, "Personal", 1, "default-1-personal"),
+			Category(5, "Business", 2, "default-2-business"),
+			Category(6, "Personal", 2, "default-2-personal"),
+			Category(7, "QuickList", 2, "default-2-quicklist"),
 		)
 		for (c in defaults) {
 			categoriesFor(c.app).add(c)
@@ -387,6 +416,7 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		}
 		sortCategories(categories)
 		sortCategories(memoCategories)
+		sortCategories(addressCategories)
 	}
 
 	private fun putEvent(e: Event) {
@@ -411,6 +441,13 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		}
 		putInList(memos, m) { it.id == m.id }
 		markDirty("memos", m.id, m.uid)
+	}
+
+	private fun putAddress(a: Address) {
+		if (a.uid.isEmpty()) a.uid = UUID.randomUUID().toString()
+		if (a.id == 0L) a.id = nextId("addresses")
+		putInList(addresses, a) { it.id == a.id }
+		markDirty("addresses", a.id, a.uid)
 	}
 
 	/** Replaces the item that [same] finds, or adds [item] when none is found. */
@@ -453,12 +490,17 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 			m.category = 0
 			if (dirty) markDirty("memos", m.id, m.uid)
 		}
+		for (a in addresses) if (a.category == id) {
+			a.category = 0
+			if (dirty) markDirty("addresses", a.id, a.uid)
+		}
 	}
 
 	private fun liveRecord(table: String, rowId: Long): Any? = when (table) {
-		"categories" -> (categories + memoCategories).firstOrNull { it.id.toLong() == rowId }
+		"categories" -> allCategories().firstOrNull { it.id.toLong() == rowId }
 		"events" -> events.firstOrNull { it.id == rowId }
 		"todos" -> todos.firstOrNull { it.id == rowId }
+		"addresses" -> addresses.firstOrNull { it.id == rowId }
 		else -> memos.firstOrNull { it.id == rowId }
 	}
 

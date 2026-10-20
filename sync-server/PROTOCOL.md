@@ -122,6 +122,7 @@ Each kind has these keys:
 - Event: `{"kind":"event","title","note","date","untimed","start","end","alarm","alarmAdvance","alarmUnit","repeat","every","repeatEnd","weekDays","exceptions":[sorted longs],"private"}`
 - To Do: `{"kind":"todo","title","note","priority","due","done","category":uid or "","private"}`
 - Memo: `{"kind":"memo","text","category":uid or "","private","pos"}`
+- Address: `{"kind":"address","lastName","firstName","title","company","phoneLabels":[5 ints],"phones":[5 strings],"address","city","state","zip","country","custom":[4 strings],"note","showPhone","category":uid or "","private"}`
 - Category: `{"kind":"category","name","app"}`
 - ShortCuts: `{"kind":"shortcuts","list":[{"name","text"}]}`
 

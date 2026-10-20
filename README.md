@@ -129,7 +129,7 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 - Phone Lookup in the Edit menu (Ctrl+L) inserts a name and a number. It works
   in all four apps.
 - Address Book has its own categories.
-- Address Book records stay on the phone. They do not sync yet.
+- Address Book records and their categories sync like the other records.
 
 ## All four apps
 
@@ -155,6 +155,7 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 
 - The apps sync through `palmsync` on your own VPS (Options > Sync...).
 - Records are encrypted on the device. The server stores only ciphertext.
+- Address Book records and their categories sync with the other records.
 - When a record changed on two devices, the apps keep both copies, as Palm
   HotSync did.
 - `sync-server/` holds `palmsync`. See `sync-server/README.md` to install the
@@ -166,6 +167,9 @@ Palm Desktop for Windows and Linux follows Palm Desktop 3.1.1. It has the Date
 Book (Day, Week and Month views), the To Do List and the Memo Pad. It also has
 categories, private records, Find, Purge, Import and Export, and Print.
 Import and Export use iCalendar files and the Date Book backup file.
+
+The desktop keeps the Address Book records for sync. It shows no Address view
+yet.
 
 - Windows: download `palm-desktop-windows.msi` from a `desktop-v*` release
   and run it. It installs Palm Desktop for your user account. The installer
@@ -186,6 +190,9 @@ Import and Export use iCalendar files and the Date Book backup file.
   account can read.
 - The app syncs with `palmsync` at start, 30 seconds after a change, every
   hour, and when you choose Tools > Sync Now.
+- Install a desktop version with address sync before you sync addresses from
+  the phone. A desktop version without it misses the addresses until it
+  updates. The new version reads the server again one time to get them.
 - When the same record changed on two devices, the app keeps both copies.
 - The app uses the fonts and sizes that Palm Desktop 3.1.1 draws with, in
   their TrueType versions.

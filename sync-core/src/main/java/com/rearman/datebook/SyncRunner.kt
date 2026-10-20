@@ -11,20 +11,21 @@ data class SyncRow(val table: String, val id: Long, val uid: String, val rev: Lo
 /**
  * The local data that one sync round reads and writes. Each app implements it over its own store.
  *
- * record: the live record of a row (Event, Todo, Memo or Category), or null for a tombstone.
+ * record: the live record of a row (Event, Todo, Memo, Address or Category), or null for a tombstone.
  * saveCopy: keeps a record as a new dirty record with a new uid. It returns false when the
  * categories of the record's app are full.
  */
 interface SyncStore {
-    fun dirtyRows(): List<SyncRow>                 // dirty rows of "categories", "events", "todos", "memos", categories first
+    fun dirtyRows(): List<SyncRow>                 // dirty rows of "categories", "events", "todos", "memos", "addresses", categories first
     fun syncRow(uid: String): SyncRow?             // any table, live or tombstone
-    fun record(row: SyncRow): Any?                 // the live Event/Todo/Memo/Category of the row, or null
+    fun record(row: SyncRow): Any?                 // the live Event/Todo/Memo/Address/Category of the row, or null
     fun categoryUid(id: Int): String               // "" for 0 or unknown
     fun categoryIdForUid(uid: String, app: Int): Int // 0 when blank or unknown
     fun markSynced(table: String, uid: String, rev: Long, clean: Boolean)
     fun putRemote(e: Event, rev: Long)
     fun putRemote(t: Todo, rev: Long)
     fun putRemote(m: Memo, rev: Long)
+    fun putRemote(a: Address, rev: Long)
     fun putRemote(c: Category, rev: Long)
     fun dropRemote(table: String, uid: String)
     fun saveCopy(record: Any): Boolean             // keep-both: save as a new dirty record with a new uid; false when categories are full
@@ -182,6 +183,7 @@ object SyncRunner {
             "event" -> store.putRemote(SyncCodec.toEvent(text, c.id), c.rev)
             "todo" -> store.putRemote(SyncCodec.toTodo(text, c.id) { store.categoryIdForUid(it, 0) }, c.rev)
             "memo" -> store.putRemote(SyncCodec.toMemo(text, c.id) { store.categoryIdForUid(it, 1) }, c.rev)
+            "address" -> store.putRemote(SyncCodec.toAddress(text, c.id) { store.categoryIdForUid(it, 2) }, c.rev)
             "category" -> store.putRemote(SyncCodec.toCategory(text, c.id, 0), c.rev)
             else -> return false
         }
@@ -209,6 +211,8 @@ object SyncRunner {
             SyncCodec.toTodo(text, uid) { store.categoryIdForUid(it, 0) }.dupKey()
         "memo" -> (local as? Memo)?.dupKey() ==
             SyncCodec.toMemo(text, uid) { store.categoryIdForUid(it, 1) }.dupKey()
+        "address" -> (local as? Address)?.dupKey() ==
+            SyncCodec.toAddress(text, uid) { store.categoryIdForUid(it, 2) }.dupKey()
         "category" -> (local as? Category)?.let {
             val remote = SyncCodec.toCategory(text, uid, 0)
             it.name == remote.name && it.app == remote.app
@@ -230,6 +234,7 @@ object SyncRunner {
         is Event -> SyncCodec.event(rec)
         is Todo -> SyncCodec.todo(rec, store.categoryUid(rec.category))
         is Memo -> SyncCodec.memo(rec, store.categoryUid(rec.category))
+        is Address -> SyncCodec.address(rec, store.categoryUid(rec.category))
         is Category -> SyncCodec.category(rec)
         else -> ""
     }

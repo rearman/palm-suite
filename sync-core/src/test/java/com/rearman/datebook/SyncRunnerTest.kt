@@ -27,7 +27,7 @@ class SyncRunnerTest {
 
     /** An in-memory SyncStore. The rows are kept by uid, and each one holds its record. */
     private class FakeStore : SyncStore {
-        private val tables = listOf("categories", "events", "todos", "memos")
+        private val tables = listOf("categories", "events", "todos", "memos", "addresses")
         val rows = LinkedHashMap<String, Entry>()
         val copies = mutableListOf<Any>()
         override var shortCuts: List<Pair<String, String>> = emptyList()
@@ -59,6 +59,7 @@ class SyncRunnerTest {
         override fun putRemote(t: Todo, rev: Long) = put("todos", t.uid, t, rev)
         override fun putRemote(m: Memo, rev: Long) = put("memos", m.uid, m, rev)
         override fun putRemote(c: Category, rev: Long) = put("categories", c.uid, c, rev)
+        override fun putRemote(a: Address, rev: Long) = put("addresses", a.uid, a, rev)
 
         override fun dropRemote(table: String, uid: String) {
             rows.remove(uid)
@@ -169,6 +170,22 @@ class SyncRunnerTest {
         assertFalse(store.rows["e9"]!!.dirty)
         assertTrue(outcome.changed)
         assertEquals(4L, store.syncSince)
+    }
+
+    @Test fun remoteNewAddressIsInsertedWithAddressCategory() {
+        val store = FakeStore()
+        store.add("categories", "cat-a", Category(6, "Work", 2, "cat-a"), dirty = false)
+        val plan = SyncRunner.collect(store, key)
+        val remote = SyncCodec.address(Address(lastName = "Earman", firstName = "Ross", uid = "a9"), "cat-a")
+
+        val outcome = SyncRunner.apply(store, key, plan, result(4, changes = listOf(change("a9", 4, remote))))
+
+        val rec = store.record(store.syncRow("a9")!!) as Address
+        assertEquals("Earman", rec.lastName)
+        assertEquals(6, rec.category)
+        assertEquals(4L, store.rows["a9"]!!.rev)
+        assertFalse(store.rows["a9"]!!.dirty)
+        assertTrue(outcome.changed)
     }
 
     @Test fun dirtyLocalEventWithDifferentRemoteKeepsBoth() {

@@ -310,8 +310,6 @@ class Store private constructor(ctx: Context) :
     }
 
     // ==== addresses ====
-    // Address Book records stay on the phone for now. They are not in the sync tables.
-
     val addresses: MutableList<Address> by lazy { loadAddresses() }
 
     private fun loadAddresses(): MutableList<Address> {
@@ -463,18 +461,14 @@ class Store private constructor(ctx: Context) :
 
     // ---- sync ----
 
-    // Address Book records stay on the phone for now: addresses is not in this list, and syncWhere skips app 2 categories.
-    private val tables = listOf("categories", "events", "todos", "memos")
-
-    /** Adds the sync filter to [where]: the app 2 categories are Address Book categories and stay on the phone. */
-    private fun syncWhere(table: String, where: String) = if (table == "categories") "($where) AND app<>2" else where
+    private val tables = listOf("categories", "events", "todos", "memos", "addresses")
 
     /** Loads the in-memory lists now, so that a list loaded after a sync write does not add a row twice. */
     private fun loadLists() {
-        listOf(events, todos, memos, categories, memoCategories)
+        listOf(events, todos, memos, addresses, categories, memoCategories, addressCategories)
     }
 
-    /** Dirty rows of all four tables, categories first. */
+    /** Dirty rows of all five tables, categories first. */
     fun dirtyRows(): List<SyncRow> = tables.flatMap { rowsWhere(it, "dirty=1", emptyArray()) }
 
     /** The row with [uid] in any table, live or tombstone. */
@@ -483,7 +477,7 @@ class Store private constructor(ctx: Context) :
 
     private fun rowsWhere(table: String, where: String, args: Array<String>): List<SyncRow> {
         val out = mutableListOf<SyncRow>()
-        readableDatabase.rawQuery("SELECT id, uid, rev, dirty, deleted FROM $table WHERE ${syncWhere(table, where)}", args).use { c ->
+        readableDatabase.rawQuery("SELECT id, uid, rev, dirty, deleted FROM $table WHERE $where", args).use { c ->
             while (c.moveToNext()) {
                 out.add(SyncRow(table, c.getLong(0), c.getString(1) ?: "", c.getLong(2), c.getInt(3) != 0, c.getInt(4) != 0))
             }
@@ -492,7 +486,7 @@ class Store private constructor(ctx: Context) :
     }
 
     private fun idOf(table: String, uid: String): Long? =
-        writableDatabase.rawQuery("SELECT id FROM $table WHERE ${syncWhere(table, "uid=?")}", arrayOf(uid)).use { c ->
+        writableDatabase.rawQuery("SELECT id FROM $table WHERE uid=?", arrayOf(uid)).use { c ->
             if (c.moveToFirst()) c.getLong(0) else null
         }
 
@@ -506,11 +500,11 @@ class Store private constructor(ctx: Context) :
         val db = writableDatabase
         db.beginTransaction()
         try {
-            if (clean) db.delete(table, syncWhere(table, "uid=? AND deleted=1"), arrayOf(uid))
+            if (clean) db.delete(table, "uid=? AND deleted=1", arrayOf(uid))
             db.update(table, ContentValues().apply {
                 put("rev", rev)
                 if (clean) put("dirty", 0)
-            }, syncWhere(table, "uid=?"), arrayOf(uid))
+            }, "uid=?", arrayOf(uid))
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
@@ -586,9 +580,31 @@ class Store private constructor(ctx: Context) :
         }
     }
 
+    /** Stores a server copy of [a] at [rev]. A row with the same uid keeps its local id. */
+    fun putRemote(a: Address, rev: Long) {
+        loadLists()
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val cv = addressValues(a).apply { serverState(rev) }
+            val old = idOf("addresses", a.uid)
+            if (old != null) {
+                db.update("addresses", cv, "id=?", arrayOf(old.toString()))
+                a.id = old
+                val i = addresses.indexOfFirst { it.id == old }
+                if (i >= 0) addresses[i] = a else addresses.add(a)
+            } else {
+                a.id = db.insert("addresses", null, cv)
+                addresses.add(a)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     /** Stores a server copy of category [c] at [rev], in the list of its app. */
     fun putRemote(c: Category, rev: Long) {
-        if (c.app == 2) return // Address Book categories stay on the phone for now
         loadLists()
         val db = writableDatabase
         db.beginTransaction()
@@ -605,8 +621,9 @@ class Store private constructor(ctx: Context) :
                 cv.put("id", id)
                 db.insert("categories", null, cv)
             }
-            (if (c.app == 1) categories else memoCategories).removeAll { it.uid == c.uid }
             val mine = categoriesFor(c.app)
+            listOf(categories, memoCategories, addressCategories).filter { it !== mine }
+                .forEach { list -> list.removeAll { it.uid == c.uid } }
             val stored = Category(id, c.name, c.app, c.uid)
             val i = mine.indexOfFirst { it.uid == c.uid }
             if (i >= 0) mine[i] = stored else mine.add(stored)
@@ -619,7 +636,6 @@ class Store private constructor(ctx: Context) :
 
     /** Removes a row that another device deleted. A category also moves its items to Unfiled, without marking them dirty. */
     fun dropRemote(table: String, uid: String) {
-        if (table !in tables) return // Address Book records stay on the phone for now
         loadLists()
         val db = writableDatabase
         val id = idOf(table, uid) ?: return
@@ -628,20 +644,29 @@ class Store private constructor(ctx: Context) :
             if (table == "categories") {
                 val app = db.rawQuery("SELECT app FROM categories WHERE id=?", arrayOf(id.toString())).use { it.moveToFirst(); it.getInt(0) }
                 db.delete(table, "id=?", arrayOf(id.toString()))
-                if (app == 1) {
-                    db.execSQL("UPDATE memos SET cat=0 WHERE cat=$id")
-                    memos.filter { it.category == id.toInt() }.forEach { it.category = 0 }
-                } else {
-                    db.execSQL("UPDATE todos SET cat=0 WHERE cat=$id")
-                    todos.filter { it.category == id.toInt() }.forEach { it.category = 0 }
+                when (app) {
+                    1 -> {
+                        db.execSQL("UPDATE memos SET cat=0 WHERE cat=$id")
+                        memos.filter { it.category == id.toInt() }.forEach { it.category = 0 }
+                    }
+                    2 -> {
+                        db.execSQL("UPDATE addresses SET cat=0 WHERE cat=$id")
+                        addresses.filter { it.category == id.toInt() }.forEach { it.category = 0 }
+                    }
+                    else -> {
+                        db.execSQL("UPDATE todos SET cat=0 WHERE cat=$id")
+                        todos.filter { it.category == id.toInt() }.forEach { it.category = 0 }
+                    }
                 }
                 categories.removeAll { it.uid == uid }
                 memoCategories.removeAll { it.uid == uid }
+                addressCategories.removeAll { it.uid == uid }
             } else {
                 db.delete(table, "id=?", arrayOf(id.toString()))
                 when (table) {
                     "events" -> events.removeAll { it.id == id }
                     "todos" -> todos.removeAll { it.id == id }
+                    "addresses" -> addresses.removeAll { it.id == id }
                     else -> memos.removeAll { it.id == id }
                 }
             }
@@ -657,8 +682,8 @@ class Store private constructor(ctx: Context) :
         db.beginTransaction()
         try {
             for (t in tables) {
-                db.execSQL("DELETE FROM $t WHERE ${syncWhere(t, "deleted=1")}")
-                db.execSQL("UPDATE $t SET rev=0, dirty=1 WHERE ${syncWhere(t, "1")}")
+                db.execSQL("DELETE FROM $t WHERE deleted=1")
+                db.execSQL("UPDATE $t SET rev=0, dirty=1")
             }
             db.setTransactionSuccessful()
         } finally {

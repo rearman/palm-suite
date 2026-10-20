@@ -70,7 +70,7 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Import vCard and Export vCard in the Record menu read and write .vcf files. Opening a .vcf file with Address imports it. Duplicate records are skipped.
 - Phone Lookup in the Edit menu (Ctrl+L) inserts a name and a number. It works in all four apps.
 - Address Book has its own categories.
-- Address Book records stay on the phone. They do not sync yet.
+- Address Book records and their categories sync like the other records.
 
 ### Both
 

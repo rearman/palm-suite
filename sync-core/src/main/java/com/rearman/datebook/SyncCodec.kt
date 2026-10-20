@@ -43,6 +43,26 @@ object SyncCodec {
         .put("pos", m.pos)
         .toString()
 
+    fun address(a: Address, categoryUid: String): String = JSONObject()
+        .put("kind", "address")
+        .put("lastName", a.lastName)
+        .put("firstName", a.firstName)
+        .put("title", a.title)
+        .put("company", a.company)
+        .put("phoneLabels", JSONArray(a.phoneLabels))
+        .put("phones", JSONArray(a.phones))
+        .put("address", a.address)
+        .put("city", a.city)
+        .put("state", a.state)
+        .put("zip", a.zip)
+        .put("country", a.country)
+        .put("custom", JSONArray(a.custom))
+        .put("note", a.note)
+        .put("showPhone", a.showPhone)
+        .put("category", categoryUid)
+        .put("private", a.isPrivate)
+        .toString()
+
     fun category(c: Category): String = JSONObject()
         .put("kind", "category")
         .put("name", c.name)
@@ -110,6 +130,32 @@ object SyncCodec {
             category = categoryId(o.optString("category")),
             isPrivate = o.optBoolean("private"),
             pos = o.optInt("pos"),
+            uid = uid
+        )
+    }
+
+    fun toAddress(text: String, uid: String, categoryId: (String) -> Int): Address {
+        val o = JSONObject(text)
+        val labels = o.optJSONArray("phoneLabels")
+        val phones = o.optJSONArray("phones")
+        val custom = o.optJSONArray("custom")
+        return Address(
+            lastName = o.optString("lastName"),
+            firstName = o.optString("firstName"),
+            title = o.optString("title"),
+            company = o.optString("company"),
+            phoneLabels = List(5) { (labels?.optInt(it, it) ?: it).coerceIn(0, 7) },
+            phones = List(5) { phones?.optString(it, "") ?: "" },
+            address = o.optString("address"),
+            city = o.optString("city"),
+            state = o.optString("state"),
+            zip = o.optString("zip"),
+            country = o.optString("country"),
+            custom = List(4) { custom?.optString(it, "") ?: "" },
+            note = o.optString("note"),
+            showPhone = o.optInt("showPhone").coerceIn(0, 4),
+            category = categoryId(o.optString("category")),
+            isPrivate = o.optBoolean("private"),
             uid = uid
         )
     }
