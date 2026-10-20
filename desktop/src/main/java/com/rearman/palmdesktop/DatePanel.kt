@@ -128,6 +128,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			val lead = JPanel(FlowLayout(FlowLayout.LEFT, 2, 0))
 			lead.isOpaque = false
 			check.isOpaque = false
+			check.icon = Theme.plainCheck
+			check.border = EmptyBorder(0, 2, 0, 0)
 			lead.add(check)
 			lead.add(pri)
 			for (l in listOf(pri, title, due, noteMark, privateMark)) l.font = Theme.font
@@ -251,10 +253,11 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		titleLabel.isOpaque = true
 		titleLabel.background = Color.WHITE
 		titleLabel.border = BorderFactory.createCompoundBorder(
-			BorderFactory.createLineBorder(Theme.grid), BorderFactory.createEmptyBorder(2, 0, 2, 0)
+			BorderFactory.createLoweredBevelBorder(), BorderFactory.createEmptyBorder(1, 0, 1, 0)
 		)
 		dayScroll.setColumnHeaderView(dayHeader)   // the untimed rows stay in view, as in Palm Desktop
 		dayScroll.verticalScrollBar.unitIncrement = 20
+		dayScroll.border = BorderFactory.createLineBorder(Color.BLACK)
 		editBtn.isEnabled = false
 		// Double click on the title picks the day, as Palm Desktop does.
 		titleLabel.addMouseListener(object : MouseAdapter() {
@@ -266,7 +269,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				}
 			}
 		})
-		val bar = JPanel(FlowLayout(FlowLayout.CENTER, 24, 5))
+		val bar = JPanel(FlowLayout(FlowLayout.RIGHT, 6, 5))
 		bar.add(button("Today") {
 			App.day = LocalDate.now().toEpochDay()
 			App.refresh()
@@ -274,7 +277,10 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		bar.add(editBtn)
 		bar.add(button("New...") { newRecord() }.apply { mnemonic = KeyEvent.VK_N })
 		val panel = JPanel(BorderLayout())
-		panel.add(titleLabel, BorderLayout.NORTH)
+		val titleRow = JPanel(BorderLayout())
+		titleRow.border = EmptyBorder(0, 0, 4, 0)   // a 4 px gap between the title and the grid
+		titleRow.add(titleLabel, BorderLayout.CENTER)
+		panel.add(titleRow, BorderLayout.NORTH)
 		panel.add(dayScroll, BorderLayout.CENTER)
 		panel.add(bar, BorderLayout.SOUTH)
 		return panel
@@ -286,27 +292,40 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		top.layout = BoxLayout(top, BoxLayout.Y_AXIS)
 
 		yearLabel.font = Theme.bold
-		val yearRow = JPanel(BorderLayout())
+		yearLabel.horizontalAlignment = SwingConstants.CENTER
+		yearLabel.isOpaque = true
+		yearLabel.background = Color.WHITE
+		yearLabel.border = BorderFactory.createLoweredBevelBorder()
+		val yearRow = JPanel(BorderLayout(4, 0))
+		yearRow.border = EmptyBorder(2, 0, 4, 0)
 		yearRow.add(arrowButton(SwingConstants.WEST) { setYear(-1) }, BorderLayout.WEST)
 		yearRow.add(yearLabel, BorderLayout.CENTER)
 		yearRow.add(arrowButton(SwingConstants.EAST) { setYear(1) }, BorderLayout.EAST)
 		yearRow.maximumSize = Dimension(Int.MAX_VALUE, 26)
 
 		val months = JPanel(GridLayout(2, 6))
+		months.border = BorderFactory.createMatteBorder(1, 1, 0, 0, Color.BLACK)
 		months.maximumSize = Dimension(Int.MAX_VALUE, 44)
 		for ((i, b) in monthButtons.withIndex()) {
 			b.font = Theme.font
 			b.margin = Insets(0, 0, 0, 0)
 			b.isFocusPainted = false
 			b.isOpaque = true
+			b.isContentAreaFilled = true
+			b.border = BorderFactory.createMatteBorder(0, 0, 1, 1, Color.BLACK)
 			b.addActionListener { setMonth(i + 1) }
 			months.add(b)
 		}
 
-		calendar.maximumSize = Dimension(Int.MAX_VALUE, 126)
+		val calendarPart = JPanel(BorderLayout())
+		calendarPart.border = BorderFactory.createCompoundBorder(
+			EmptyBorder(4, 0, 4, 0), BorderFactory.createLoweredBevelBorder()
+		)
+		calendarPart.add(calendar, BorderLayout.CENTER)
+		calendarPart.maximumSize = Dimension(Int.MAX_VALUE, 126 + 8 + 4)
 		top.add(yearRow)
 		top.add(months)
-		top.add(calendar)
+		top.add(calendarPart)
 
 		val todoLabel = JLabel("To Do")
 		// Palm Desktop shows the list under a selected "To Do" tab.
@@ -329,6 +348,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		head.add(catCombo, BorderLayout.CENTER)
 
 		todoList.font = Theme.font
+		todoList.fixedCellHeight = 16
 		todoList.cellRenderer = todoRenderer
 		todoList.addMouseListener(object : MouseAdapter() {
 			override fun mouseClicked(e: MouseEvent) {
@@ -351,7 +371,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		})
 		val todoPart = JPanel(BorderLayout())
 		todoPart.add(head, BorderLayout.NORTH)
-		todoPart.add(JScrollPane(todoList), BorderLayout.CENTER)
+		todoPart.add(JScrollPane(todoList).apply { border = BorderFactory.createLoweredBevelBorder() }, BorderLayout.CENTER)
 
 		rightPane.add(top, BorderLayout.NORTH)
 		rightPane.add(todoPart, BorderLayout.CENTER)
@@ -413,7 +433,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		LocalDate.ofEpochDay(day).format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.US))
 
 	private fun styleMonth(b: JButton, on: Boolean) {
-		b.background = if (on) Theme.select else Theme.panel
+		b.background = if (on) Theme.select else Color.WHITE
 		b.foreground = if (on) Color.WHITE else Color.BLACK
 	}
 
@@ -821,20 +841,26 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 		override fun paintComponent(g: Graphics) {
 			super.paintComponent(g)
-			g.color = Theme.panel
-			g.fillRect(0, 0, TIME_W, height)
 			g.font = Theme.view
 			val fm = g.fontMetrics
 			if (header) {
-				g.color = Color.BLACK
-				for (i in 0 until untimedH / UNTIMED_H) drawDiamond(g, TIME_W / 2, i * UNTIMED_H + UNTIMED_H / 2)
+				// Each untimed row is a raised cell with its diamond. Any height below the rows is a raised cell too.
+				val rows = untimedH / UNTIMED_H
+				for (i in 0 until rows) {
+					raisedCell(g, 0, i * UNTIMED_H, TIME_W, UNTIMED_H)
+					g.color = Color.BLACK
+					drawDiamond(g, TIME_W / 2, i * UNTIMED_H + UNTIMED_H / 2)
+				}
+				val used = rows * UNTIMED_H
+				if (used < height) raisedCell(g, 0, used, TIME_W, height - used)
 				g.color = Theme.grid
 				g.drawLine(0, height - 1, width, height - 1)
 			} else {
 				for (h in 0 until 24) {
 					val y = yOf(h * 60)
+					raisedCell(g, 0, y, TIME_W, yOf((h + 1) * 60) - y)
 					g.color = Theme.grid
-					g.drawLine(0, y, width, y)
+					g.drawLine(TIME_W, y, width, y)
 					// The label and its tick sit in the middle of the hour, as in Palm Desktop.
 					val mid = y + HALF
 					val label = timeLabel(h * 60)
@@ -843,9 +869,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 					g.drawLine(TIME_W - 7, mid, TIME_W - 3, mid)
 				}
 				g.color = Theme.grid
-				g.drawLine(0, yOf(24 * 60), width, yOf(24 * 60))
+				g.drawLine(TIME_W, yOf(24 * 60), width, yOf(24 * 60))
 			}
-			g.color = Theme.grid
+			g.color = Color.BLACK
 			g.drawLine(TIME_W, 0, TIME_W, height)
 
 			// The selected event last, so its blue bar is on top of its neighbors.
@@ -921,6 +947,8 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			val ch = height / 7
 			val sel = LocalDate.ofEpochDay(App.day)
 			val today = LocalDate.now()
+			g.color = Theme.panel
+			g.fillRect(0, 0, width, ch)
 			for (c in 0 until 7) {
 				drawCentered(g, Fmt.dowLetter[dowIndex(c)], c * cw, 0, cw, ch, Theme.bold, Color.BLACK)
 			}

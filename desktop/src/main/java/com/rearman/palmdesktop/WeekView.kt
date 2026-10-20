@@ -93,7 +93,7 @@ internal class DateNav(private val mode: String, private val step: (Int) -> Unit
 			mnemonic = KeyEvent.VK_O
 			addActionListener { App.day = todayEpoch(); App.refresh() }
 		})
-		title.font = Theme.bold
+		title.font = Theme.title
 		title.isOpaque = true
 		title.background = Color.WHITE
 		title.border = BorderFactory.createLineBorder(Theme.grid)
@@ -493,23 +493,24 @@ class WeekView : JPanel(BorderLayout()) {
 			val fm = g.fontMetrics
 			g.color = Color.WHITE
 			g.fillRect(0, 0, w, height)
-			g.color = Theme.panel
-			g.fillRect(0, 0, TIME_W, height)
-
 			// Hour lines and the time labels. A label and its tick sit in the middle of the hour, as in the Day view.
 			g.color = Theme.grid
 			for (h in 0..24) g.drawLine(0, hourY(h), w, hourY(h))
+			// The time column: a raised cell for the untimed area, then one per hour.
+			raisedCell(g, 0, 0, TIME_W, untimedH)
 			g.color = Color.BLACK
+			drawDiamond(g, TIME_W / 2, untimedH / 2)
 			for (h in 0..23) {
+				raisedCell(g, 0, hourY(h), TIME_W, HOUR_H)
+				g.color = Color.BLACK
 				val mid = hourY(h) + HOUR_H / 2
 				val label = timeLabel(h * 60)
 				g.drawString(label, TIME_W - 10 - fm.stringWidth(label), mid + (fm.ascent - fm.descent) / 2)
 				g.drawLine(TIME_W - 7, mid, TIME_W - 3, mid)
 			}
-			drawDiamond(g, TIME_W / 2, untimedH / 2)
 
 			// Day column lines.
-			g.color = Theme.grid
+			g.color = Color.BLACK
 			for (i in 0..7) g.drawLine(TIME_W + i * cw, 0, TIME_W + i * cw, height - 1)
 
 			// The selected box last, so its blue bar is on top of its neighbors.
@@ -545,7 +546,7 @@ class WeekView : JPanel(BorderLayout()) {
 			for (i in 0 until 7) {
 				val x = TIME_W + i * cw
 				val day = start + i
-				g.color = Theme.panel
+				g.color = if (day == today) Theme.select else Theme.panel
 				g.fillRect(x, 0, cw, height)
 				val text = "${Fmt.dowShort[dowIndex(i)]} ${Fmt.ld(day).dayOfMonth}"
 				g.color = if (day == today) Theme.dateRed else Color.BLACK

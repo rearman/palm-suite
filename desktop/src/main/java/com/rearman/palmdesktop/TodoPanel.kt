@@ -23,7 +23,6 @@ import java.util.Locale
 import javax.swing.*
 import javax.swing.border.BevelBorder
 import javax.swing.border.EmptyBorder
-import javax.swing.border.LineBorder
 import javax.swing.table.AbstractTableModel
 import javax.swing.table.DefaultTableCellRenderer
 
@@ -142,8 +141,8 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 	init {
 		val tab = JLabel("To Do List").apply {
-			font = Theme.bold
-			border = BorderFactory.createCompoundBorder(LineBorder(Theme.grid), EmptyBorder(2, 8, 2, 8))
+			font = Theme.caption
+			border = BorderFactory.createCompoundBorder(BorderFactory.createRaisedBevelBorder(), BorderFactory.createEmptyBorder(1, 16, 1, 16))
 		}
 		val top = JPanel(BorderLayout())
 		top.border = EmptyBorder(4, 4, 4, 4)
@@ -158,7 +157,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		top.add(filterBox, BorderLayout.EAST)
 
 		table.font = Theme.font
-		table.rowHeight = 18
+		table.rowHeight = 16
 		table.setShowGrid(false)
 		table.intercellSpacing = Dimension(0, 0)
 		table.background = Color.WHITE
@@ -166,6 +165,9 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		table.selectionForeground = Color.WHITE
 		table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
 		table.tableHeader = null
+		// Palm Desktop draws the Done boxes as plain black squares.
+		(table.getDefaultRenderer(Boolean::class.javaObjectType) as? javax.swing.JCheckBox)?.icon = Theme.plainCheck
+		((table.getDefaultEditor(Boolean::class.javaObjectType) as? javax.swing.DefaultCellEditor)?.component as? javax.swing.JCheckBox)?.icon = Theme.plainCheck
 		// Typing starts a new item (see keyTyped), so the table must not start a cell editor.
 		table.putClientProperty("JTable.autoStartsEdit", false)
 		table.selectionModel.addListSelectionListener { e ->

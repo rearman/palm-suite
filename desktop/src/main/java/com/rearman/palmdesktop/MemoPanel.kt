@@ -13,7 +13,6 @@ import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import javax.swing.*
 import javax.swing.border.EmptyBorder
-import javax.swing.border.LineBorder
 
 /** The Memo Pad view. */
 class MemoPanel : JPanel(BorderLayout()), AppView {
@@ -42,8 +41,8 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 
 	init {
 		val title = JLabel("Memo Pad").apply {
-			font = Theme.bold
-			border = BorderFactory.createCompoundBorder(LineBorder(Theme.grid), EmptyBorder(2, 8, 2, 8))
+			font = Theme.caption
+			border = BorderFactory.createCompoundBorder(BorderFactory.createRaisedBevelBorder(), BorderFactory.createEmptyBorder(1, 16, 1, 16))
 		}
 		val top = JPanel(BorderLayout()).apply {
 			border = EmptyBorder(4, 4, 4, 4)
@@ -53,6 +52,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		add(top, BorderLayout.NORTH)
 
 		list.font = Theme.font
+		list.fixedCellHeight = 16
 		list.cellRenderer = MemoCell()
 		list.addListSelectionListener {
 			if (!it.valueIsAdjusting) {

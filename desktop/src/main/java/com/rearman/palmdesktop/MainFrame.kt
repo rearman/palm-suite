@@ -86,6 +86,13 @@ class MainFrame : JFrame("Palm Desktop") {
 		contentPane.layout = BorderLayout()
 		contentPane.add(buildToolBar(), BorderLayout.NORTH)
 		contentPane.add(buildLauncher(), BorderLayout.WEST)
+		center.border = BorderFactory.createCompoundBorder(
+			BorderFactory.createEmptyBorder(3, 3, 3, 3),
+			BorderFactory.createCompoundBorder(
+				BorderFactory.createRaisedBevelBorder(),
+				BorderFactory.createEmptyBorder(6, 6, 6, 6)
+			)
+		)
 		contentPane.add(center, BorderLayout.CENTER)
 		contentPane.add(buildStatusBar(), BorderLayout.SOUTH)
 		rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
@@ -110,7 +117,7 @@ class MainFrame : JFrame("Palm Desktop") {
 	/** Shows the selected date in the Date Book, and the position in the To Do List and Memo Pad. */
 	private fun updatePosition() {
 		positionLabel.text = if (current == "date") {
-			LocalDate.ofEpochDay(App.day).format(DateTimeFormatter.ofPattern("M/d/yy"))
+			LocalDate.ofEpochDay(App.day).format(DateTimeFormatter.ofPattern("M/d/yyyy"))
 		} else {
 			currentView().position()
 		}
@@ -380,6 +387,12 @@ class MainFrame : JFrame("Palm Desktop") {
 		)
 		statusLabel.font = Theme.font
 		positionLabel.font = Theme.font
+		positionLabel.border = BorderFactory.createCompoundBorder(
+			BorderFactory.createLoweredBevelBorder(),
+			BorderFactory.createEmptyBorder(0, 3, 0, 3)
+		)
+		// The label is empty here, so its height comes from the font and the bevel.
+		positionLabel.preferredSize = Dimension(90, positionLabel.getFontMetrics(Theme.font).height + 6)
 		bar.add(statusLabel, BorderLayout.WEST)
 		bar.add(positionLabel, BorderLayout.EAST)
 		return bar

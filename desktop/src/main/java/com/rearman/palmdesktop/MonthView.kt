@@ -4,7 +4,6 @@ import com.rearman.datebook.Fmt
 import com.rearman.datebook.Occ
 import java.awt.BorderLayout
 import java.awt.Color
-import java.awt.Font
 import java.awt.FontMetrics
 import java.awt.Graphics
 import java.awt.Graphics2D
@@ -27,8 +26,6 @@ private const val MORE_W = 7   // width of the triangle that marks a cell with m
 private const val MORE_H = 4   // height of that triangle
 
 private val MONTH_TITLE: DateTimeFormatter = DateTimeFormatter.ofPattern("MMMM, yyyy", Locale.US)
-
-private fun smallFont(): Font = Theme.font.deriveFont(10f)
 
 /** Shortens [text] with "..." so it fits in [w] pixels. */
 private fun fitText(text: String, fm: FontMetrics, w: Int): String {
@@ -103,9 +100,9 @@ class MonthView : JPanel(BorderLayout()) {
 			addActionListener { action() }
 		}
 
-	/** Event line text: a bullet for an untimed event, the start time for a timed one. */
+	/** Event line text: an asterisk for an untimed event, the start time for a timed one. */
 	private fun lineText(o: Occ): String =
-		if (o.event.untimed) "• ${o.event.title}" else "${timeLabel(o.event.start)} ${o.event.title}"
+		if (o.event.untimed) "* ${o.event.title}" else "${timeLabel(o.event.start)} ${o.event.title}"
 
 	private inner class MonthGrid : JPanel() {
 		init {
@@ -144,7 +141,7 @@ class MonthView : JPanel(BorderLayout()) {
 		/** Height of the date number area at the top of a cell. */
 		fun numberH(): Int = getFontMetrics(Theme.font).height + NUM_PAD
 
-		fun lineH(): Int = getFontMetrics(smallFont()).height
+		fun lineH(): Int = getFontMetrics(Theme.view).height
 
 		/** The events of cell [i] that fit in [r]. Fewer than the day holds when it overflows. */
 		fun cellLines(i: Int, r: Rectangle): List<Occ> {
@@ -170,8 +167,6 @@ class MonthView : JPanel(BorderLayout()) {
 				val name = Fmt.dowLong[dowIndex(c)]
 				g.color = Color.BLACK
 				g.drawString(name, x + (cellW() - fm.stringWidth(name)) / 2, (NAME_H + fm.ascent - fm.descent) / 2)
-				g.color = Theme.grid
-				g.drawLine(x, 0, x, NAME_H)
 			}
 
 			for (i in 0 until 7 * WEEKS) {
@@ -201,7 +196,7 @@ class MonthView : JPanel(BorderLayout()) {
 				cg.drawString(num, nx, r.y + nfm.ascent + 1)
 
 				// Event lines. A black triangle at the top left shows the day has more events.
-				cg.font = smallFont()
+				cg.font = Theme.view
 				val sfm = cg.fontMetrics
 				cg.color = Color.BLACK
 				val lines = cellLines(i, r)
