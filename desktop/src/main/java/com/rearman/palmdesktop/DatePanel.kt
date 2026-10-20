@@ -192,7 +192,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			"week", "month" -> mode
 			else -> "day"
 		}
-		mode = name
+		this.mode = name
 		cards.show(cardPanel, name)
 		dayTab.isSelected = name == "day"
 		weekTab.isSelected = name == "week"
