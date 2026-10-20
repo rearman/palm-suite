@@ -15,7 +15,7 @@ import org.json.JSONObject
  * Deleted rows stay as tombstones until sync; the lists hold only live rows.
  */
 class Store private constructor(ctx: Context) :
-    SQLiteOpenHelper(ctx, "datebook.db", null, 3) {
+    SQLiteOpenHelper(ctx, "datebook.db", null, 4) {
 
     companion object {
         @Volatile private var inst: Store? = null
@@ -50,12 +50,26 @@ class Store private constructor(ctx: Context) :
             "CREATE TABLE memos (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT, cat INTEGER, " +
                 "priv INTEGER, pos INTEGER, $SYNC_COLS)"
         )
+        createAddresses(db)
+        db.execSQL("INSERT INTO categories (id, name, app, uid) VALUES (5, 'Business', 2, 'default-2-business')")
+        db.execSQL("INSERT INTO categories (id, name, app, uid) VALUES (6, 'Personal', 2, 'default-2-personal')")
+        db.execSQL("INSERT INTO categories (id, name, app, uid) VALUES (7, 'QuickList', 2, 'default-2-quicklist')")
+    }
+
+    /** The addresses table of the Address Book. */
+    private fun createAddresses(db: SQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE addresses (id INTEGER PRIMARY KEY AUTOINCREMENT, last TEXT, first TEXT, title TEXT, " +
+                "company TEXT, labels TEXT, phones TEXT, address TEXT, city TEXT, state TEXT, zip TEXT, " +
+                "country TEXT, custom TEXT, note TEXT, show INTEGER, cat INTEGER, priv INTEGER, $SYNC_COLS)"
+        )
     }
 
     /**
      * Version 2 adds Memo Pad: the memos table and per-app categories.
      * Existing categories get app 0 (To Do). The Memo Pad categories get new ids.
      * Version 3 adds the sync columns (uid, rev, dirty, deleted) to all tables.
+     * Version 4 adds the Address Book: the addresses table and the Address categories (app 2).
      */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
@@ -93,6 +107,12 @@ class Store private constructor(ctx: Context) :
                 db.update("categories", ContentValues().apply { put("uid", uid) }, "id=?", arrayOf(id.toString()))
             }
         }
+        if (oldVersion < 4) {
+            createAddresses(db)
+            db.execSQL("INSERT INTO categories (id, name, app, uid) SELECT IFNULL(MAX(id), 0) + 1, 'Business', 2, 'default-2-business' FROM categories")
+            db.execSQL("INSERT INTO categories (id, name, app, uid) SELECT IFNULL(MAX(id), 0) + 1, 'Personal', 2, 'default-2-personal' FROM categories")
+            db.execSQL("INSERT INTO categories (id, name, app, uid) SELECT IFNULL(MAX(id), 0) + 1, 'QuickList', 2, 'default-2-quicklist' FROM categories")
+        }
     }
 
     /** Deletes a row that never reached the server. A synced row becomes a tombstone with its text cleared, so sync can tell other devices. */
@@ -106,7 +126,8 @@ class Store private constructor(ctx: Context) :
         }, "id=?", args)
     }
     private val cleared = mapOf("events" to listOf("title", "note", "exc"), "todos" to listOf("title", "note"),
-        "memos" to listOf("text"), "categories" to listOf("name"))
+        "memos" to listOf("text"), "categories" to listOf("name"),
+        "addresses" to listOf("last", "first", "title", "company", "phones", "address", "city", "state", "zip", "country", "custom", "note"))
 
     // ---- events ----
 
@@ -114,8 +135,13 @@ class Store private constructor(ctx: Context) :
     val todos: MutableList<Todo> by lazy { loadTodos() }
     val categories: MutableList<Category> by lazy { loadCategories(0) }
     val memoCategories: MutableList<Category> by lazy { loadCategories(1) }
+    val addressCategories: MutableList<Category> by lazy { loadCategories(2) }
 
-    fun categoriesFor(app: Int): MutableList<Category> = if (app == 1) memoCategories else categories
+    fun categoriesFor(app: Int): MutableList<Category> = when (app) {
+        1 -> memoCategories
+        2 -> addressCategories
+        else -> categories
+    }
 
     private fun Cursor.str(c: String): String = getString(getColumnIndexOrThrow(c)) ?: ""
     private fun Cursor.lng(c: String): Long = getLong(getColumnIndexOrThrow(c))
@@ -283,6 +309,103 @@ class Store private constructor(ctx: Context) :
         onWrite?.invoke()
     }
 
+    // ==== addresses ====
+    // Address Book records stay on the phone for now. They are not in the sync tables.
+
+    val addresses: MutableList<Address> by lazy { loadAddresses() }
+
+    private fun loadAddresses(): MutableList<Address> {
+        val list = mutableListOf<Address>()
+        readableDatabase.rawQuery("SELECT * FROM addresses WHERE deleted=0 ORDER BY id", null).use { c ->
+            while (c.moveToNext()) {
+                list.add(
+                    Address(
+                        id = c.lng("id"), lastName = c.str("last"), firstName = c.str("first"),
+                        title = c.str("title"), company = c.str("company"),
+                        phoneLabels = parseLabels(c.str("labels")), phones = jsonStrings(c.str("phones"), 5),
+                        address = c.str("address"), city = c.str("city"), state = c.str("state"),
+                        zip = c.str("zip"), country = c.str("country"), custom = jsonStrings(c.str("custom"), 4),
+                        note = c.str("note"), showPhone = c.int("show"), category = c.int("cat"),
+                        isPrivate = c.int("priv") != 0, uid = c.str("uid")
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    /** Comma-separated label indexes. A missing entry takes its position, as in a new record. */
+    private fun parseLabels(s: String): List<Int> {
+        val parts = s.split(',')
+        return List(5) { i -> parts.getOrNull(i)?.trim()?.toIntOrNull() ?: i }
+    }
+
+    /** A JSON array of strings, padded or cut to [n] entries. */
+    private fun jsonStrings(s: String, n: Int): List<String> = JSONArray(s.ifBlank { "[]" }).strings(n)
+
+    private fun JSONArray?.strings(n: Int): List<String> = List(n) { i -> this?.optString(i, "") ?: "" }
+    private fun JSONArray?.ints(n: Int): List<Int> =
+        List(n) { i -> (this?.optInt(i, i) ?: i).coerceIn(0, Address.LABELS.size - 1) }
+
+    private fun addressValues(a: Address) = ContentValues().apply {
+        put("last", a.lastName); put("first", a.firstName); put("title", a.title); put("company", a.company)
+        put("labels", a.phoneLabels.joinToString(",")); put("phones", JSONArray(a.phones).toString())
+        put("address", a.address); put("city", a.city); put("state", a.state); put("zip", a.zip)
+        put("country", a.country); put("custom", JSONArray(a.custom).toString()); put("note", a.note)
+        put("show", a.showPhone); put("cat", a.category); put("priv", if (a.isPrivate) 1 else 0)
+        put("uid", a.uid); put("dirty", 1)
+    }
+
+    fun save(a: Address) {
+        val all = addresses // Loaded before the insert, so the new row is not added twice.
+        if (a.uid.isEmpty()) a.uid = java.util.UUID.randomUUID().toString()
+        if (a.id == 0L) {
+            a.id = writableDatabase.insert("addresses", null, addressValues(a))
+            all.add(a)
+        } else {
+            writableDatabase.update("addresses", addressValues(a), "id=?", arrayOf(a.id.toString()))
+            val i = all.indexOfFirst { it.id == a.id }
+            if (i >= 0) all[i] = a else all.add(a)
+        }
+        onWrite?.invoke()
+    }
+
+    fun delete(a: Address) {
+        remove("addresses", a.id)
+        addresses.removeAll { it.id == a.id }
+        onWrite?.invoke()
+    }
+
+    fun address(id: Long): Address? = addresses.firstOrNull { it.id == id }
+
+    /**
+     * Adds [list] as Address Book records. A category name is matched to an Address category
+     * (ignoring case), else the record goes to Unfiled. A record equal to one on the device, or
+     * to one added earlier in [list], is skipped. Returns (added, skipped).
+     */
+    fun addAddresses(list: List<VCard.Parsed>): Pair<Int, Int> {
+        val have = addresses.mapTo(HashSet()) { it.dupKey() }
+        var added = 0
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (p in list) {
+                val cat = addressCategories.firstOrNull { it.name.equals(p.categoryName, true) }?.id ?: 0
+                val a = p.address.copy(id = 0, category = cat, uid = "")
+                val key = a.dupKey()
+                if (key !in have) {
+                    have.add(key)
+                    save(a)
+                    added++
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return added to list.size - added
+    }
+
     // ---- categories ----
 
     private fun loadCategories(app: Int): MutableList<Category> {
@@ -294,7 +417,7 @@ class Store private constructor(ctx: Context) :
     }
 
     fun categoryName(id: Int): String =
-        if (id == 0) "Unfiled" else (categories + memoCategories).firstOrNull { it.id == id }?.name ?: "Unfiled"
+        if (id == 0) "Unfiled" else (categories + memoCategories + addressCategories).firstOrNull { it.id == id }?.name ?: "Unfiled"
 
     fun addCategory(name: String, app: Int = 0): Category? {
         val list = categoriesFor(app)
@@ -323,6 +446,10 @@ class Store private constructor(ctx: Context) :
             writableDatabase.execSQL("UPDATE memos SET cat=0, dirty=1 WHERE cat=${cat.id} AND deleted=0")
             memos.filter { it.category == cat.id }.forEach { it.category = 0 }
             memoCategories.removeAll { it.id == cat.id }
+        } else if (cat.app == 2) {
+            writableDatabase.execSQL("UPDATE addresses SET cat=0, dirty=1 WHERE cat=${cat.id} AND deleted=0")
+            addresses.filter { it.category == cat.id }.forEach { it.category = 0 }
+            addressCategories.removeAll { it.id == cat.id }
         } else {
             writableDatabase.execSQL("UPDATE todos SET cat=0, dirty=1 WHERE cat=${cat.id} AND deleted=0")
             todos.filter { it.category == cat.id }.forEach { it.category = 0 }
@@ -333,7 +460,11 @@ class Store private constructor(ctx: Context) :
 
     // ---- sync ----
 
+    // Address Book records stay on the phone for now: addresses is not in this list, and syncWhere skips app 2 categories.
     private val tables = listOf("categories", "events", "todos", "memos")
+
+    /** Adds the sync filter to [where]: the app 2 categories are Address Book categories and stay on the phone. */
+    private fun syncWhere(table: String, where: String) = if (table == "categories") "($where) AND app<>2" else where
 
     /** Loads the in-memory lists now, so that a list loaded after a sync write does not add a row twice. */
     private fun loadLists() {
@@ -349,7 +480,7 @@ class Store private constructor(ctx: Context) :
 
     private fun rowsWhere(table: String, where: String, args: Array<String>): List<SyncRow> {
         val out = mutableListOf<SyncRow>()
-        readableDatabase.rawQuery("SELECT id, uid, rev, dirty, deleted FROM $table WHERE $where", args).use { c ->
+        readableDatabase.rawQuery("SELECT id, uid, rev, dirty, deleted FROM $table WHERE ${syncWhere(table, where)}", args).use { c ->
             while (c.moveToNext()) {
                 out.add(SyncRow(table, c.getLong(0), c.getString(1) ?: "", c.getLong(2), c.getInt(3) != 0, c.getInt(4) != 0))
             }
@@ -358,7 +489,7 @@ class Store private constructor(ctx: Context) :
     }
 
     private fun idOf(table: String, uid: String): Long? =
-        writableDatabase.rawQuery("SELECT id FROM $table WHERE uid=?", arrayOf(uid)).use { c ->
+        writableDatabase.rawQuery("SELECT id FROM $table WHERE ${syncWhere(table, "uid=?")}", arrayOf(uid)).use { c ->
             if (c.moveToFirst()) c.getLong(0) else null
         }
 
@@ -372,11 +503,11 @@ class Store private constructor(ctx: Context) :
         val db = writableDatabase
         db.beginTransaction()
         try {
-            if (clean) db.delete(table, "uid=? AND deleted=1", arrayOf(uid))
+            if (clean) db.delete(table, syncWhere(table, "uid=? AND deleted=1"), arrayOf(uid))
             db.update(table, ContentValues().apply {
                 put("rev", rev)
                 if (clean) put("dirty", 0)
-            }, "uid=?", arrayOf(uid))
+            }, syncWhere(table, "uid=?"), arrayOf(uid))
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
@@ -454,6 +585,7 @@ class Store private constructor(ctx: Context) :
 
     /** Stores a server copy of category [c] at [rev], in the list of its app. */
     fun putRemote(c: Category, rev: Long) {
+        if (c.app == 2) return // Address Book categories stay on the phone for now
         loadLists()
         val db = writableDatabase
         db.beginTransaction()
@@ -483,6 +615,7 @@ class Store private constructor(ctx: Context) :
 
     /** Removes a row that another device deleted. A category also moves its items to Unfiled, without marking them dirty. */
     fun dropRemote(table: String, uid: String) {
+        if (table !in tables) return // Address Book records stay on the phone for now
         loadLists()
         val db = writableDatabase
         val id = idOf(table, uid) ?: return
@@ -520,8 +653,8 @@ class Store private constructor(ctx: Context) :
         db.beginTransaction()
         try {
             for (t in tables) {
-                db.execSQL("DELETE FROM $t WHERE deleted=1")
-                db.execSQL("UPDATE $t SET rev=0, dirty=1")
+                db.execSQL("DELETE FROM $t WHERE ${syncWhere(t, "deleted=1")}")
+                db.execSQL("UPDATE $t SET rev=0, dirty=1 WHERE ${syncWhere(t, "1")}")
             }
             db.setTransactionSuccessful()
         } finally {
@@ -531,7 +664,7 @@ class Store private constructor(ctx: Context) :
 
     /** The uid of category [id], or "" for 0 and unknown ids. */
     fun categoryUid(id: Int): String =
-        if (id == 0) "" else (categories + memoCategories).firstOrNull { it.id == id }?.uid ?: ""
+        if (id == 0) "" else (categories + memoCategories + addressCategories).firstOrNull { it.id == id }?.uid ?: ""
 
     /** The id of the category with [uid] in the list of [app], or 0 when blank or unknown. */
     fun categoryIdForUid(uid: String, app: Int): Int =
@@ -557,19 +690,29 @@ class Store private constructor(ctx: Context) :
         put("text", m.text); put("category", categoryName(m.category)); put("private", m.isPrivate)
     }
 
-    fun exportJson(evs: List<Event> = events, tds: List<Todo> = todos, mms: List<Memo> = memos): String {
+    fun addressJson(a: Address) = JSONObject().apply {
+        put("lastName", a.lastName); put("firstName", a.firstName); put("title", a.title); put("company", a.company)
+        put("phoneLabels", JSONArray(a.phoneLabels)); put("phones", JSONArray(a.phones))
+        put("address", a.address); put("city", a.city); put("state", a.state); put("zip", a.zip)
+        put("country", a.country); put("custom", JSONArray(a.custom)); put("note", a.note)
+        put("showPhone", a.showPhone); put("category", categoryName(a.category)); put("private", a.isPrivate)
+    }
+
+    fun exportJson(evs: List<Event> = events, tds: List<Todo> = todos, mms: List<Memo> = memos, ads: List<Address> = addresses): String {
         val root = JSONObject()
         root.put("format", "datebook-backup-1")
         root.put("categories", JSONArray(categories.map { it.name }))
         root.put("memoCategories", JSONArray(memoCategories.map { it.name }))
+        root.put("addressCategories", JSONArray(addressCategories.map { it.name }))
         root.put("events", JSONArray(evs.map { eventJson(it) }))
         root.put("todos", JSONArray(tds.map { todoJson(it) }))
         root.put("memos", JSONArray(mms.map { memoJson(it) }))
+        root.put("addresses", JSONArray(ads.map { addressJson(it) }))
         return root.toString(1)
     }
 
     /** Record counts of one import. */
-    data class ImportCount(val events: Int, val todos: Int, val memos: Int, val skipped: Int)
+    data class ImportCount(val events: Int, val todos: Int, val memos: Int, val skipped: Int, val addresses: Int = 0)
 
     /**
      * Adds the records in a backup file. A record equal to one already on the device is a duplicate
@@ -581,9 +724,11 @@ class Store private constructor(ctx: Context) :
         val haveEvents = events.mapTo(HashSet()) { it.dupKey() }
         val haveTodos = todos.mapTo(HashSet()) { it.dupKey() }
         val haveMemos = memos.mapTo(HashSet()) { it.dupKey() }
+        val haveAddresses = addresses.mapTo(HashSet()) { it.dupKey() }
         var ne = 0
         var nt = 0
         var nm = 0
+        var na = 0
         var ns = 0
         db.beginTransaction()
         try {
@@ -597,6 +742,12 @@ class Store private constructor(ctx: Context) :
                 for (i in 0 until arr.length()) {
                     val n = arr.getString(i)
                     if (memoCategories.none { it.name.equals(n, true) }) addCategory(n, 1)
+                }
+            }
+            root.optJSONArray("addressCategories")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val n = arr.getString(i)
+                    if (addressCategories.none { it.name.equals(n, true) }) addCategory(n, 2)
                 }
             }
             root.optJSONArray("events")?.let { arr ->
@@ -649,11 +800,31 @@ class Store private constructor(ctx: Context) :
                     nm++
                 }
             }
+            root.optJSONArray("addresses")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val catName = o.optString("category", "Unfiled")
+                    val cat = addressCategories.firstOrNull { it.name.equals(catName, true) }?.id ?: 0
+                    val a = Address(
+                        lastName = o.optString("lastName"), firstName = o.optString("firstName"),
+                        title = o.optString("title"), company = o.optString("company"),
+                        phoneLabels = o.optJSONArray("phoneLabels").ints(5), phones = o.optJSONArray("phones").strings(5),
+                        address = o.optString("address"), city = o.optString("city"), state = o.optString("state"),
+                        zip = o.optString("zip"), country = o.optString("country"),
+                        custom = o.optJSONArray("custom").strings(4), note = o.optString("note"),
+                        showPhone = o.optInt("showPhone").coerceIn(0, 4), category = cat,
+                        isPrivate = o.optBoolean("private")
+                    )
+                    if (a.dupKey() in haveAddresses) { ns++; continue }
+                    save(a)
+                    na++
+                }
+            }
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
         }
-        return ImportCount(ne, nt, nm, ns)
+        return ImportCount(ne, nt, nm, ns, na)
     }
 
     /** Adds [list], less the events that are already on the device. Returns (added, skipped). */
@@ -749,6 +920,27 @@ class Prefs(ctx: Context) {
     var syncUrl: String get() = str("syncUrl", "https://sync.earman.xyz"); set(v) = setStr("syncUrl", v)
     var syncSince: Long get() = lng("syncSince", 0); set(v) = setLng("syncSince", v)
     var syncLast: String get() = str("syncLast", ""); set(v) = setStr("syncLast", v)
+
+    // Address Book
+    // Address List category: -1 is All. Address List order: 0 Last Name, First Name; 1 Company, Last Name.
+    var addressCategory: Int get() = int("addrCat", -1); set(v) = setInt("addrCat", v)
+    var addressRemember: Boolean get() = bool("addrRemember", false); set(v) = setBool("addrRemember", v)
+    var addressListBy: Int get() = int("addrListBy", 0); set(v) = setInt("addrListBy", v)
+    var businessCard: Long get() = lng("businessCard", 0); set(v) = setLng("businessCard", v)
+
+    // Custom field names: a JSON array of 4 strings. A missing or bad list gives Custom 1 to Custom 4.
+    private val customDefaults = List(4) { "Custom ${it + 1}" }
+    var customNames: List<String>
+        get() {
+            val json = p.getString("customNames", null) ?: return customDefaults
+            return try {
+                val a = JSONArray(json)
+                List(4) { i -> a.optString(i, customDefaults[i]) }
+            } catch (e: Exception) {
+                customDefaults
+            }
+        }
+        set(v) = setStr("customNames", JSONArray(List(4) { i -> v.getOrElse(i) { customDefaults[i] } }).toString())
 
     // ShortCuts sync state: dirty when edited on this phone; rev is the server rev of the list.
     var shortCutsDirty: Boolean get() = bool("scDirty", false); set(v) = setBool("scDirty", v)
