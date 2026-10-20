@@ -137,6 +137,13 @@ object SyncEngine {
         s.rounds++
         val prefs = Prefs(s.ctx)
         val plan = try {
+            // Format 2 is a new wire format, so each live record goes up once more in it. The ShortCuts list
+            // goes up too, but only when it synced before: a new device must not replace the list with its defaults.
+            if (prefs.syncFormat < 2) {
+                Store.get(s.ctx).markAllForUpload()
+                if (prefs.shortCutsRev > 0) prefs.shortCutsDirty = true
+                prefs.syncFormat = 2
+            }
             SyncRunner.collect(adapter(s.ctx), s.key)
         } catch (e: Exception) {
             finish(s, e.message ?: "Sync failed.")

@@ -495,6 +495,18 @@ class Store private constructor(ctx: Context) :
         put("dirty", 0); put("deleted", 0); put("rev", rev)
     }
 
+    /** Marks every live row dirty, so the next round sends it again. The rev stays, so the server takes it as an edit. */
+    fun markAllForUpload() {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            tables.forEach { db.execSQL("UPDATE $it SET dirty=1 WHERE deleted=0") }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     /** Records revision [rev] of [uid]. A clean row is no longer dirty, and a clean tombstone is removed. */
     fun markSynced(table: String, uid: String, rev: Long, clean: Boolean) {
         val db = writableDatabase
@@ -949,6 +961,8 @@ class Prefs(ctx: Context) {
     var syncUrl: String get() = str("syncUrl", "https://sync.earman.xyz"); set(v) = setStr("syncUrl", v)
     var syncSince: Long get() = lng("syncSince", 0); set(v) = setLng("syncSince", v)
     var syncLast: String get() = str("syncLast", ""); set(v) = setStr("syncLast", v)
+    // Record format of the uploads: 1 long keys, 2 short keys. Below 2, every live record is sent once.
+    var syncFormat: Int get() = int("syncFormat", 1); set(v) = setInt("syncFormat", v)
 
     // Address Book
     // Address List category: -1 is All. Address List order: 0 Last Name, First Name; 1 Company, Last Name.

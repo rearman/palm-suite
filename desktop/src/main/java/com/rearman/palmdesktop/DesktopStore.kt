@@ -49,6 +49,8 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 	private var since = 0L
 	private var scRev = 0L
 	private var scDirty = false
+	/** The sync format that [persist] writes. A file without the key is format 1. */
+	private var syncFormat = 2
 
 	override val shortCuts: List<Pair<String, String>> get() = shortCutList
 
@@ -340,6 +342,7 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 			.put("shortcuts", JSONArray(shortCutList.map { JSONObject().put("name", it.first).put("text", it.second) }))
 			.put("rows", JSONArray(rowsJson()))
 			.put("addressSync", true)
+			.put("syncFormat", syncFormat)
 		file.absoluteFile.parentFile?.mkdirs()
 		val tmp = File(file.path + ".tmp")
 		tmp.writeText(root.toString(), Charsets.UTF_8)
@@ -350,6 +353,7 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		since = root.optLong("since")
 		scRev = root.optLong("scRev")
 		scDirty = root.optBoolean("scDirty")
+		syncFormat = root.optInt("syncFormat", 1)
 		val sc = root.optJSONArray("shortcuts") ?: JSONArray()
 		shortCutList = (0 until sc.length()).map { i ->
 			sc.getJSONObject(i).let { it.getString("name") to it.getString("text") }
@@ -366,6 +370,13 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		// Desktop 0.10 skipped the address rows but still moved the sync position past them.
 		// A file without the addressSync key came from 0.10, so the next sync reads all rows again.
 		if (!root.has("addressSync")) since = 0
+		// A format 1 store has uploaded its rows in format 1. Upload every live row once more in format 2. The
+		// ShortCuts list goes up too, but only when it synced before, so it never replaces another list with defaults.
+		if (syncFormat < 2) {
+			for (map in meta.values) for (m in map.values) if (!m.deleted) m.dirty = true
+			if (scRev > 0) scDirty = true
+			syncFormat = 2
+		}
 	}
 
 	private fun loadRow(o: JSONObject) {
