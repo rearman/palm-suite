@@ -51,6 +51,7 @@ open class MainActivity : Activity() {
         const val EXTRA_SELECT = "select"
         const val EXTRA_TODO = "todo"
         const val EXTRA_MEMO = "memo"
+        const val EXTRA_ADDRESS = "address"
         private const val REQ_EXPORT = 11
         private const val REQ_IMPORT = 12
         const val DAY = 0
@@ -59,6 +60,7 @@ open class MainActivity : Activity() {
         const val AGENDA = 3
         const val TODO = 4
         const val MEMO = 5
+        const val ADDRESS = 6
         // A swipe must move this far and this fast to change the date.
         private const val SWIPE_MIN_DP = 80
         private const val SWIPE_MIN_SPEED_DP = 300 // per second
@@ -72,8 +74,16 @@ open class MainActivity : Activity() {
     protected open val isTodoApp = false
     /** True in the Memo Pad app. */
     protected open val isMemoApp = false
+    /** True in the Address Book app. */
+    protected open val isAddressApp = false
     /** The memo open in the Memo Pad memo view, or null for the Memo List. */
     internal var memoOpen: Memo? = null
+    /** The record open in the Address View, or null for the Address List. */
+    internal var addressOpen: Address? = null
+    /** The working copy in the Address Edit, or null when not editing. */
+    internal var addressEditing: Address? = null
+    /** The Look Up text of the Address List. */
+    internal var addressLookup: String = ""
     /** Private records the user chose to see while records are masked ("e12", "t5"). */
     val revealed = mutableSetOf<String>()
 
@@ -113,7 +123,9 @@ open class MainActivity : Activity() {
         // A local change starts a sync 30 s later, when sync is on.
         val app = applicationContext
         store.onWrite = { if (Prefs(app).syncOn) SyncJob.scheduleSoon(app) }
-        mode = if (isMemoApp) MEMO else if (isTodoApp) TODO else prefs.lastView
+        mode = if (isAddressApp) ADDRESS else if (isMemoApp) MEMO else if (isTodoApp) TODO else prefs.lastView
+        // Palm: without Remember last category, the Address Book opens on All.
+        if (isAddressApp && !prefs.addressRemember) prefs.addressCategory = -1
         root = TypingRoot(this).apply {
             orientation = LinearLayout.VERTICAL
             isFocusableInTouchMode = true
@@ -167,6 +179,27 @@ open class MainActivity : Activity() {
             if (memoOpen != null) prefs.memoCategory = -1
             i.removeExtra(EXTRA_MEMO)
         }
+        if (i.hasExtra(EXTRA_ADDRESS)) {
+            val aid = i.getLongExtra(EXTRA_ADDRESS, 0)
+            addressOpen = store.address(aid)
+            addressEditing = null
+            if (addressOpen != null) prefs.addressCategory = -1
+            i.removeExtra(EXTRA_ADDRESS)
+        }
+        if (isAddressApp && i.action == Intent.ACTION_VIEW) {
+            val uri = i.data
+            if (uri != null) {
+                // A vCard file opened from another app. The intent is cleared, so a rotation does not import it again.
+                val text = try {
+                    contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
+                } catch (ex: Exception) {
+                    null
+                }
+                if (text == null) toast("Cannot read the file.") else importVCardText(text)
+                i.setData(null)
+                i.setAction(null)
+            }
+        }
         if (i.hasExtra(EXTRA_TODO)) {
             val tid = i.getLongExtra(EXTRA_TODO, 0)
             selectedTodo = store.todos.firstOrNull { it.id == tid }
@@ -195,6 +228,11 @@ open class MainActivity : Activity() {
         val m = memoOpen
         when (mode) {
             MEMO -> if (m != null) closeMemo(m) else super.onBackPressed()
+            ADDRESS -> when {
+                addressEditing != null -> closeAddressEdit()
+                addressOpen != null -> { addressOpen = null; render() }
+                else -> super.onBackPressed()
+            }
             TODO, DAY -> super.onBackPressed()
             else -> { mode = DAY; render() }
         }
@@ -206,7 +244,7 @@ open class MainActivity : Activity() {
     private val swipe by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
-                if (e1 == null || mode == TODO || mode == MEMO) return false
+                if (e1 == null || mode == TODO || mode == MEMO || mode == ADDRESS) return false
                 val dx = e2.x - e1.x
                 val dy = e2.y - e1.y
                 if (abs(dx) < dp(SWIPE_MIN_DP) || abs(dx) < 2 * abs(dy) || abs(vx) < dp(SWIPE_MIN_SPEED_DP)) return false
@@ -292,6 +330,7 @@ open class MainActivity : Activity() {
                     mode == DAY -> { typedEvent(text); return true }
                     mode == TODO -> { newTodo(text); return true }
                     mode == MEMO && memoOpen == null -> { newMemo(text); return true }
+                    mode == ADDRESS && addressEditing == null && addressOpen == null -> { addressTyped(typed); return true }
                 }
             }
         }
@@ -318,6 +357,7 @@ open class MainActivity : Activity() {
     fun isMasked(e: Event) = prefs.security == 1 && e.isPrivate && !revealed.contains("e${e.id}")
     private fun isMasked(t: Todo) = prefs.security == 1 && t.isPrivate && !revealed.contains("t${t.id}")
     internal fun isMasked(m: Memo) = prefs.security == 1 && m.isPrivate && !revealed.contains("m${m.id}")
+    internal fun isMasked(a: Address) = prefs.security == 1 && a.isPrivate && !revealed.contains("a${a.id}")
 
     fun revealAsk(e: Event) =
         ask("Private Record", "Show this private record?", "Show" to { revealed.add("e${e.id}"); render() }, "Cancel" to {})
@@ -327,6 +367,9 @@ open class MainActivity : Activity() {
 
     internal fun revealAsk(m: Memo) =
         ask("Private Record", "Show this private record?", "Show" to { revealed.add("m${m.id}"); render() }, "Cancel" to {})
+
+    internal fun revealAsk(a: Address) =
+        ask("Private Record", "Show this private record?", "Show" to { revealed.add("a${a.id}"); render() }, "Cancel" to {})
 
     fun goDay(d: Long, occ: Occ?) {
         day = d; mode = DAY; prefs.lastView = DAY; selected = occ
@@ -456,6 +499,13 @@ open class MainActivity : Activity() {
         startActivity(i)
     }
 
+    /** Switches to the Address Book app. */
+    fun openAddressApp(addressId: Long?) {
+        val i = Intent(this, AddressActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (addressId != null) i.putExtra(EXTRA_ADDRESS, addressId)
+        startActivity(i)
+    }
+
     /** Switches to the Date Book app. */
     fun openDateBook(d: Long?, eventId: Long?) {
         val i = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -540,6 +590,11 @@ open class MainActivity : Activity() {
             MONTH -> buildMonth(header, content, cmds)
             AGENDA -> buildAgenda(header, content, cmds)
             MEMO -> if (memoOpen != null) buildMemoEdit(header, content, cmds) else buildMemoList(header, content, cmds)
+            ADDRESS -> when {
+                addressEditing != null -> buildAddressEdit(header, content, cmds)
+                addressOpen != null -> buildAddressView(header, content, cmds)
+                else -> buildAddressList(header, content, cmds)
+            }
             else -> buildTodo(header, content, cmds)
         }
 
@@ -1213,11 +1268,40 @@ open class MainActivity : Activity() {
     private fun menus(): List<Pair<String, List<MenuItem>>> {
         val todo = mode == TODO
         val memo = mode == MEMO
+        val address = mode == ADDRESS
+        // The record in Address View or Address Edit, or null for the Address List.
+        val addrRec = addressEditing ?: addressOpen
         val record: List<MenuItem> = if (memo) listOf(
             MenuItem("New Memo", 'N') { newMemo() },
             MenuItem("Delete Memo...", 'D') { memoOpen?.let { deleteMemoAsk(it) } ?: toast("Open a memo first.") },
             MenuItem("Export Backup...") { exportFile("datebook-backup", store.exportJson()) },
             MenuItem("Import Backup...") { importFile() }
+        ) else if (address && addrRec == null) listOf(
+            MenuItem("Share Category") { shareAddresses(visibleAddresses().filter { !isMasked(it) }, categoryLabel(prefs.addressCategory)) },
+            MenuItem("Share Business Card") { shareBusinessCard() },
+            MenuItem("Import vCard...") { importFile() },
+            MenuItem("Export vCard...") { exportVCard() },
+            MenuItem("Export Backup...") { exportFile("datebook-backup", store.exportJson()) },
+            MenuItem("Import Backup...") { importFile() }
+        ) else if (addrRec != null) listOf(
+            MenuItem("Delete Address...", 'D') { deleteAddressAsk(addrRec) },
+            MenuItem("Attach Note", 'A') { openAddressNote(addrRec) },
+            MenuItem("Delete Note...", 'O') {
+                if (addrRec.note.isEmpty()) toast("This address has no note.")
+                else ask("Delete Note", "Delete the note?", "Yes" to {
+                    addrRec.note = ""
+                    if (addressEditing == null && addrRec.id != 0L) store.save(addrRec)
+                    render()
+                }, "No" to {})
+            },
+            // A new record is not stored yet, so these two need Done first.
+            MenuItem("Share Address", 'B') {
+                store.address(addrRec.id)?.let { shareAddresses(listOf(it), it.listName(false)) } ?: toast("Tap Done first.")
+            },
+            MenuItem("Select Business Card...") {
+                store.address(addrRec.id)?.let { selectBusinessCardAsk(it) } ?: toast("Tap Done first.")
+            },
+            MenuItem("Share Business Card") { shareBusinessCard() }
         ) else if (todo) listOf(
             MenuItem("New Item", 'N') { newTodo() },
             MenuItem("Delete Item...", 'D') { selectedTodo?.let { deleteTodo(it) } ?: toast("Select an item first.") },
@@ -1254,6 +1338,7 @@ open class MainActivity : Activity() {
             MenuItem("Copy", 'C') { textOp(ed, android.R.id.copy) },
             MenuItem("Paste", 'P') { textOp(ed, android.R.id.paste) },
             MenuItem("Select All", 'S') { textOp(ed, android.R.id.selectAll) },
+            MenuItem("Phone Lookup", 'L') { lastEdit?.let { showPhoneLookup(it) } ?: toast("Tap a line of text first.") },
             MenuItem("Keyboard", 'K') {
                 ed?.let { it.requestFocus(); getSystemService(InputMethodManager::class.java).showSoftInput(it, 0) }
                     ?: toast("Tap a line of text first.")
@@ -1267,6 +1352,18 @@ open class MainActivity : Activity() {
             MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About Memo Pad") { showMemoAbout() }
+        ) else if (address && addrRec == null) listOf(
+            MenuItem("Font...", 'F') { showFont() },
+            MenuItem("Preferences...", 'R') { showAddressPreferences() },
+            MenuItem("Rename Custom Fields...") { showRenameCustomFields() },
+            MenuItem("Edit Categories...") { showEditCategories(2) },
+            MenuItem("ShortCuts...") { showShortCuts() },
+            MenuItem("Security...", 'H') { showSecurity() },
+            MenuItem("About Address Book") { showAddressAbout() }
+        ) else if (address) listOf(
+            MenuItem("Font...", 'F') { showFont() },
+            MenuItem("Rename Custom Fields...") { showRenameCustomFields() },
+            MenuItem("About Address Book") { showAddressAbout() }
         ) else if (todo) listOf(
             MenuItem("Font...", 'F') { showFont() },
             MenuItem("Edit Categories...") { showEditCategories() },
@@ -1337,6 +1434,10 @@ open class MainActivity : Activity() {
         val memos = store.memos.filter {
             !(hideP && it.isPrivate) && it.text.contains(q, true)
         }
+        val addrs = store.addresses.filter {
+            !(hideP && it.isPrivate) && (listOf(it.lastName, it.firstName, it.title, it.company, it.address, it.city,
+                it.state, it.zip, it.country, it.note) + it.phones + it.custom).any { s -> s.contains(q, true) }
+        }
         fun result(text: String, onClick: () -> Unit) =
             addRow(label(text).apply { setPadding(pp(3), pp(3), pp(1.5f), pp(3)); setOnClickListener { d.dismiss(); onClick() } }, 0)
         addRow(label("Date Book", bold = true).apply { setTextColor(Palm.GRAY) }, 10)
@@ -1361,6 +1462,15 @@ open class MainActivity : Activity() {
                 if (isMemoApp) { prefs.memoCategory = -1; memoOpen = m; render() } else openMemoApp(m.id)
             }
         }
+        addRow(label("Address Book", bold = true).apply { setTextColor(Palm.GRAY) }, 10)
+        if (addrs.isEmpty()) addRow(label("  No matches"), 0)
+        for (a in addrs) {
+            val phone = a.listPhone()?.let { "${it.first} ${it.second}" } ?: ""
+            result("${a.listName(prefs.addressListBy == 1)}  $phone") {
+                if (isAddressApp) { prefs.addressCategory = -1; addressEditing = null; addressOpen = a; render() }
+                else openAddressApp(a.id)
+            }
+        }
         d.button("Done", 37) { d.dismiss() }
         d.show()
     }
@@ -1379,7 +1489,7 @@ open class MainActivity : Activity() {
     fun exportFile(base: String, text: String, after: () -> Unit = {}) =
         saveFile("$base-${LocalDate.now()}.json", "application/json", text, after)
 
-    private fun saveFile(name: String, type: String, text: String, after: () -> Unit = {}) {
+    internal fun saveFile(name: String, type: String, text: String, after: () -> Unit = {}) {
         pendingExport = text
         afterExport = after
         val i = Intent(Intent.ACTION_CREATE_DOCUMENT)
@@ -1432,13 +1542,16 @@ open class MainActivity : Activity() {
             REQ_IMPORT -> {
                 try {
                     val text = contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
-                    if (text.trimStart('\uFEFF', ' ', '\t', '\r', '\n').startsWith("BEGIN:VCALENDAR", ignoreCase = true)) {
+                    val trimmed = text.trimStart('\uFEFF', ' ', '\t', '\r', '\n')
+                    if (trimmed.startsWith("BEGIN:VCARD", ignoreCase = true)) {
+                        importVCardText(text)
+                    } else if (trimmed.startsWith("BEGIN:VCALENDAR", ignoreCase = true)) {
                         importIcs(text)
                     } else {
-                        val (ne, nt, nm, ns) = store.importJson(text)
+                        val (ne, nt, nm, ns, na) = store.importJson(text)
                         changed()
                         val skip = if (ns > 0) " Skipped $ns duplicate records." else ""
-                        ask("Import", "Added $ne events, $nt To Do items and $nm memos.$skip", "OK" to {})
+                        ask("Import", "Added $ne events, $nt To Do items, $nm memos and $na addresses.$skip", "OK" to {})
                     }
                 } catch (ex: Exception) {
                     ask("Import", "This file is not a Date Book backup.", "OK" to {})

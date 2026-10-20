@@ -63,6 +63,31 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".AddressActivity"
+            android:exported="true"
+            android:label="@string/address_name"
+            android:icon="@mipmap/ic_address"
+            android:roundIcon="@mipmap/ic_address"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.rearman.datebook.address"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="text/x-vcard" />
+                <data android:mimeType="text/vcard" />
+                <data android:mimeType="text/directory" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+            </intent-filter>
+        </activity>
+
         <receiver
             android:name=".AlarmReceiver"
             android:exported="false" />
@@ -82,5 +107,11 @@
             android:name=".SyncJob"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <provider
+            android:name=".VcfProvider"
+            android:authorities="com.rearman.datebook.vcf"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>
