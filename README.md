@@ -137,6 +137,7 @@ Import and Export use iCalendar files and the Date Book backup file.
 - Linux: download `palm-desktop-linux.tar.gz`, unpack it and run
   `palm-desktop/bin/palm-desktop`.
 - Both packages hold their own Java runtime.
+- Gentoo: see [Gentoo](#gentoo).
 - The app keeps its records in `desktop-data.json` in your config folder
   (`%APPDATA%\palm-suite` on Windows, `~/.config/palm-suite` on Linux). It
   works offline.
@@ -152,6 +153,42 @@ Import and Export use iCalendar files and the Date Book backup file.
   Arial. On Linux, Liberation Sans replaces both fonts.
 - The toolbar, launcher, window and marker icons are the Palm Desktop 3.1.1
   bitmaps. See [Palm Desktop artwork](#palm-desktop-artwork).
+
+### Gentoo
+
+The folder `gentoo/` is a Portage overlay with one package,
+`app-office/palm-desktop-bin`. It installs the jars of a `desktop-v*`
+release (`palm-desktop-jars.tar.gz`), a `palm-desktop` command and a menu
+entry. It runs on the system Java 17 or later and uses Liberation Sans. The
+first release with the jars is `desktop-v0.8`.
+
+Portage can sync an overlay only from the root of a git repository, and the
+overlay is a folder of this one. So clone the repository, and point Portage
+at the folder. As root:
+
+```sh
+git clone https://github.com/rearman/palm-suite.git /var/db/repos/palm-suite-src
+cat > /etc/portage/repos.conf/palm-suite.conf <<'EOF'
+[palm-suite]
+location = /var/db/repos/palm-suite-src/gentoo
+auto-sync = no
+EOF
+mkdir -p /etc/portage/package.accept_keywords /etc/portage/package.license
+echo 'app-office/palm-desktop-bin ~amd64' > /etc/portage/package.accept_keywords/palm-desktop
+echo 'app-office/palm-desktop-bin all-rights-reserved' > /etc/portage/package.license/palm-desktop
+emerge --ask app-office/palm-desktop-bin
+```
+
+On arm64, write `~arm64` in place of `~amd64`. The license line is necessary
+because the project has no license file and the icons are Palm artwork (see
+[Palm Desktop artwork](#palm-desktop-artwork)).
+
+To update:
+
+```sh
+git -C /var/db/repos/palm-suite-src pull
+emerge --ask --update app-office/palm-desktop-bin
+```
 
 # Palm Desktop artwork
 
