@@ -161,16 +161,39 @@ jobs:
       - name: Test and build
         run: gradle --configure-on-demand :desktop:test :desktop:installDist --stacktrace
 
-      # An app image holds the app and its own Java runtime, so nothing else needs to be installed.
+      # jpackage in JDK 17 makes an MSI with WiX 3.
+      - name: Install WiX
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          choco install wixtoolset --version=3.14.1 -y --no-progress
+          echo "C:\Program Files (x86)\WiX Toolset v3.14\bin" >> "$GITHUB_PATH"
+
+      # Each package holds the app and its own Java runtime, so nothing else needs to be installed.
+      # Windows: an MSI that installs for the current user and upgrades an older version in place.
+      # The upgrade UUID must never change. A desktop-v1.2.3 tag gives version 1.2.3, other builds 0.0.<run>.
+      # Linux: an app image in a tar.gz.
       - name: Package
         id: pkg
         shell: bash
         run: |
-          jpackage --type app-image --name palm-desktop --input desktop/build/install/desktop/lib             --main-jar desktop.jar --main-class com.rearman.palmdesktop.MainKt --dest out
           if [ "$RUNNER_OS" = Windows ]; then
-            file=palm-desktop-windows.zip
-            (cd out && 7z a -tzip "../$file" palm-desktop > /dev/null)
+            case "$GITHUB_REF_NAME" in
+              desktop-v*) version="${GITHUB_REF_NAME#desktop-v}" ;;
+              *) version="0.0.$GITHUB_RUN_NUMBER" ;;
+            esac
+            echo "$version" | grep -Eq '^[0-9]+(\.[0-9]+){0,2}$' || { echo "bad version $version"; exit 1; }
+            jpackage --type msi --name "Palm Desktop" --app-version "$version" --vendor rearman \
+              --description "Palm Desktop for Windows" --icon desktop/packaging/palm-desktop.ico \
+              --input desktop/build/install/desktop/lib --main-jar desktop.jar \
+              --main-class com.rearman.palmdesktop.MainKt \
+              --win-upgrade-uuid 9703d1fd-0a96-45b3-8842-4b8bbcad48dc --win-per-user-install \
+              --win-menu --win-menu-group "Palm" --win-shortcut --dest out
+            file=palm-desktop-windows.msi
+            mv out/*.msi "$file"
           else
+            jpackage --type app-image --name palm-desktop --input desktop/build/install/desktop/lib \
+              --main-jar desktop.jar --main-class com.rearman.palmdesktop.MainKt --dest out
             file=palm-desktop-linux.tar.gz
             tar -C out -czf "$file" palm-desktop
           fi

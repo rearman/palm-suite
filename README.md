@@ -128,9 +128,13 @@ Book (Day, Week and Month views), the To Do List and the Memo Pad. It also has
 categories, private records, Find, Purge, Import and Export, and Print.
 Import and Export use iCalendar files and the Date Book backup file.
 
-- Download `palm-desktop-windows.zip` or `palm-desktop-linux.tar.gz` from a
-  `desktop-v*` release, unpack it and run `palm-desktop`. It holds its own
-  Java runtime.
+- Windows: download `palm-desktop-windows.msi` from a `desktop-v*` release
+  and run it. It installs Palm Desktop for your user account, with a Start
+  menu entry and a desktop shortcut. Run a newer MSI to update. Your
+  records stay.
+- Linux: download `palm-desktop-linux.tar.gz`, unpack it and run
+  `palm-desktop/bin/palm-desktop`.
+- Both packages hold their own Java runtime.
 - The app keeps its records in `desktop-data.json` in your config folder
   (`%APPDATA%\palm-suite` on Windows, `~/.config/palm-suite` on Linux). It
   works offline.
@@ -149,9 +153,9 @@ Import and Export use iCalendar files and the Date Book backup file.
 
 # Palm Desktop artwork
 
-The icons in `desktop/src/main/resources/com/rearman/palmdesktop/icons/` come
-from Palm Desktop 3.1.1 for Windows (`palm.exe`, `date20.dll`, `todo20.dll`,
-`memo20.dll` and `addr20.dll`). They are Copyright © 2000 Palm, Inc. or its
+The icons in `desktop/src/main/resources/com/rearman/palmdesktop/icons/` and
+`desktop/packaging/palm-desktop.ico` come from Palm Desktop 3.1.1 for Windows
+(`palm.exe`, `date20.dll`, `todo20.dll`, `memo20.dll` and `addr20.dll`). They are Copyright © 2000 Palm, Inc. or its
 subsidiaries. All rights reserved by their current rights holders.
 
 This project is not affiliated with the former Palm Computing company or its
