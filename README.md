@@ -161,7 +161,9 @@ Import and Export use iCalendar files and the Date Book backup file.
 - Arial: the Date view title (bold 13 px), the To Do List and Memo Pad
   captions (bold 14 px), the Day, Week and Month event text (13 px) and the
   Memo Pad text (12 px).
-- On Linux, Liberation Sans replaces these fonts.
+- On Linux, the app uses these Microsoft fonts when they are installed.
+  Each font it cannot find falls back to Arial, then to Liberation Sans, so
+  all text uses one family.
 - The toolbar, launcher, window and marker icons are the Palm Desktop 3.1.1
   bitmaps. See [Palm Desktop artwork](#palm-desktop-artwork).
 - Each category list ends with Edit Categories..., which opens the category

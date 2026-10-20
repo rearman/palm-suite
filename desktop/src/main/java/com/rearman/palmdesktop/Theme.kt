@@ -18,12 +18,15 @@ object Theme {
 	private val installed: Set<String> = GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.toSet()
 	/** The first of [names] that is installed, else the logical dialog font. */
 	private fun pick(vararg names: String): String = names.firstOrNull { it in installed } ?: Font.DIALOG
-	/** The TrueType MS Sans Serif, the Palm Desktop dialog font. */
-	private val sans = pick("Microsoft Sans Serif", "Liberation Sans", "Arial")
-	/** Arial, the Palm Desktop view, title and caption font. */
+	/**
+	 * Arial, the Palm Desktop view, title and caption font, else Liberation Sans, which has the same widths.
+	 * The other fonts fall back to it, so a system without the Windows fonts uses one family for all text.
+	 */
 	private val arial = pick("Arial", "Liberation Sans")
+	/** The TrueType MS Sans Serif, the Palm Desktop dialog font. */
+	private val sans = pick("Microsoft Sans Serif", arial)
 	/** Segoe UI, the Windows message font that Palm Desktop uses for the launcher. */
-	private val segoe = pick("Segoe UI", "Microsoft Sans Serif", "Liberation Sans", "Arial")
+	private val segoe = pick("Segoe UI", sans)
 	/** MS Sans Serif 8 pt, the small Windows dialog font. */
 	val font: Font = Font(sans, Font.PLAIN, 11)
 	/** MS Sans Serif 8 pt, bold. */
