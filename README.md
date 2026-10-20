@@ -7,6 +7,9 @@ home page.  No PalmOS code was referenced in the making of these apks, only
 manuals, images, my own physical Palm IIIxe, and my experience using said
 device.
 
+It also hosts Palm Desktop for Windows and Linux, after Palm Desktop 3.1.1,
+and `palmsync`, the sync server that keeps the phone and the desktop in step.
+
 # Why
 
 After buying the Palm IIIxe on a whim some months ago, I became enamored of
@@ -135,24 +138,28 @@ Import and Export use iCalendar files and the Date Book backup file.
   shortcuts are named "Palm Desktop". Run a newer MSI to update. Your
   records stay.
 - Linux: download `palm-desktop-linux.tar.gz`, unpack it and run
-  `palm-desktop/bin/palm-desktop`.
+  `palm-desktop/bin/palm-desktop`. To update, unpack a newer one over it.
 - Both packages hold their own Java runtime.
 - Gentoo: see [Gentoo](#gentoo).
 - The app keeps its records in `desktop-data.json` in your config folder
   (`%APPDATA%\palm-suite` on Windows, `~/.config/palm-suite` on Linux). It
   works offline.
-- To set up sync, choose Tools > Sync Setup... and enter the server, the
-  device token and the sync passphrase. The app saves the token and the sync
-  key in a file that only your user account can read.
+- To set up sync, choose Tools > Options..., open the Sync tab, enter the
+  server, the device token and the sync passphrase, and click Set Up. The
+  app saves the token and the sync key in a file that only your user
+  account can read.
 - The app syncs with `palmsync` at start, 30 seconds after a change, every
   hour, and when you choose Tools > Sync Now.
 - When the same record changed on two devices, the app keeps both copies.
 - The app uses the fonts of Palm Desktop 3.1.1. Dialogs, lists and buttons
   use MS Sans Serif 8 pt, through its TrueType version Microsoft Sans Serif.
-  The launcher labels, the Date view title and the Day and Week views use
-  Arial. On Linux, Liberation Sans replaces both fonts.
+  The launcher labels, the To Do List and Memo Pad captions, the Date view
+  title and the Day, Week and Month views use Arial. On Linux, Liberation
+  Sans replaces both fonts.
 - The toolbar, launcher, window and marker icons are the Palm Desktop 3.1.1
   bitmaps. See [Palm Desktop artwork](#palm-desktop-artwork).
+- Each category list ends with Edit Categories..., which opens the category
+  editor of the To Do List or the Memo Pad.
 
 ### Gentoo
 
