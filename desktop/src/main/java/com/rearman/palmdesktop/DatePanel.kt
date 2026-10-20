@@ -46,6 +46,7 @@ import javax.swing.ListCellRenderer
 import javax.swing.Scrollable
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
+import javax.swing.border.BevelBorder
 import javax.swing.border.EmptyBorder
 
 /**
@@ -134,7 +135,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			lead.add(pri)
 			for (l in listOf(pri, title, due, noteMark, privateMark)) l.font = Theme.font
 			title.isOpaque = true
-			due.preferredSize = Dimension(45, 0)
+			due.preferredSize = Dimension(45, due.getFontMetrics(Theme.font).height)
 			// The due date, then the note and private marks, which show only when set.
 			val marks = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
 			marks.isOpaque = false
@@ -178,11 +179,19 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		cardPanel.add(buildDayPanel(), "day")
 		cardPanel.add(weekView, "week")
 		cardPanel.add(monthView, "month")
-		val east = JPanel(BorderLayout())
-		east.add(buildRightPane(), BorderLayout.CENTER)
-		east.add(buildTabs(), BorderLayout.EAST)
-		add(cardPanel, BorderLayout.CENTER)
-		add(east, BorderLayout.EAST)
+		// The views and the calendar pane sit on a raised panel over the workspace gray, and the tabs
+		// sit on the gray beside it, as in Palm Desktop.
+		val body = JPanel(BorderLayout())
+		body.border = BorderFactory.createCompoundBorder(
+			BorderFactory.createBevelBorder(BevelBorder.RAISED, Color.WHITE, Theme.panel, Color.BLACK, Theme.shadow),
+			EmptyBorder(6, 6, 6, 6)
+		)
+		body.add(cardPanel, BorderLayout.CENTER)
+		body.add(buildRightPane(), BorderLayout.EAST)
+		background = Theme.workspace
+		border = EmptyBorder(4, 4, 3, 3)
+		add(body, BorderLayout.CENTER)
+		add(buildTabs(), BorderLayout.EAST)
 		App.onRefresh { refreshAll() }
 		showMode(Settings.get("dateMode", "day"))
 		refreshAll()
@@ -382,6 +391,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 	private fun buildTabs(): JPanel {
 		val column = JPanel(GridLayout(3, 1))
+		column.isOpaque = false
 		for ((tab, name) in listOf(dayTab to "day", weekTab to "week", monthTab to "month")) {
 			tab.addActionListener { showMode(name) }
 			// A double click goes to today, as in Palm Desktop.
@@ -396,6 +406,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			column.add(tab)
 		}
 		val panel = JPanel(BorderLayout())
+		panel.isOpaque = false   // the workspace gray shows under the tabs
 		panel.add(column, BorderLayout.NORTH)
 		return panel
 	}

@@ -86,13 +86,7 @@ class MainFrame : JFrame("Palm Desktop") {
 		contentPane.layout = BorderLayout()
 		contentPane.add(buildToolBar(), BorderLayout.NORTH)
 		contentPane.add(buildLauncher(), BorderLayout.WEST)
-		center.border = BorderFactory.createCompoundBorder(
-			BorderFactory.createEmptyBorder(3, 3, 3, 3),
-			BorderFactory.createCompoundBorder(
-				BorderFactory.createRaisedBevelBorder(),
-				BorderFactory.createEmptyBorder(6, 6, 6, 6)
-			)
-		)
+		center.border = centerBorder(6)
 		contentPane.add(center, BorderLayout.CENTER)
 		contentPane.add(buildStatusBar(), BorderLayout.SOUTH)
 		rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
@@ -134,11 +128,21 @@ class MainFrame : JFrame("Palm Desktop") {
 	private fun switchTo(name: String) {
 		current = name
 		cards.show(center, name)
+		// The Date view fills the bevel with its own workspace gray. The other views keep a 6 px margin.
+		center.border = centerBorder(if (name == "date") 0 else 6)
 		launcherButtons.getValue(name).isSelected = true
 		viewItems.getValue(name).isSelected = true
 		updateMenus()
 		updatePosition()
 	}
+
+	private fun centerBorder(pad: Int) = BorderFactory.createCompoundBorder(
+		BorderFactory.createEmptyBorder(3, 3, 3, 3),
+		BorderFactory.createCompoundBorder(
+			BorderFactory.createRaisedBevelBorder(),
+			BorderFactory.createEmptyBorder(pad, pad, pad, pad)
+		)
+	)
 
 	/** Shows or hides the menu items that belong to one view, and sets the items that change with it. */
 	private fun updateMenus() {
