@@ -166,7 +166,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          choco install wixtoolset --version=3.14.1 -y --no-progress
+          # The runner image already has WiX 3.14. Install it only where it is missing.
+          command -v candle.exe > /dev/null || [ -x "/c/Program Files (x86)/WiX Toolset v3.14/bin/candle.exe" ] \
+            || choco install wixtoolset -y --no-progress
           echo "C:\Program Files (x86)\WiX Toolset v3.14\bin" >> "$GITHUB_PATH"
 
       # Each package holds the app and its own Java runtime, so nothing else needs to be installed.
