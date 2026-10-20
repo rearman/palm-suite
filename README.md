@@ -2,10 +2,10 @@
 
 This Repository hosts two packages: Palm-Launcher and Datebook.  Together,
 these provide kotlin-based work-and-look-alike versions of the PalmOS 3.5
-DateBook, ToDo, and MemoPad apps, as well as a launcher after the PalmOS 3.5
-home page.  No PalmOS code was referenced in the making of these apks, only
-manuals, images, my own physical Palm IIIxe, and my experience using said
-device.
+DateBook, ToDo, MemoPad, and Address Book apps, as well as a launcher after
+the PalmOS 3.5 home page.  No PalmOS code was referenced in the making of
+these apks, only manuals, images, my own physical Palm IIIxe, and my
+experience using said device.
 
 It also hosts Palm Desktop for Windows and Linux, after Palm Desktop 3.1.1,
 and `palmsync`, the sync server that keeps the phone and the desktop in step.
@@ -98,15 +98,49 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 - The text is saved as you type. An empty memo is deleted.
 - Memo Pad has its own categories.
 
-## All three apps
+## Address Book
 
-- One APK, three icons. Date Book and To Do List use the same records.
+- Address List shows the names by category. Use the category pop-up to select
+  a category.
+- Names show as "Last, First" or "Company, Last". Select Options > Preferences
+  to set List By.
+- Each name shows the number you choose, with a letter for its label: W (Work),
+  H (Home), F (Fax), O (Other), E (E-mail), M (Main or Mobile) or P (Pager).
+- Look Up field: type a name to go to the first match.
+- Address View: tap a number to call it, tap Msg to send a text message, tap an
+  e-mail address to write an e-mail, and tap the address to open the map. The
+  phone's own apps do these actions, as the stock Contacts app does.
+- Touch and hold a value in Address View to copy it.
+- Address Edit has these fields:
+	- Last name, First name, Title and Company.
+	- Five phone fields. Each has a label: Work, Home, Fax, Other, E-mail, Main,
+	  Pager or Mobile.
+	- Address, City, State, Zip Code and Country.
+	- Four custom fields. Select Options > Rename Custom Fields to change their
+	  names.
+- Details: Show in List, Category and Private. Show in List sets which phone
+  number the list shows.
+- Each record has a note.
+- Share Address, Share Category and Share Business Card send a vCard (.vcf) file
+  through the Android share sheet. They replace the Palm Beam commands. Select
+  Record > Select Business Card to choose your card.
+- Import vCard and Export vCard in the Record menu read and write .vcf files.
+  Opening a .vcf file with Address imports it. Duplicate records are skipped.
+- Phone Lookup in the Edit menu (Ctrl+L) inserts a name and a number. It works
+  in all four apps.
+- Address Book has its own categories.
+- Address Book records stay on the phone. They do not sync yet.
+
+## All four apps
+
+- One APK, four icons. Date Book and To Do List use the same records.
 - Type a character with nothing selected to start a new event, item or memo.
-  Press Backspace in an empty one to delete it.
-- Find searches the descriptions and notes of all records.
+  Press Backspace in an empty one to delete it. In the Address List, the
+  character goes to the Look Up field.
+- Find searches the descriptions and notes of all records and the addresses.
 - Font (small, normal and large Palm sizes), Security (show, mask or hide
   private records) and Purge.
-- Export Backup and Import Backup save and load all records as a JSON file. Import skips a record that is the same as a record on the device.
+- Export Backup and Import Backup save and load all records, including addresses, as a JSON file. Import skips a record that is the same as a record on the device.
   Delete can save an archive copy of the record first.
 - The Palm OS font and the Green LCD color on all screens. All screens use
   the proportions of the Palm IIIxe, 160 Palm pixels wide.
