@@ -62,8 +62,7 @@ fun confirmDelete(owner: Component, message: String): Boolean {
 	return answer == JOptionPane.YES_OPTION
 }
 
-// Options has three tabs: General (startup view and delete confirmation), Date Book and Sync.
-// General and Date Book values are saved on OK, and also when Set Up or Turn Off closes the dialog.
+// Options has two tabs: General (startup view and delete confirmation) and Date Book. The values are saved on OK.
 object OptionsDialog {
 	private val startViews = listOf("date" to "Date Book", "address" to "Address Book", "todo" to "To Do List", "memo" to "Memo Pad")
 
@@ -116,6 +115,36 @@ object OptionsDialog {
 			App.refresh()
 		}
 
+		tabs.addTab("General", general)
+		tabs.addTab("Date Book", dateBook)
+		tabs.setMnemonicAt(0, KeyEvent.VK_G)
+		tabs.setDisplayedMnemonicIndexAt(0, 0)
+		tabs.setMnemonicAt(1, KeyEvent.VK_B)
+		tabs.setDisplayedMnemonicIndexAt(1, 5)
+		tabs.selectedIndex = when (tab) {
+			"datebook" -> 1
+			else -> 0
+		}
+
+		val okBtn = button("OK")
+		val cancelBtn = button("Cancel")
+		okBtn.onClick {
+			save()
+			d.dispose()
+		}
+		cancelBtn.onClick { d.dispose() }
+		d.rootPane.defaultButton = okBtn
+
+		// The official Options dialog is 367 x 299 px on every tab.
+		present(d, owner, tabs, bar(okBtn, cancelBtn), Dimension(367, 299))
+	}
+}
+
+// Sync Options: the palmsync server, the device token and the passphrase. Set Up and Turn Off close the dialog
+// when they finish, and Close leaves the sync settings as they are.
+object SyncDialog {
+	fun show(owner: Component) {
+		val d = dialog(owner, "Sync Options")
 		val sync = App.sync
 		val server = JTextField(sync.server, 24).withFont()
 		// An empty Token field keeps the token saved on this computer, if there is one.
@@ -149,13 +178,12 @@ object OptionsDialog {
 			sync.setUp(server.text.trim(), typed.ifEmpty { savedToken }, pass.password) { err ->
 				busy = false
 				if (err == null) {
-					save()
 					d.dispose()
 					App.refresh()
 				} else {
 					status.text = syncStatus()
 					refreshSetUp()
-					JOptionPane.showMessageDialog(d, err, "Options", JOptionPane.ERROR_MESSAGE)
+					JOptionPane.showMessageDialog(d, err, "Sync Options", JOptionPane.ERROR_MESSAGE)
 				}
 			}
 		}
@@ -164,57 +192,30 @@ object OptionsDialog {
 			sync.syncNow { err ->
 				SwingUtilities.invokeLater {
 					status.text = syncStatus()
-					JOptionPane.showMessageDialog(d, err ?: "Sync done.", "Options",
+					JOptionPane.showMessageDialog(d, err ?: "Sync done.", "Sync Options",
 						if (err == null) JOptionPane.INFORMATION_MESSAGE else JOptionPane.ERROR_MESSAGE)
 				}
 			}
 		}
 
 		turnOffBtn.onClick {
-			val answer = JOptionPane.showConfirmDialog(d, "Turn off sync on this computer? Your records stay here.", "Options", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE)
+			val answer = JOptionPane.showConfirmDialog(d, "Turn off sync on this computer? Your records stay here.", "Sync Options", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE)
 			if (answer != JOptionPane.YES_OPTION) return@onClick
 			sync.turnOff()
-			save()
 			App.refresh()
 			d.dispose()
 		}
 
-		val syncPanel = JPanel(BorderLayout(0, 8)).apply {
-			add(formPanel(listOf(
-				keyed("Server:", 'e', server) to server,
-				keyed("Token:", 'T', token) to token,
-				keyed("Passphrase:", 'a', pass) to pass,
-				label("") to status,
-			)), BorderLayout.NORTH)
-			add(bar(setUpBtn, syncNowBtn, turnOffBtn), BorderLayout.SOUTH)
-		}
+		val closeBtn = button("Close")
+		closeBtn.onClick { d.dispose() }
 
-		tabs.addTab("General", general)
-		tabs.addTab("Date Book", dateBook)
-		tabs.addTab("Sync", syncPanel)
-		tabs.setMnemonicAt(0, KeyEvent.VK_G)
-		tabs.setDisplayedMnemonicIndexAt(0, 0)
-		tabs.setMnemonicAt(1, KeyEvent.VK_B)
-		tabs.setDisplayedMnemonicIndexAt(1, 5)
-		tabs.setMnemonicAt(2, KeyEvent.VK_Y)
-		tabs.setDisplayedMnemonicIndexAt(2, 1)
-		tabs.selectedIndex = when (tab) {
-			"datebook" -> 1
-			"sync" -> 2
-			else -> 0
-		}
-
-		val okBtn = button("OK")
-		val cancelBtn = button("Cancel")
-		okBtn.onClick {
-			save()
-			d.dispose()
-		}
-		cancelBtn.onClick { d.dispose() }
-		d.rootPane.defaultButton = okBtn
-
-		// The official Options dialog is 367 x 299 px on every tab.
-		present(d, owner, tabs, bar(okBtn, cancelBtn), Dimension(367, 299))
+		val form = formPanel(listOf(
+			keyed("Server:", 'e', server) to server,
+			keyed("Token:", 'T', token) to token,
+			keyed("Passphrase:", 'a', pass) to pass,
+			label("") to status,
+		))
+		present(d, owner, form, bar(setUpBtn, syncNowBtn, turnOffBtn, closeBtn))
 	}
 
 	private fun syncStatus(): String = if (App.sync.isOn) App.sync.lastResult else "Sync is off."
@@ -229,10 +230,6 @@ object OptionsDialog {
 			g.drawString(hint, insets.left + 2, (height + g.fontMetrics.ascent - g.fontMetrics.descent) / 2)
 		}
 	}
-}
-
-object SyncDialog {
-	fun show(owner: Component) = OptionsDialog.show(owner, "sync")
 }
 
 // List By form for the Address Book and the Memo Pad: one radio per choice in a titled group, then OK and Cancel.

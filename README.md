@@ -204,13 +204,12 @@ The desktop keeps the Address Book records for sync.
 - The app keeps its records in `desktop-data.json` in your config folder
   (`%APPDATA%\palm-suite` on Windows, `~/.config/palm-suite` on Linux). It
   works offline.
-- To set up sync, choose Tools > Options..., open the Sync tab, enter the
-  server, the device token and the sync passphrase, and click Set Up. The
-  app saves the token and the sync key in a file that only your user
-  account can read.
+- To set up sync, choose Sync > Options..., enter the server, the device
+  token and the sync passphrase, and click Set Up. The app saves the token
+  and the sync key in a file that only your user account can read.
 - The app syncs with `palmsync` at start, 1 second after a change, every
   hour, when the window is activated after a minute without a sync, and when
-  you choose Tools > Sync Now.
+  you choose Sync > Sync Now.
 - Install a desktop version with address sync before you sync addresses from
   the phone. A desktop version without it misses the addresses until it
   updates. The new version reads the server again one time to get them.

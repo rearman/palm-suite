@@ -345,6 +345,9 @@ class MainFrame : JFrame("Palm Desktop") {
 			m.add(onlyIn(purgeItem, "date", "todo"))
 			m.add(onlyIn(JPopupMenu.Separator(), "date", "todo"))
 			m.add(item("Options...", 'O') { OptionsDialog.show(this) })
+		})
+		bar.add(menu("Sync", 'S').also { m ->
+			m.add(item("Options...", 'O') { SyncDialog.show(this) })
 			m.add(item("Sync Now", 'N') { syncNow() })
 		})
 		bar.add(menu("Help", 'H').also { m ->
