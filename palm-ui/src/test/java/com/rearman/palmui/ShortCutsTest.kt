@@ -40,6 +40,12 @@ class ShortCutsTest {
 	}
 
 	@Test
+	fun findNameLongerThanOldLimit() {
+		val meeting = ShortCut("meeting", "Meeting")
+		assertEquals(2 to meeting, ShortCuts.find("x ^meeting", 10, listOf(meeting)))
+	}
+
+	@Test
 	fun cursorBeyondLengthIsNull() {
 		assertNull(ShortCuts.find("^dts", 5, ShortCuts.defaults))
 	}

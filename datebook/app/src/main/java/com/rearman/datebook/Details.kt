@@ -4,7 +4,6 @@ import com.rearman.palmui.*
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
-import android.text.InputFilter
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -385,9 +384,7 @@ fun MainActivity.showShortCuts() {
 private fun MainActivity.editShortCut(sc: ShortCut?) {
     val d = PalmDialog(this, "ShortCut Entry", height = 84)
     val nameField = field(sc?.name ?: "", "ShortCut name")
-    nameField.filters = arrayOf<InputFilter>(InputFilter.LengthFilter(ShortCuts.NAME_MAX))
     val textField = field(sc?.text ?: "", "ShortCut text")
-    textField.filters = arrayOf<InputFilter>(InputFilter.LengthFilter(ShortCuts.TEXT_MAX))
     d.row("ShortCut Name:", nameField, labelEnd = 64)
     d.row("ShortCut Text:", textField, labelEnd = 64)
     d.button("OK", 22) {

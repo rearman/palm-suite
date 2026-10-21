@@ -14,8 +14,6 @@ data class ShortCut(val name: String, val text: String)
 
 object ShortCuts {
 	const val TRIGGER = '^'
-	const val NAME_MAX = 5
-	const val TEXT_MAX = 45
 	const val DATE = "{date}"
 	const val TIME = "{time}"
 	/** The Palm OS 3.5 default list. */
@@ -33,11 +31,12 @@ object ShortCuts {
 	/**
 	 * The ShortCut that ends at [cursor]: [text] has TRIGGER at index t, then the exact name of a
 	 * ShortCut in [list] from t+1 to [cursor]. Returns t and the ShortCut, or null.
-	 * Only looks back NAME_MAX + 1 characters. The name has no whitespace and no TRIGGER.
+	 * Looks back as far as the longest name in [list], plus TRIGGER. The name has no whitespace and no TRIGGER.
 	 */
 	fun find(text: CharSequence, cursor: Int, list: List<ShortCut> = this.list): Pair<Int, ShortCut>? {
 		if (cursor < 1 || cursor > text.length) return null
-		for (i in cursor - 1 downTo maxOf(0, cursor - NAME_MAX - 1)) {
+		val longest = list.maxOfOrNull { it.name.length } ?: return null
+		for (i in cursor - 1 downTo maxOf(0, cursor - longest - 1)) {
 			val c = text[i]
 			if (c.isWhitespace()) return null
 			if (c == TRIGGER) {
