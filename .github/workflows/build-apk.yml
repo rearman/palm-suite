@@ -1,7 +1,7 @@
 name: Build APKs
 
 # Builds and tests both apps, the sync server and the desktop app. A tag datebook-v*, launcher-v*, server-v* or
-# desktop-v* also releases that one part.
+# desktop-v* also releases that one part. A release tag build keeps the two newest releases of each app and deletes the older ones.
 on:
   push:
     branches: [ main, master ]
@@ -78,6 +78,18 @@ jobs:
             gh release create "$GITHUB_REF_NAME" "$APK" --title "$GITHUB_REF_NAME" --generate-notes
           fi
 
+      # Keep the two newest releases of this app (this one and the one before) and delete the older
+      # ones. Their tags stay. Versions sort with sort -V.
+      - name: Delete old releases
+        if: startsWith(github.ref_name, 'datebook-v') || startsWith(github.ref_name, 'launcher-v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prefix="${GITHUB_REF_NAME%-v*}"
+          gh release list --limit 1000 --json tagName -q '.[].tagName' | grep "^$prefix-v" | sort -V | head -n -2 |
+            while read -r tag; do gh release delete "$tag" --yes; done
+
   server:
     runs-on: ubuntu-latest
     permissions:
@@ -133,6 +145,18 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" palmsync-linux-amd64 palmsync-linux-arm64 --title "$GITHUB_REF_NAME" --generate-notes
           fi
+
+      # Keep the two newest releases of this app (this one and the one before) and delete the older
+      # ones. Their tags stay. Versions sort with sort -V.
+      - name: Delete old releases
+        if: startsWith(github.ref_name, 'server-v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prefix="${GITHUB_REF_NAME%-v*}"
+          gh release list --limit 1000 --json tagName -q '.[].tagName' | grep "^$prefix-v" | sort -V | head -n -2 |
+            while read -r tag; do gh release delete "$tag" --yes; done
 
   # The desktop app for Windows and Linux. jpackage builds for the system it runs on, so each OS has its own runner.
   desktop:
@@ -236,3 +260,15 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" $FILES --clobber \
             || gh release create "$GITHUB_REF_NAME" $FILES --title "$GITHUB_REF_NAME" --generate-notes \
             || gh release upload "$GITHUB_REF_NAME" $FILES --clobber
+
+      # Keep the two newest releases of this app (this one and the one before) and delete the older
+      # ones. Their tags stay. Versions sort with sort -V. Only the Linux job deletes, so the two OS jobs do not race.
+      - name: Delete old releases
+        if: startsWith(github.ref_name, 'desktop-v') && runner.os == 'Linux'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prefix="${GITHUB_REF_NAME%-v*}"
+          gh release list --limit 1000 --json tagName -q '.[].tagName' | grep "^$prefix-v" | sort -V | head -n -2 |
+            while read -r tag; do gh release delete "$tag" --yes; done
