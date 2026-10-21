@@ -1,11 +1,11 @@
 name: Build APKs
 
-# Builds and tests both apps, the sync server and the desktop app. A tag datebook-v*, launcher-v*, server-v* or
+# Builds and tests both apps, the sync server and the desktop app. A tag handheld-v*, launcher-v*, server-v* or
 # desktop-v* also releases that one part. A release tag build keeps the two newest releases of each app and deletes the older ones.
 on:
   push:
     branches: [ main, master ]
-    tags: [ 'datebook-v*', 'launcher-v*', 'server-v*', 'desktop-v*' ]
+    tags: [ 'handheld-v*', 'launcher-v*', 'server-v*', 'desktop-v*' ]
   workflow_dispatch:
 
 jobs:
@@ -31,32 +31,32 @@ jobs:
       - name: Build APKs
         run: gradle assembleDebug testDebugUnitTest :sync-core:test --stacktrace
 
-      # A tag build names the APK of its app after the tag, for example datebook-v1.2.apk.
+      # A tag build names the APK of its app after the tag, for example handheld-v1.13.apk.
       - name: Rename APKs
         id: apk
         env:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
-          db=datebook.apk
+          db=handheld.apk
           pl=palm-launcher.apk
           case "$TAG" in
-            datebook-v*) db="$TAG.apk" ;;
+            handheld-v*) db="$TAG.apk" ;;
             launcher-v*) pl="palm-$TAG.apk" ;;
           esac
           mv datebook/app/build/outputs/apk/debug/app-debug.apk "$db"
           mv palm-launcher/app/build/outputs/apk/debug/app-debug.apk "$pl"
-          echo "datebook=$db" >> "$GITHUB_OUTPUT"
+          echo "handheld=$db" >> "$GITHUB_OUTPUT"
           echo "launcher=$pl" >> "$GITHUB_OUTPUT"
           case "$TAG" in
-            datebook-v*) echo "release=$db" >> "$GITHUB_OUTPUT" ;;
+            handheld-v*) echo "release=$db" >> "$GITHUB_OUTPUT" ;;
             launcher-v*) echo "release=$pl" >> "$GITHUB_OUTPUT" ;;
           esac
 
       # archive: false uploads the file itself and accepts only one file, so each APK has its own step.
-      - name: Upload Date Book APK
+      - name: Upload handheld APK
         uses: actions/upload-artifact@v7
         with:
-          path: ${{ steps.apk.outputs.datebook }}
+          path: ${{ steps.apk.outputs.handheld }}
           archive: false
 
       - name: Upload launcher APK
@@ -67,7 +67,7 @@ jobs:
 
       # On a release tag, attach the APK of that app to the GitHub Release of the tag. A rerun replaces it.
       - name: Attach APK to release
-        if: startsWith(github.ref_name, 'datebook-v') || startsWith(github.ref_name, 'launcher-v')
+        if: startsWith(github.ref_name, 'handheld-v') || startsWith(github.ref_name, 'launcher-v')
         env:
           GH_TOKEN: ${{ github.token }}
           APK: ${{ steps.apk.outputs.release }}
@@ -81,7 +81,7 @@ jobs:
       # Keep the two newest releases of this app (this one and the one before) and delete the older
       # ones. Their tags stay. Versions sort with sort -V.
       - name: Delete old releases
-        if: startsWith(github.ref_name, 'datebook-v') || startsWith(github.ref_name, 'launcher-v')
+        if: startsWith(github.ref_name, 'handheld-v') || startsWith(github.ref_name, 'launcher-v')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

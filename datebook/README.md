@@ -7,7 +7,7 @@ Four Android apps after the Palm OS 3.5 Date Book, To Do List, Memo Pad and Addr
 1. Put all files from this folder into the `rearman/datebook` repository. Keep the folder structure. The `.github` folder must go in too.
 2. Open the **Actions** tab in the repository.
 3. Select **Build APK**, then select **Run workflow**. The workflow also runs after each push to `main`.
-4. When the run is complete, open it. Download **datebook.apk** from the **Artifacts** list, then install it on your phone.
+4. When the run is complete, open it. Download **handheld.apk** from the **Artifacts** list, then install it on your phone.
 
 The project has a fixed signing key (`app/debug.keystore`). Thus a new build installs over the old one and keeps your data.
 
