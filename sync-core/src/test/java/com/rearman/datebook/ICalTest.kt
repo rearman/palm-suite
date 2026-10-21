@@ -91,6 +91,29 @@ class ICalTest {
         assertEquals(1, p.simplified)
     }
 
+    @Test fun triggerOver99MinutesImportsInMinutes() {
+        val p = ICal.parse(cal(
+            "BEGIN:VEVENT", "DTSTART:20261106T100000", "DTEND:20261106T110000", "SUMMARY:Call",
+            "BEGIN:VALARM", "TRIGGER:-PT150M", "END:VALARM", "END:VEVENT"
+        ), zone)
+        val want = listOf(Event(title = "Call", date = day(2026, 11, 6), start = 10 * 60, end = 11 * 60,
+            alarm = true, alarmAdvance = 150, alarmUnit = 0))
+        assertEquals(want.map { it.dupKey() }, p.events.map { it.dupKey() })
+        assertEquals(150, p.events[0].alarmAdvance)
+        assertEquals(0, p.events[0].alarmUnit)
+    }
+
+    @Test fun intervalOver99ImportsAsDailyRepeat() {
+        val p = ICal.parse(cal(
+            "BEGIN:VEVENT", "DTSTART:20261106T100000", "DTEND:20261106T110000", "SUMMARY:Water",
+            "RRULE:FREQ=DAILY;INTERVAL=150", "END:VEVENT"
+        ), zone)
+        assertEquals(1, p.events.size)
+        assertEquals(Repeat.DAY, p.events[0].repeat)
+        assertEquals(150, p.events[0].every)
+        assertEquals(0, p.simplified)
+    }
+
     @Test fun overnightEventSplitsByDay() {
         val p = ICal.parse(cal(
             "BEGIN:VEVENT", "DTSTART:20261106T220000", "DTEND:20261108T060000", "SUMMARY:Retreat",

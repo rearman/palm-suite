@@ -55,7 +55,7 @@ internal object DateSettings {
 	val weekBegins: Int get() = Settings.getInt("weekStart", 0).coerceIn(0, 1)
 
 	val alarmPreset: Boolean get() = Settings.getBool("alarmPreset", false)
-	val alarmPresetAmount: Int get() = Settings.getInt("alarmPresetAmount", 5).coerceIn(1, 99)
+	val alarmPresetAmount: Int get() = Settings.getInt("alarmPresetAmount", 5).coerceAtLeast(1)
 
 	/** 0 minutes, 1 hours, 2 days. */
 	val alarmPresetUnit: Int get() = Settings.getInt("alarmPresetUnit", 0).coerceIn(0, 2)
@@ -234,6 +234,14 @@ internal fun deleteOccurrence(owner: Component, occ: Occ): Boolean {
 	return true
 }
 
+/** A spinner for a count from [min] up, with no upper limit. Plain digits, three columns wide. */
+internal fun countSpinner(value: Int, min: Int): JSpinner {
+	val s = JSpinner(SpinnerNumberModel(maxOf(value, min), min, Int.MAX_VALUE, 1))
+	s.editor = JSpinner.NumberEditor(s, "#")
+	(s.editor as JSpinner.DefaultEditor).textField.columns = 3
+	return s
+}
+
 /** Alarm Settings dialog. Writes the alarm fields of [e] on OK. Does not save. */
 internal object AlarmDialog {
 	/** Returns true when the user pressed OK. */
@@ -241,7 +249,7 @@ internal object AlarmDialog {
 		val dlg = JDialog(SwingUtilities.getWindowAncestor(owner), "Alarm Settings", Dialog.ModalityType.APPLICATION_MODAL)
 		var ok = false
 		val box = JCheckBox("Alarm:", e.alarm).apply { font = Theme.font; mnemonic = KeyEvent.VK_A }
-		val amount = JSpinner(SpinnerNumberModel(e.alarmAdvance.coerceIn(1, 99), 1, 99, 1)).apply { font = Theme.font }
+		val amount = countSpinner(e.alarmAdvance, 1).apply { font = Theme.font }
 		val unit = JComboBox(arrayOf("Minutes", "Hours", "Days")).apply {
 			font = Theme.font
 			selectedIndex = e.alarmUnit.coerceIn(0, 2)

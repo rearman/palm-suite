@@ -239,7 +239,7 @@ object ICal {
         val s = LocalDate.ofEpochDay(e.date)
         val freq = r["FREQ"]
         val every = r["INTERVAL"]?.toIntOrNull() ?: 1
-        if (every !in 1..99) return false
+        if (every < 1) return false
         val days = r["BYDAY"]?.split(',')?.map { it.removePrefix("+") }
         // Bit 8 marks a day with a number before it, such as "2MO".
         val mask = days?.fold(0) { m, d -> m or dayCodes.indexOf(d).let { if (it < 0) 0x100 else 1 shl it } }
@@ -319,7 +319,7 @@ object ICal {
         return if (g[1] == "-") -v else v
     }
 
-    /** A TRIGGER value as Date Book (advance, unit), in the unit of the file when the number fits 0..99. */
+    /** A TRIGGER value as Date Book (advance, unit), in the unit of the file. */
     private fun advance(value: String): Pair<Int, Int> {
         val m = durRe.matchEntire(value.trim()) ?: return 0 to 0
         val before = -minutes(m)
@@ -331,8 +331,7 @@ object ICal {
             g[5].isEmpty() && g[6].isEmpty() -> 1
             else -> 0
         }
-        while (unit < 2 && before / per[unit] > 99) unit++
-        return (before / per[unit]).coerceAtMost(99).toInt() to unit
+        return (before / per[unit]).toInt() to unit
     }
 
     private fun unfold(text: String): List<String> {

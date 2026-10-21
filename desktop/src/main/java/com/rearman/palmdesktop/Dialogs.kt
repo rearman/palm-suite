@@ -41,12 +41,10 @@ import javax.swing.JPanel
 import javax.swing.JPasswordField
 import javax.swing.JRadioButton
 import javax.swing.JScrollPane
-import javax.swing.JSpinner
 import javax.swing.JTabbedPane
 import javax.swing.JTextField
 import javax.swing.KeyStroke
 import javax.swing.ListSelectionModel
-import javax.swing.SpinnerNumberModel
 import javax.swing.SwingUtilities
 import javax.swing.WindowConstants
 import javax.swing.border.EmptyBorder
@@ -85,7 +83,7 @@ object OptionsDialog {
 		val workCombo = JComboBox(Array(24) { timeLabel(it * 60) }).withFont().apply { selectedIndex = DateSettings.workDay }
 		val weekCombo = JComboBox(arrayOf("Sunday", "Monday")).withFont().apply { selectedIndex = DateSettings.weekBegins }
 		val presetBox = JCheckBox().withFont().apply { isSelected = DateSettings.alarmPreset }
-		val presetAmount = JSpinner(SpinnerNumberModel(DateSettings.alarmPresetAmount, 1, 99, 1)).withFont()
+		val presetAmount = countSpinner(DateSettings.alarmPresetAmount, 1).withFont()
 		val presetUnit = JComboBox(arrayOf("Minutes", "Hours", "Days")).withFont().apply { selectedIndex = DateSettings.alarmPresetUnit }
 		fun refreshPreset() {
 			presetAmount.isEnabled = presetBox.isSelected

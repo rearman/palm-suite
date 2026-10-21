@@ -71,7 +71,7 @@ private class EventForm(
 	private val noteField = readOnlyField().apply { text = firstLine(work.note) }
 	private val repeatBtn = JButton().themed()
 	private val alarmBox = JCheckBox("", work.alarm).themed()
-	private val alarmAmount = JSpinner(SpinnerNumberModel(work.alarmAdvance.coerceIn(1, 99), 1, 99, 1)).themed()
+	private val alarmAmount = countSpinner(work.alarmAdvance, 1).themed()
 	private val alarmUnit = JComboBox(arrayOf("Minutes", "Hours", "Days")).themed()
 		.apply { selectedIndex = work.alarmUnit.coerceIn(0, 2) }
 	private val alarmLine = line(alarmAmount, alarmUnit).apply { isVisible = work.alarm }
@@ -251,7 +251,7 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 	private val yearlyRadio = JRadioButton("Yearly").themed()
 	private val hint = JTextArea("Click one of the buttons to the left to set a repeat interval.", 3, 18)
 		.themed().apply { isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true }
-	private val everySpin = JSpinner(SpinnerNumberModel(e.every.coerceIn(1, 99), 1, 99, 1)).themed()
+	private val everySpin = countSpinner(e.every, 1).themed()
 	private val everyUnit = JLabel("Months").themed()
 	private val endField = JTextField(10).themed().apply { isEditable = false }
 	private val dayToggles = Array(7) { i ->

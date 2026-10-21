@@ -76,7 +76,7 @@ class EventDetails(
     }
 
     private fun collect() {
-        work.alarmAdvance = adv.text.toString().toIntOrNull()?.coerceIn(0, 99) ?: 0
+        work.alarmAdvance = adv.text.toString().toIntOrNull()?.coerceAtLeast(0) ?: 0
     }
 }
 
@@ -201,7 +201,7 @@ fun MainActivity.showPreferences() {
     d.button("OK", 25) {
         prefs.dayStart = start; prefs.dayEnd = end
         prefs.presetOn = presetOn; prefs.presetUnit = unit
-        prefs.presetAdvance = adv.text.toString().toIntOrNull()?.coerceIn(0, 99) ?: 5
+        prefs.presetAdvance = adv.text.toString().toIntOrNull()?.coerceAtLeast(0) ?: 5
         prefs.remindTimes = remind; prefs.remindEvery = every
         d.dismiss(); render()
     }

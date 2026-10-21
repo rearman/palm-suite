@@ -368,7 +368,7 @@ class RepeatDialog(
         page.addView(area, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
         body.addView(page, LP(MATCH, ctx.pp(120)))
         button("OK", 25) {
-            ev.every = every.text.toString().toIntOrNull()?.coerceIn(1, 99) ?: 1
+            ev.every = every.text.toString().toIntOrNull()?.coerceAtLeast(1) ?: 1
             if (ev.repeat == Repeat.NONE) { ev.repeatEnd = -1; ev.exceptions.clear() }
             dismiss(); onPick(ev)
         }
@@ -390,7 +390,7 @@ class RepeatDialog(
         every = ctx.numberField(maxOf(1, ev.every)).apply {
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun afterTextChanged(s: android.text.Editable?) {
-                    ev.every = s.toString().toIntOrNull()?.coerceIn(1, 99) ?: 1; updateSummary()
+                    ev.every = s.toString().toIntOrNull()?.coerceAtLeast(1) ?: 1; updateSummary()
                 }
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
