@@ -331,10 +331,7 @@ object CategoriesDialog {
 			val name: String? = JOptionPane.showInputDialog(d, "Name:", "New Category", JOptionPane.PLAIN_MESSAGE)
 			if (name.isNullOrBlank()) return@onClick
 			val added = App.store.addCategory(name.trim(), app)
-			if (added == null) {
-				JOptionPane.showMessageDialog(d, "You can have at most 15 categories.", "New Category", JOptionPane.WARNING_MESSAGE)
-			}
-			changed(added?.id)
+			changed(added.id)
 		}
 
 		renameBtn.onClick {

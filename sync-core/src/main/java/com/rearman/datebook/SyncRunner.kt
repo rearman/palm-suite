@@ -15,8 +15,7 @@ data class SyncRow(val table: String, val id: Long, val uid: String, val rev: Lo
  * The local data that one sync round reads and writes. Each app implements it over its own store.
  *
  * record: the live record of a row (Event, Todo, Memo, Address or Category), or null for a tombstone.
- * saveCopy: keeps a record as a new dirty record with a new uid. It returns false when the
- * categories of the record's app are full.
+ * saveCopy: keeps a record as a new dirty record with a new uid.
  */
 interface SyncStore {
     fun dirtyRows(): List<SyncRow>                 // dirty rows of "categories", "events", "todos", "memos", "addresses", categories first
@@ -31,7 +30,7 @@ interface SyncStore {
     fun putRemote(a: Address, rev: Long)
     fun putRemote(c: Category, rev: Long)
     fun dropRemote(table: String, uid: String)
-    fun saveCopy(record: Any): Boolean             // keep-both: save as a new dirty record with a new uid; false when categories are full
+    fun saveCopy(record: Any)                      // keep-both: save as a new dirty record with a new uid
     val shortCuts: List<Pair<String, String>>
     var shortCutsDirty: Boolean
     var shortCutsRev: Long
@@ -58,7 +57,6 @@ object SyncRunner {
     const val MAX_ROUNDS = 5
 
     private const val SHORTCUTS_ID = "shortcuts"
-    private const val FULL_MESSAGE = "Categories are full. Delete one, then sync again."
     private const val DECRYPT_MESSAGE = "A record could not be decrypted. Check the passphrase."
 
     /** Step A: builds the push items from the dirty rows and the ShortCuts list. */
@@ -203,7 +201,7 @@ object SyncRunner {
     /** Keeps a copy of a local record as a new record, for the keep-both rule. */
     private fun copyLocal(store: SyncStore, rec: Any?): Boolean {
         if (rec == null) return false
-        if (!store.saveCopy(rec)) throw IllegalStateException(FULL_MESSAGE)
+        store.saveCopy(rec)
         return true
     }
 

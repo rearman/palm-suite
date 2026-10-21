@@ -23,7 +23,6 @@ class Store private constructor(ctx: Context) :
             inst ?: synchronized(this) {
                 inst ?: Store(ctx.applicationContext).also { inst = it }
             }
-        const val MAX_CATEGORIES = 15
         private const val SYNC_COLS = "uid TEXT, rev INTEGER DEFAULT 0, dirty INTEGER DEFAULT 1, deleted INTEGER DEFAULT 0"
     }
 
@@ -418,9 +417,8 @@ class Store private constructor(ctx: Context) :
     fun categoryName(id: Int): String =
         if (id == 0) "Unfiled" else (categories + memoCategories + addressCategories).firstOrNull { it.id == id }?.name ?: "Unfiled"
 
-    fun addCategory(name: String, app: Int = 0): Category? {
+    fun addCategory(name: String, app: Int = 0): Category {
         val list = categoriesFor(app)
-        if (list.size >= MAX_CATEGORIES) return null
         val id = writableDatabase.rawQuery("SELECT IFNULL(MAX(id), 0) + 1 FROM categories", null).use { it.moveToFirst(); it.getInt(0) }
         val cat = Category(id, name, app, uid = java.util.UUID.randomUUID().toString())
         writableDatabase.insert("categories", null, ContentValues().apply {

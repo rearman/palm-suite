@@ -87,7 +87,7 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 - Priority 1 to 5, due date, category, private and note.
 - Show Options: sort order, completed items, only due items, completion date
   and the columns to show.
-- Up to 15 categories.
+- Any number of categories, with names of any length.
 
 ## Memo Pad
 

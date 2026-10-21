@@ -31,7 +31,7 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 
 - Priority 1 to 5, due date, category, private and note.
 - Show options: sort order, completed items, only due items, completion date, and the columns to show.
-- Up to 15 categories.
+- Any number of categories, with names of any length.
 - Type a character when no item is selected to start a new item with that text.
 - Press Backspace in an empty item to delete it. An item with a note stays.
 

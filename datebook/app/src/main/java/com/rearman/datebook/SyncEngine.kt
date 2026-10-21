@@ -230,16 +230,15 @@ private class AndroidSyncStore(private val store: Store, private val prefs: Pref
 
     override fun dropRemote(table: String, uid: String) = store.dropRemote(table, uid)
 
-    /** Keeps a copy of a local record as a new record, for the keep-both rule. False when categories are full. */
-    override fun saveCopy(record: Any): Boolean {
+    /** Keeps a copy of a local record as a new record, for the keep-both rule. */
+    override fun saveCopy(record: Any) {
         when (record) {
             is Event -> store.save(record.deepCopy().copy(id = 0, uid = ""))
             is Todo -> store.save(record.copy(id = 0, uid = ""))
             is Memo -> store.save(record.copy(id = 0, uid = ""))
             is Address -> store.save(record.copy(id = 0, uid = ""))
-            is Category -> return store.addCategory(record.name + " (copy)", record.app) != null
+            is Category -> store.addCategory(record.name + " (copy)", record.app)
         }
-        return true
     }
 
     override val shortCuts: List<Pair<String, String>>

@@ -65,18 +65,17 @@ class SyncRunnerTest {
             rows.remove(uid)
         }
 
-        override fun saveCopy(record: Any): Boolean {
+        override fun saveCopy(record: Any) {
             val uid = "copy-" + (copies.size + 1)
             val (table, rec) = when (record) {
                 is Event -> "events" to record.copy(uid = uid)
                 is Todo -> "todos" to record.copy(uid = uid)
                 is Memo -> "memos" to record.copy(uid = uid)
                 is Category -> "categories" to record.copy(uid = uid)
-                else -> return false
+                else -> return
             }
             copies.add(rec)
             rows[uid] = Entry(table, uid, 0, true, false, rec)
-            return true
         }
 
         override fun setShortCutsFromSync(list: List<Pair<String, String>>, rev: Long) {

@@ -31,7 +31,7 @@ class DesktopStoreTest {
 	@Test
 	fun saveThenReopenKeepsRecords() {
 		val store = DesktopStore.open(file())
-		val work = store.addCategory("Work", 0)!!
+		val work = store.addCategory("Work", 0)
 		store.save(Event(title = "Dentist", date = day, start = 600, end = 630, alarm = true, alarmAdvance = 10,
 			repeat = Repeat.WEEK, weekDays = 2, repeatEnd = day + 60))
 		store.save(Event(title = "Lunch", date = day, untimed = true))
@@ -90,7 +90,7 @@ class DesktopStoreTest {
 	@Test
 	fun dropRemoteCategoryMovesTodosToUnfiled() {
 		val store = DesktopStore.open(file())
-		val work = store.addCategory("Work", 0)!!
+		val work = store.addCategory("Work", 0)
 		val t = Todo(title = "Task", category = work.id)
 		store.save(t)
 		store.markSynced("todos", t.uid, 3, clean = true)

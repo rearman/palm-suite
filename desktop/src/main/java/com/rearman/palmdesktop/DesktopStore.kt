@@ -16,7 +16,6 @@ import java.util.UUID
 class DesktopStore private constructor(private val file: File) : SyncStore {
 
 	companion object {
-		const val MAX_CATEGORIES = 15
 		private val tables = listOf("categories", "events", "todos", "memos", "addresses")
 
 		/** Loads the store from [file]. A missing file gives a new store with the 4 default categories. */
@@ -159,16 +158,16 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		changed()
 	}
 
-	fun addCategory(name: String, app: Int): Category? {
-		val cat = newCategory(name, app) ?: return null
+	/** Adds a category for [app] and saves. Returns the new category. */
+	fun addCategory(name: String, app: Int): Category {
+		val cat = newCategory(name, app)
 		changed()
 		return cat
 	}
 
-	/** Adds a dirty category and does not save. Null when the app has [MAX_CATEGORIES] categories. */
-	private fun newCategory(name: String, app: Int): Category? {
+	/** Adds a dirty category and does not save. Returns the new category. */
+	private fun newCategory(name: String, app: Int): Category {
 		val list = categoriesFor(app)
-		if (list.size >= MAX_CATEGORIES) return null
 		val id = nextId("categories").toInt()
 		val cat = Category(id, name, app, UUID.randomUUID().toString())
 		markDirty("categories", id.toLong(), cat.uid)
@@ -305,22 +304,17 @@ class DesktopStore private constructor(private val file: File) : SyncStore {
 		persist()
 	}
 
-	/** Keeps [record] as a new dirty record with a new uid. False when the categories are full. */
-	override fun saveCopy(record: Any): Boolean {
+	/** Keeps [record] as a new dirty record with a new uid. Other record types are skipped. */
+	override fun saveCopy(record: Any) {
 		when (record) {
 			is Event -> putEvent(record.deepCopy().apply { id = 0; uid = "" })
 			is Todo -> putTodo(record.copy(id = 0, uid = ""))
 			is Memo -> putMemo(record.copy(id = 0, uid = ""))
 			is Address -> putAddress(record.copy(id = 0, uid = ""))
-			is Category -> {
-				val added = newCategory(record.name, record.app) != null
-				if (added) persist()
-				return added
-			}
-			else -> return false
+			is Category -> newCategory(record.name, record.app)
+			else -> return
 		}
 		persist()
-		return true
 	}
 
 	override fun setShortCutsFromSync(list: List<Pair<String, String>>, rev: Long) {
