@@ -1,9 +1,7 @@
 package com.rearman.palmdesktop
 
 import com.rearman.datebook.*
-import org.json.JSONArray
 import org.json.JSONException
-import org.json.JSONObject
 import java.awt.Component
 import java.io.File
 import java.io.IOException
@@ -16,7 +14,6 @@ import javax.swing.filechooser.FileNameExtensionFilter
 
 /** Import and export of Date Book records: iCalendar files, the Date Book backup file and vCard files. */
 object Transfer {
-	private const val FORMAT = "datebook-backup-1"
 
 	/** Exports the records of [view]: the visible addresses as vCard in the Address Book, else the Date Book. */
 	fun exportFile(owner: Component, view: String) {
@@ -127,106 +124,61 @@ object Transfer {
 	}
 
 	private fun importJson(text: String): String {
-		val root = JSONObject(text)
-		if (root.optString("format") != FORMAT) throw JSONException("Not a Date Book backup.")
-
-		// Read every record before the first write, so that a bad record adds nothing.
-		val events = root.optJSONArray("events").objects().map(::eventFrom)
-		val todos = root.optJSONArray("todos").objects().map { o ->
-			Todo(
-				title = o.optString("title"), note = o.optString("note"),
-				priority = o.optInt("priority", 1), due = o.optLong("due", -1),
-				done = o.optBoolean("done"), isPrivate = o.optBoolean("private")
-			) to o.optString("category", "Unfiled")
-		}
-		val memos = root.optJSONArray("memos").objects().map { o ->
-			Memo(text = o.optString("text"), isPrivate = o.optBoolean("private")) to o.optString("category", "Unfiled")
-		}
-
 		val store = App.store
-		for (n in root.optJSONArray("categories").strings()) {
-			if (store.categories.none { it.name.equals(n, true) }) store.addCategory(n, 0)
+		// Read every record before the first write, so that a bad record adds nothing.
+		// A category that does not exist yet gets a provisional id (-1, -2, ...) and is created after the read.
+		val made = mutableMapOf<Pair<Int, String>, Pair<String, Int>>()  // (app, name ignoring case) to (name, provisional id)
+		val content = Backup.read(text) { name, app ->
+			store.categoriesFor(app).firstOrNull { it.name.equals(name, true) }?.id
+				?: made.getOrPut(app to name.lowercase()) { name to -(made.size + 1) }.second
 		}
-		for (n in root.optJSONArray("memoCategories").strings()) {
-			if (store.memoCategories.none { it.name.equals(n, true) }) store.addCategory(n, 1)
-		}
+		val remap = made.entries.associate { (key, v) -> v.second to store.addCategory(v.first, key.first).id }
+		fun realId(id: Int): Int = if (id < 0) remap[id] ?: 0 else id
+		for (t in content.todos) t.category = realId(t.category)
+		for (m in content.memos) m.category = realId(m.category)
+		for (a in content.addresses) a.category = realId(a.category)
 
 		var skipped = 0
 		val haveEvents = store.events.mapTo(HashSet()) { it.dupKey() }
 		var ne = 0
-		for (e in events) {
+		for (e in content.events) {
 			if (e.dupKey() in haveEvents) { skipped++; continue }
 			store.save(e)
 			ne++
 		}
 		val haveTodos = store.todos.mapTo(HashSet()) { it.dupKey() }
 		var nt = 0
-		for ((t, catName) in todos) {
-			t.category = store.categories.firstOrNull { it.name.equals(catName, true) }?.id ?: 0
+		for (t in content.todos) {
 			if (t.dupKey() in haveTodos) { skipped++; continue }
 			store.save(t)
 			nt++
 		}
 		val haveMemos = store.memos.mapTo(HashSet()) { it.dupKey() }
 		var nm = 0
-		for ((m, catName) in memos) {
-			m.category = store.memoCategories.firstOrNull { it.name.equals(catName, true) }?.id ?: 0
+		for (m in content.memos) {
 			if (m.dupKey() in haveMemos) { skipped++; continue }
 			store.save(m)
 			nm++
 		}
-		return "Added $ne events, $nt To Do items and $nm memos. Skipped $skipped duplicate records."
+		val haveAddresses = store.addresses.mapTo(HashSet()) { it.dupKey() }
+		var na = 0
+		for (a in content.addresses) {
+			if (a.dupKey() in haveAddresses) { skipped++; continue }
+			store.save(a)
+			na++
+		}
+		return "Added $ne events, $nt To Do items, $nm memos and $na addresses. Skipped $skipped duplicate records."
 	}
 
-	private fun eventFrom(o: JSONObject) = Event(
-		title = o.optString("title"), note = o.optString("note"),
-		date = o.getLong("date"), untimed = o.optBoolean("untimed"),
-		start = o.optInt("start", 480), end = o.optInt("end", 540),
-		alarm = o.optBoolean("alarm"), alarmAdvance = o.optInt("alarmAdvance", 5),
-		alarmUnit = o.optInt("alarmUnit"), repeat = o.optInt("repeat"),
-		every = o.optInt("every", 1), repeatEnd = o.optLong("repeatEnd", -1),
-		weekDays = o.optInt("weekDays"), exceptions = o.optJSONArray("exceptions").longs().toMutableSet(),
-		isPrivate = o.optBoolean("private")
-	)
-
-	// The same keys and values as Store.exportJson in the Android app.
-
+	/** The backup file. Backup.write gives the same keys and values as the Android app. */
 	private fun backupJson(): String {
 		val s = App.store
-		val root = JSONObject()
-		root.put("format", FORMAT)
-		root.put("categories", JSONArray(s.categories.map { it.name }))
-		root.put("memoCategories", JSONArray(s.memoCategories.map { it.name }))
-		root.put("events", JSONArray(s.events.map { eventJson(it) }))
-		root.put("todos", JSONArray(s.todos.map { todoJson(it) }))
-		root.put("memos", JSONArray(s.memos.map { memoJson(it) }))
-		return root.toString(1)
+		return Backup.write(
+			Backup.Content(
+				s.events, s.todos, s.memos, s.addresses,
+				s.categories.map { it.name }, s.memoCategories.map { it.name }, s.addressCategories.map { it.name }
+			),
+			s::categoryName
+		)
 	}
-
-	private fun eventJson(e: Event) = JSONObject().apply {
-		put("title", e.title); put("note", e.note); put("date", e.date); put("untimed", e.untimed)
-		put("start", e.start); put("end", e.end); put("alarm", e.alarm)
-		put("alarmAdvance", e.alarmAdvance); put("alarmUnit", e.alarmUnit)
-		put("repeat", e.repeat); put("every", e.every); put("repeatEnd", e.repeatEnd)
-		put("weekDays", e.weekDays); put("exceptions", JSONArray(e.exceptions.sorted()))
-		put("private", e.isPrivate)
-	}
-
-	private fun todoJson(t: Todo) = JSONObject().apply {
-		put("title", t.title); put("note", t.note); put("priority", t.priority); put("due", t.due)
-		put("done", t.done); put("category", App.store.categoryName(t.category)); put("private", t.isPrivate)
-	}
-
-	private fun memoJson(m: Memo) = JSONObject().apply {
-		put("text", m.text); put("category", App.store.categoryName(m.category)); put("private", m.isPrivate)
-	}
-
-	private fun JSONArray?.objects(): List<JSONObject> =
-		if (this == null) emptyList() else List(length()) { getJSONObject(it) }
-
-	private fun JSONArray?.strings(): List<String> =
-		if (this == null) emptyList() else List(length()) { getString(it) }
-
-	private fun JSONArray?.longs(): List<Long> =
-		if (this == null) emptyList() else List(length()) { getLong(it) }
 }

@@ -341,8 +341,6 @@ class Store private constructor(ctx: Context) :
     private fun jsonStrings(s: String, n: Int): List<String> = JSONArray(s.ifBlank { "[]" }).strings(n)
 
     private fun JSONArray?.strings(n: Int): List<String> = List(n) { i -> this?.optString(i, "") ?: "" }
-    private fun JSONArray?.ints(n: Int): List<Int> =
-        List(n) { i -> (this?.optInt(i, i) ?: i).coerceIn(0, Address.LABELS.size - 1) }
 
     private fun addressValues(a: Address) = ContentValues().apply {
         put("last", a.lastName); put("first", a.firstName); put("title", a.title); put("company", a.company)
@@ -711,44 +709,11 @@ class Store private constructor(ctx: Context) :
 
     // ---- backup ----
 
-    fun eventJson(e: Event) = JSONObject().apply {
-        put("title", e.title); put("note", e.note); put("date", e.date); put("untimed", e.untimed)
-        put("start", e.start); put("end", e.end); put("alarm", e.alarm)
-        put("alarmAdvance", e.alarmAdvance); put("alarmUnit", e.alarmUnit)
-        put("repeat", e.repeat); put("every", e.every); put("repeatEnd", e.repeatEnd)
-        put("weekDays", e.weekDays); put("exceptions", JSONArray(e.exceptions.sorted()))
-        put("private", e.isPrivate)
-    }
-
-    fun todoJson(t: Todo) = JSONObject().apply {
-        put("title", t.title); put("note", t.note); put("priority", t.priority); put("due", t.due)
-        put("done", t.done); put("category", categoryName(t.category)); put("private", t.isPrivate)
-    }
-
-    fun memoJson(m: Memo) = JSONObject().apply {
-        put("text", m.text); put("category", categoryName(m.category)); put("private", m.isPrivate)
-    }
-
-    fun addressJson(a: Address) = JSONObject().apply {
-        put("lastName", a.lastName); put("firstName", a.firstName); put("title", a.title); put("company", a.company)
-        put("phoneLabels", JSONArray(a.phoneLabels)); put("phones", JSONArray(a.phones))
-        put("address", a.address); put("city", a.city); put("state", a.state); put("zip", a.zip)
-        put("country", a.country); put("custom", JSONArray(a.custom)); put("note", a.note)
-        put("showPhone", a.showPhone); put("category", categoryName(a.category)); put("private", a.isPrivate)
-    }
-
-    fun exportJson(evs: List<Event> = events, tds: List<Todo> = todos, mms: List<Memo> = memos, ads: List<Address> = addresses): String {
-        val root = JSONObject()
-        root.put("format", "datebook-backup-1")
-        root.put("categories", JSONArray(categories.map { it.name }))
-        root.put("memoCategories", JSONArray(memoCategories.map { it.name }))
-        root.put("addressCategories", JSONArray(addressCategories.map { it.name }))
-        root.put("events", JSONArray(evs.map { eventJson(it) }))
-        root.put("todos", JSONArray(tds.map { todoJson(it) }))
-        root.put("memos", JSONArray(mms.map { memoJson(it) }))
-        root.put("addresses", JSONArray(ads.map { addressJson(it) }))
-        return root.toString(1)
-    }
+    fun exportJson(evs: List<Event> = events, tds: List<Todo> = todos, mms: List<Memo> = memos, ads: List<Address> = addresses): String =
+        Backup.write(
+            Backup.Content(evs, tds, mms, ads, categories.map { it.name }, memoCategories.map { it.name }, addressCategories.map { it.name }),
+            ::categoryName
+        )
 
     /** Record counts of one import. */
     data class ImportCount(val events: Int, val todos: Int, val memos: Int, val skipped: Int, val addresses: Int = 0)
@@ -758,7 +723,6 @@ class Store private constructor(ctx: Context) :
      * and is skipped. Equal records in the file itself are all added.
      */
     fun importJson(text: String): ImportCount {
-        val root = JSONObject(text)
         val db = writableDatabase
         val haveEvents = events.mapTo(HashSet()) { it.dupKey() }
         val haveTodos = todos.mapTo(HashSet()) { it.dupKey() }
@@ -771,93 +735,29 @@ class Store private constructor(ctx: Context) :
         var ns = 0
         db.beginTransaction()
         try {
-            root.optJSONArray("categories")?.let { arr ->
-                for (i in 0 until arr.length()) {
-                    val n = arr.getString(i)
-                    if (categories.none { it.name.equals(n, true) }) addCategory(n)
-                }
+            // The read creates each category the file names, before any record is saved.
+            val content = Backup.read(text) { name, app ->
+                (categoriesFor(app).firstOrNull { it.name.equals(name, true) } ?: addCategory(name, app)).id
             }
-            root.optJSONArray("memoCategories")?.let { arr ->
-                for (i in 0 until arr.length()) {
-                    val n = arr.getString(i)
-                    if (memoCategories.none { it.name.equals(n, true) }) addCategory(n, 1)
-                }
+            for (e in content.events) {
+                if (e.dupKey() in haveEvents) { ns++; continue }
+                save(e)
+                ne++
             }
-            root.optJSONArray("addressCategories")?.let { arr ->
-                for (i in 0 until arr.length()) {
-                    val n = arr.getString(i)
-                    if (addressCategories.none { it.name.equals(n, true) }) addCategory(n, 2)
-                }
+            for (t in content.todos) {
+                if (t.dupKey() in haveTodos) { ns++; continue }
+                save(t)
+                nt++
             }
-            root.optJSONArray("events")?.let { arr ->
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    val exc = mutableSetOf<Long>()
-                    o.optJSONArray("exceptions")?.let { x -> for (k in 0 until x.length()) exc.add(x.getLong(k)) }
-                    val e = Event(
-                        title = o.optString("title"), note = o.optString("note"),
-                        date = o.getLong("date"), untimed = o.optBoolean("untimed"),
-                        start = o.optInt("start", 480), end = o.optInt("end", 540),
-                        alarm = o.optBoolean("alarm"), alarmAdvance = o.optInt("alarmAdvance", 5),
-                        alarmUnit = o.optInt("alarmUnit"), repeat = o.optInt("repeat"),
-                        every = o.optInt("every", 1), repeatEnd = o.optLong("repeatEnd", -1),
-                        weekDays = o.optInt("weekDays"), exceptions = exc,
-                        isPrivate = o.optBoolean("private")
-                    )
-                    if (e.dupKey() in haveEvents) { ns++; continue }
-                    save(e)
-                    ne++
-                }
+            for (m in content.memos) {
+                if (m.dupKey() in haveMemos) { ns++; continue }
+                save(m)
+                nm++
             }
-            root.optJSONArray("todos")?.let { arr ->
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    val catName = o.optString("category", "Unfiled")
-                    val cat = categories.firstOrNull { it.name.equals(catName, true) }?.id ?: 0
-                    val t = Todo(
-                        title = o.optString("title"), note = o.optString("note"),
-                        priority = o.optInt("priority", 1), due = o.optLong("due", -1),
-                        done = o.optBoolean("done"), category = cat,
-                        isPrivate = o.optBoolean("private")
-                    )
-                    if (t.dupKey() in haveTodos) { ns++; continue }
-                    save(t)
-                    nt++
-                }
-            }
-            root.optJSONArray("memos")?.let { arr ->
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    val catName = o.optString("category", "Unfiled")
-                    val cat = memoCategories.firstOrNull { it.name.equals(catName, true) }?.id ?: 0
-                    val m = Memo(
-                        text = o.optString("text"), category = cat,
-                        isPrivate = o.optBoolean("private")
-                    )
-                    if (m.dupKey() in haveMemos) { ns++; continue }
-                    save(m)
-                    nm++
-                }
-            }
-            root.optJSONArray("addresses")?.let { arr ->
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    val catName = o.optString("category", "Unfiled")
-                    val cat = addressCategories.firstOrNull { it.name.equals(catName, true) }?.id ?: 0
-                    val a = Address(
-                        lastName = o.optString("lastName"), firstName = o.optString("firstName"),
-                        title = o.optString("title"), company = o.optString("company"),
-                        phoneLabels = o.optJSONArray("phoneLabels").ints(5), phones = o.optJSONArray("phones").strings(5),
-                        address = o.optString("address"), city = o.optString("city"), state = o.optString("state"),
-                        zip = o.optString("zip"), country = o.optString("country"),
-                        custom = o.optJSONArray("custom").strings(4), note = o.optString("note"),
-                        showPhone = o.optInt("showPhone").coerceIn(0, 4), category = cat,
-                        isPrivate = o.optBoolean("private")
-                    )
-                    if (a.dupKey() in haveAddresses) { ns++; continue }
-                    save(a)
-                    na++
-                }
+            for (a in content.addresses) {
+                if (a.dupKey() in haveAddresses) { ns++; continue }
+                save(a)
+                na++
             }
             db.setTransactionSuccessful()
         } finally {
