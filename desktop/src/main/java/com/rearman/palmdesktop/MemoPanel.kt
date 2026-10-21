@@ -6,7 +6,6 @@ import java.awt.Component
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
-import java.awt.GridLayout
 import java.awt.Insets
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
@@ -225,18 +224,9 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	fun listBy() {
-		val manual = JRadioButton("Order on handheld").apply { mnemonic = KeyEvent.VK_O; font = Theme.font }
-		val alpha = JRadioButton("Alphabetical").apply { mnemonic = KeyEvent.VK_A; font = Theme.font }
-		ButtonGroup().apply { add(manual); add(alpha) }
-		if (Settings.get("memoSort", "0") == "1") alpha.isSelected = true else manual.isSelected = true
-		val panel = JPanel(GridLayout(0, 1)).apply {
-			border = BorderFactory.createTitledBorder("Record Order")
-			add(manual)
-			add(alpha)
-		}
-		val ok = JOptionPane.showConfirmDialog(this, panel, "List By", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
-		if (ok != JOptionPane.OK_OPTION) return
-		Settings.set("memoSort", if (alpha.isSelected) "1" else "0")
+		val order = ListByDialog.show(this, "Record Order", listOf("Order on handheld" to 'O', "Alphabetical" to 'A'),
+			if (Settings.get("memoSort", "0") == "1") 1 else 0) ?: return
+		Settings.set("memoSort", order.toString())
 		App.refresh()
 	}
 

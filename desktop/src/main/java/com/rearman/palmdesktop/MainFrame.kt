@@ -330,7 +330,7 @@ class MainFrame : JFrame("Palm Desktop") {
 			m.add(onlyIn(JPopupMenu.Separator(), "memo"))
 			m.add(onlyIn(item("List By...", 'L') { (memoPanel as? MemoPanel)?.listBy() }, "memo"))
 			m.add(onlyIn(JPopupMenu.Separator(), "address"))
-			m.add(onlyIn(item("List By...", 'L') { ListByDialog.show(this) }, "address"))
+			m.add(onlyIn(item("List By...", 'L') { showAddressListBy(this) }, "address"))
 		})
 		bar.add(menu("Tools", 'T').also { m ->
 			categoriesItem = item("Categories...", 'C') {

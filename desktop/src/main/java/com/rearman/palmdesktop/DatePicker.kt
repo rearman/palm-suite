@@ -5,7 +5,6 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.Dialog
-import java.awt.FlowLayout
 import java.awt.GridLayout
 import java.awt.Insets
 import java.awt.event.ActionEvent
@@ -111,7 +110,8 @@ private class Picker(private val owner: Component, private val mode: String, day
 			}
 		}
 		dialog.rootPane.defaultButton = okButton
-		val buttons = JPanel(FlowLayout(FlowLayout.CENTER, 4, 0)).apply {
+		// Three equal cells span the calendar's width, as in Select Date.
+		val buttons = JPanel(GridLayout(1, 3, 4, 0)).apply {
 			add(okButton)
 			add(cancelButton)
 			add(todayButton)

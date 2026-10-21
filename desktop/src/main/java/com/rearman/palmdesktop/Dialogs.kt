@@ -75,23 +75,25 @@ object OptionsDialog {
 		startCombo.selectedIndex = startViews.indexOfFirst { it.first == Settings.get("startView", "date") }.coerceAtLeast(0)
 		val confirmBox = JCheckBox("Confirm before deleting records", Settings.getBool("confirmDelete", true)).withFont().key('C')
 		val general = JPanel(BorderLayout(0, 8)).apply {
-			add(formPanel(listOf(keyed("Startup application:", 'S', startCombo) to startCombo)), BorderLayout.NORTH)
+			border = EmptyBorder(20, 20, 20, 20)
+			add(formPanel(listOf(keyed("Startup application:", 'S', startCombo) to startCombo), GridBagConstraints.EAST, 6), BorderLayout.NORTH)
 			add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply { add(confirmBox) }, BorderLayout.CENTER)
 		}
 
-		// Date Book values. The amount and the unit are on only when the alarm preset is.
+		// Date Book values. The amount and the unit show only when the alarm preset is checked.
 		val workCombo = JComboBox(Array(24) { timeLabel(it * 60) }).withFont().apply { selectedIndex = DateSettings.workDay }
 		val weekCombo = JComboBox(arrayOf("Sunday", "Monday")).withFont().apply { selectedIndex = DateSettings.weekBegins }
 		val presetBox = JCheckBox().withFont().apply { isSelected = DateSettings.alarmPreset }
 		val presetAmount = countSpinner(DateSettings.alarmPresetAmount, 1).withFont()
 		val presetUnit = JComboBox(arrayOf("Minutes", "Hours", "Days")).withFont().apply { selectedIndex = DateSettings.alarmPresetUnit }
 		fun refreshPreset() {
-			presetAmount.isEnabled = presetBox.isSelected
-			presetUnit.isEnabled = presetBox.isSelected
+			presetAmount.isVisible = presetBox.isSelected
+			presetUnit.isVisible = presetBox.isSelected
 		}
 		presetBox.addActionListener { refreshPreset() }
 		refreshPreset()
-		val dateBook = JPanel(BorderLayout(0, 8)).apply {
+		val dateBook = JPanel(BorderLayout()).apply {
+			border = EmptyBorder(20, 20, 20, 20)
 			add(formPanel(listOf(
 				keyed("Work day begins:", 'd', workCombo) to workCombo,
 				keyed("Week begins:", 'W', weekCombo) to weekCombo,
@@ -100,7 +102,7 @@ object OptionsDialog {
 					add(presetAmount)
 					add(presetUnit)
 				},
-			)), BorderLayout.NORTH)
+			), GridBagConstraints.EAST, 6).apply { border = BorderFactory.createTitledBorder("Date and Time") }, BorderLayout.NORTH)
 		}
 
 		fun save() {
@@ -230,6 +232,37 @@ object OptionsDialog {
 
 object SyncDialog {
 	fun show(owner: Component) = OptionsDialog.show(owner, "sync")
+}
+
+// List By form for the Address Book and the Memo Pad: one radio per choice in a titled group, then OK and Cancel.
+// Returns the index of the chosen radio on OK, null on Cancel.
+object ListByDialog {
+	fun show(owner: Component, groupTitle: String, choices: List<Pair<String, Char>>, selected: Int): Int? {
+		val d = dialog(owner, "List By")
+		val radios = choices.map { (text, key) -> JRadioButton(text).withFont().key(key) }
+		radios[selected].isSelected = true
+		ButtonGroup().apply { radios.forEach { add(it) } }
+		var result: Int? = null
+		val okBtn = button("OK")
+		val cancelBtn = button("Cancel")
+		okBtn.onClick {
+			result = radios.indexOfFirst { it.isSelected }
+			d.dispose()
+		}
+		cancelBtn.onClick { d.dispose() }
+		d.rootPane.defaultButton = okBtn
+		val group = JPanel(GridLayout(0, 1, 0, 6)).apply {
+			border = BorderFactory.createTitledBorder(groupTitle).apply { titleFont = Theme.font }
+			radios.forEach { add(it) }
+		}
+		// Two equal buttons. The grid stretches them to the width of the group box.
+		val buttons = JPanel(GridLayout(1, 2, 6, 0)).apply {
+			add(okBtn)
+			add(cancelBtn)
+		}
+		present(d, owner, group, buttons)
+		return result
+	}
 }
 
 /** The last item of every category drop-down list, as in Palm Desktop. */
@@ -593,40 +626,6 @@ object PurgeDialog {
 	}
 }
 
-// Address Book: sets the order of the list. Saves "addressListBy" (0 last name first, 1 company first).
-object ListByDialog {
-	fun show(owner: Component) {
-		val d = dialog(owner, "List By")
-		val byName = JRadioButton("Last name, first name").withFont().key('L')
-		val byCompany = JRadioButton("Company, last name").withFont().key('C')
-		ButtonGroup().apply {
-			add(byName)
-			add(byCompany)
-		}
-		byCompany.isSelected = Settings.getInt("addressListBy", 0) == 1
-		byName.isSelected = !byCompany.isSelected
-
-		val okBtn = button("OK")
-		val cancelBtn = button("Cancel")
-		okBtn.onClick {
-			Settings.setInt("addressListBy", if (byCompany.isSelected) 1 else 0)
-			d.dispose()
-			App.refresh()
-		}
-		cancelBtn.onClick { d.dispose() }
-		d.rootPane.defaultButton = okBtn
-
-		val group = JPanel(GridLayout(0, 1, 0, 6)).apply {
-			border = BorderFactory.createTitledBorder("Field Order").apply { titleFont = Theme.font }
-			add(byName)
-			add(byCompany)
-			// Template 2049 is 132 x 85 dlu, so the dialog is about 198 x 138 px.
-			preferredSize = Dimension(182, 78)
-		}
-		present(d, owner, group, bar(okBtn, cancelBtn))
-	}
-}
-
 // Address Book: the four custom field names. Saves "addressLabels" as a JSON array of four strings.
 object CustomLabelsDialog {
 	fun show(owner: Component) {
@@ -708,22 +707,23 @@ private fun present(d: JDialog, owner: Component, content: JComponent, buttons: 
 	d.isVisible = true
 }
 
-// Label and field rows. Labels sit in column 0, fields stretch in column 1.
-private fun formPanel(rows: List<Pair<JLabel, JComponent>>): JPanel {
+// Label and field rows. Labels sit in column 0, fields stretch in column 1. [labelAnchor] is WEST or EAST.
+// [rowGap] is the space above and below each row, in px.
+private fun formPanel(rows: List<Pair<JLabel, JComponent>>, labelAnchor: Int = GridBagConstraints.WEST, rowGap: Int = 4): JPanel {
 	val p = JPanel(GridBagLayout())
 	rows.forEachIndexed { y, (name, comp) ->
 		p.add(name, GridBagConstraints().apply {
 			gridx = 0
 			gridy = y
-			anchor = GridBagConstraints.WEST
-			insets = Insets(4, 8, 4, 6)
+			anchor = labelAnchor
+			insets = Insets(rowGap, 8, rowGap, 6)
 		})
 		p.add(comp, GridBagConstraints().apply {
 			gridx = 1
 			gridy = y
 			fill = GridBagConstraints.HORIZONTAL
 			weightx = 1.0
-			insets = Insets(4, 0, 4, 8)
+			insets = Insets(rowGap, 0, rowGap, 8)
 		})
 	}
 	return p

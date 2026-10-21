@@ -249,7 +249,7 @@ internal object AlarmDialog {
 		var ok = false
 		val box = JCheckBox("Alarm:", e.alarm).apply { font = Theme.font; mnemonic = KeyEvent.VK_A }
 		val amount = countSpinner(e.alarmAdvance, 1).apply { font = Theme.font }
-		val unit = JComboBox(arrayOf("Minutes", "Hours", "Days")).apply {
+		val unit = JComboBox(arrayOf("Minutes before", "Hours before", "Days before")).apply {
 			font = Theme.font
 			selectedIndex = e.alarmUnit.coerceIn(0, 2)
 		}
@@ -298,7 +298,7 @@ internal object AlarmDialog {
 
 /** Opens the note of [occ] and saves a change. A click on the note icon of a box does this too. */
 internal fun editNote(owner: Component, occ: Occ) {
-	NoteDialog.edit(owner, "Note", occ.event.note)?.let { text ->
+	NoteDialog.edit(owner, "Note Editor", occ.event.note)?.let { text ->
 		changeOccurrence(owner, occ, "Change the note for the current event only or for all occurrences?") {
 			it.note = text
 		}

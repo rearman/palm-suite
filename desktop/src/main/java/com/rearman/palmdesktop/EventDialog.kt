@@ -39,17 +39,26 @@ object RepeatDialog {
 	fun edit(owner: Component, e: Event): Boolean = RepeatForm(owner, e).show()
 }
 
-/** Note editor with word wrap. Returns the new text on OK, or null on Cancel. */
+/** Note Editor with word wrap and a toolbar. Returns the new text on OK, or null on Cancel. */
 object NoteDialog {
 	fun edit(owner: Component, title: String, text: String): String? {
 		val dlg = modalDialog(owner, title)
 		var result: String? = null
 		val area = JTextArea(text, 10, 32).themed().apply { lineWrap = true; wrapStyleWord = true }
-		val ok = JButton("OK").themed().apply { addActionListener { result = area.text; dlg.dispose() } }
-		val cancel = JButton("Cancel").themed().apply { addActionListener { dlg.dispose() } }
+		val history = TextUndo.manager(area)
+		val toolbar = JPanel(FlowLayout(FlowLayout.LEFT, 2, 2)).apply {
+			add(iconButton(Icons.cut(), "Cut") { area.cut() })
+			add(iconButton(Icons.copy(), "Copy") { area.copy() })
+			add(iconButton(Icons.paste(), "Paste") { area.paste() })
+			add(iconButton(Icons.undo(), "Undo") { if (history.canUndo()) history.undo() })
+		}
+		val scroll = JScrollPane(area, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER)
+		val ok = formButton("OK") { result = area.text; dlg.dispose() }
+		val cancel = formButton("Cancel") { dlg.dispose() }
 		dlg.isResizable = true
-		dlg.contentPane.add(JScrollPane(area), BorderLayout.CENTER)
-		dlg.contentPane.add(buttonRow(ok, cancel), BorderLayout.SOUTH)
+		dlg.contentPane.add(toolbar, BorderLayout.NORTH)
+		dlg.contentPane.add(scroll, BorderLayout.CENTER)
+		dlg.contentPane.add(JPanel(FlowLayout(FlowLayout.CENTER, 6, 6)).apply { add(ok); add(cancel) }, BorderLayout.SOUTH)
 		dlg.rootPane.defaultButton = ok
 		dlg.pack()
 		dlg.setLocationRelativeTo(owner)
@@ -78,7 +87,7 @@ private class EventForm(
 	private val repeatBtn = JButton().themed()
 	private val alarmBox = JCheckBox("", work.alarm).themed()
 	private val alarmAmount = countSpinner(work.alarmAdvance, 1).themed()
-	private val alarmUnit = JComboBox(arrayOf("Minutes", "Hours", "Days")).themed()
+	private val alarmUnit = JComboBox(arrayOf("Minutes before", "Hours before", "Days before")).themed()
 		.apply { selectedIndex = work.alarmUnit.coerceIn(0, 2) }
 	private val alarmLine = line(alarmAmount, alarmUnit).apply { isVisible = work.alarm }
 	private val privateBox = JCheckBox("", work.isPrivate).themed()
@@ -169,7 +178,7 @@ private class EventForm(
 	}
 
 	private fun pickNote() {
-		NoteDialog.edit(dlg, "Note", work.note)?.let {
+		NoteDialog.edit(dlg, "Note Editor", work.note)?.let {
 			work.note = it
 			noteField.text = firstLine(it)
 		}
@@ -488,9 +497,6 @@ private fun <T : JComponent> T.themed(): T = apply { font = Theme.font }
 private fun line(vararg parts: Component): JPanel =
 	JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply { parts.forEach { add(it) } }
 
-private fun buttonRow(vararg buttons: JButton): JPanel =
-	JPanel(FlowLayout(FlowLayout.RIGHT, 6, 6)).apply { buttons.forEach { add(it) } }
-
 private fun readOnlyField(): JTextField = JTextField(9).themed().apply { isEditable = false }
 
 /** The text of an untimed start or end field. */
@@ -573,18 +579,22 @@ private fun selectTime(owner: Component, t: Event): Boolean {
 	var ok = false
 	var editStart = true
 	var syncing = false
-	val startRadio = JRadioButton("Start time:").themed().apply { mnemonic = KeyEvent.VK_S }
-	val endRadio = JRadioButton("End time:").themed().apply { mnemonic = KeyEvent.VK_E }
-	val startShow = readOnlyField()
-	val endShow = readOnlyField()
+	val startRadio = JRadioButton().themed().apply { mnemonic = KeyEvent.VK_S }
+	val endRadio = JRadioButton().themed().apply { mnemonic = KeyEvent.VK_E }
+	val startLabel = JLabel("Start time:").themed().apply { labelFor = startRadio }
+	val endLabel = JLabel("End time:").themed().apply { labelFor = endRadio }
+	val startShow = readOnlyField().apply { columns = 6 }
+	val endShow = readOnlyField().apply { columns = 6 }
 	val noTime = JButton("No Time").themed().apply { mnemonic = KeyEvent.VK_N }
-	val hours = JList(Array(24) { timeLabel(it * 60) }).themed().apply {
+	/** Two digits and no minutes, in 24 h or 12 h to match the Time setting. */
+	fun hourLabel(h: Int): String = "%02d".format(if (Fmt.h24) h else (h + 11) % 12 + 1)
+	val hours = JList(Array(24) { hourLabel(it) }).themed().apply {
 		selectionMode = ListSelectionModel.SINGLE_SELECTION
-		visibleRowCount = 8
+		visibleRowCount = 12
 	}
 	val minutes = JList(Array(12) { "%02d".format(it * 5) }).themed().apply {
 		selectionMode = ListSelectionModel.SINGLE_SELECTION
-		visibleRowCount = 8
+		visibleRowCount = 12
 	}
 
 	fun activeTime(): Int = if (editStart) t.start else t.end
@@ -627,16 +637,17 @@ private fun selectTime(owner: Component, t: Event): Boolean {
 	endRadio.addActionListener { editStart = false; refresh() }
 	startRadio.isSelected = true
 	noTime.addActionListener { t.untimed = true; ok = true; dlg.dispose() }
-	val okBtn = JButton("OK").themed().apply { addActionListener { ok = true; dlg.dispose() } }
-	val cancel = JButton("Cancel").themed().apply { addActionListener { dlg.dispose() } }
+	val okBtn = formButton("OK") { ok = true; dlg.dispose() }
+	val cancel = formButton("Cancel") { dlg.dispose() }
 
-	val left = JPanel(GridLayout(0, 1, 0, 6)).apply {
-		add(startRadio)
-		add(startShow)
-		add(endRadio)
-		add(endShow)
-		add(noTime)
+	// Top-aligned stack at natural heights: BoxLayout would stretch the rows, so each row is capped at its preferred height.
+	val rows = JPanel().apply {
+		layout = BoxLayout(this, BoxLayout.Y_AXIS)
+		listOf<JComponent>(startLabel, line(startRadio, startShow), endLabel, line(endRadio, endShow), line(noTime)).forEach {
+			add(it.apply { alignmentX = Component.LEFT_ALIGNMENT; maximumSize = preferredSize })
+		}
 	}
+	val left = JPanel(BorderLayout()).apply { add(rows, BorderLayout.NORTH) }
 	val right = JPanel(GridLayout(1, 2, 8, 0)).apply {
 		add(JScrollPane(hours))
 		add(JScrollPane(minutes))
@@ -646,7 +657,7 @@ private fun selectTime(owner: Component, t: Event): Boolean {
 		add(right, BorderLayout.CENTER)
 	}
 	dlg.contentPane.add(top, BorderLayout.CENTER)
-	dlg.contentPane.add(buttonRow(okBtn, cancel), BorderLayout.SOUTH)
+	dlg.contentPane.add(JPanel(FlowLayout(FlowLayout.CENTER, 6, 6)).apply { add(okBtn); add(cancel) }, BorderLayout.SOUTH)
 	dlg.rootPane.defaultButton = okBtn
 	refresh()
 	dlg.pack()

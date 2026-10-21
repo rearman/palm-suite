@@ -122,7 +122,7 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 			font = Theme.font
 			mnemonic = KeyEvent.VK_L
 			displayedMnemonicIndex = 0
-			addActionListener { ListByDialog.show(this@AddressPanel) }
+			addActionListener { showAddressListBy(this@AddressPanel) }
 		}
 		editButton.apply {
 			font = Theme.font
@@ -467,6 +467,14 @@ fun visibleAddresses(): List<Address> {
 
 /** True when the Address List sorts by company (Settings "addressListBy" 1). */
 private fun listByCompany() = Settings.getInt("addressListBy", 0) == 1
+
+/** The Address Book List By form. Saves "addressListBy" (0 last name first, 1 company first) on OK. */
+internal fun showAddressListBy(owner: Component) {
+	val choice = ListByDialog.show(owner, "Field Order",
+		listOf("Last name, first name" to 'L', "Company, last name" to 'C'), if (listByCompany()) 1 else 0) ?: return
+	Settings.setInt("addressListBy", choice)
+	App.refresh()
+}
 
 /** The title of an event made by dragging [a] to the Day view: the name and the number of its Address List row. */
 internal fun eventTitle(a: Address, byCompany: Boolean = listByCompany()): String =
