@@ -1,14 +1,20 @@
 package com.rearman.palmdesktop
 
 import com.rearman.datebook.Fmt
+import java.awt.AWTEvent
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Dimension
 import java.awt.Insets
 import java.awt.KeyboardFocusManager
+import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
+import java.awt.datatransfer.FlavorListener
+import java.awt.event.AWTEventListener
 import java.awt.event.ActionEvent
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
+import java.awt.event.MouseEvent
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.awt.print.PageFormat
@@ -34,6 +40,7 @@ import javax.swing.JMenuBar
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
 import javax.swing.JPanel
+import javax.swing.JPasswordField
 import javax.swing.JPopupMenu
 import javax.swing.JRadioButtonMenuItem
 import javax.swing.JTable
@@ -76,6 +83,12 @@ class MainFrame : JFrame("Palm Desktop") {
 	private lateinit var purgeItem: JMenuItem
 	private lateinit var undoItem: JMenuItem
 	private lateinit var undoButton: JButton
+	private lateinit var cutItem: JMenuItem
+	private lateinit var copyItem: JMenuItem
+	private lateinit var pasteItem: JMenuItem
+	private lateinit var cutButton: JButton
+	private lateinit var copyButton: JButton
+	private lateinit var pasteButton: JButton
 	private var current = "date"
 
 	init {
@@ -95,8 +108,19 @@ class MainFrame : JFrame("Palm Desktop") {
 		center.border = centerBorder(6)
 		contentPane.add(center, BorderLayout.CENTER)
 		contentPane.add(buildStatusBar(), BorderLayout.SOUTH)
-		TextUndo.onChange = { updateUndo() }
-		updateUndo()
+		TextUndo.onChange = { updateEditState() }
+		updateEditState()
+		// Selection and caret changes come from mouse and key releases. The listener runs before the
+		// component handles the event, so the state is read after it.
+		Toolkit.getDefaultToolkit().addAWTEventListener(AWTEventListener { e ->
+			if (e.id == MouseEvent.MOUSE_RELEASED || e.id == KeyEvent.KEY_RELEASED) {
+				SwingUtilities.invokeLater { updateEditState() }
+			}
+		}, AWTEvent.MOUSE_EVENT_MASK or AWTEvent.KEY_EVENT_MASK)
+		Toolkit.getDefaultToolkit().systemClipboard.addFlavorListener(FlavorListener {
+			if (SwingUtilities.isEventDispatchThread()) updateEditState()
+			else SwingUtilities.invokeLater { updateEditState() }
+		})
 		rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
 			.put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, InputEvent.SHIFT_DOWN_MASK), "deleteNoConfirm")
 		rootPane.actionMap.put("deleteNoConfirm", object : AbstractAction() {
@@ -214,16 +238,52 @@ class MainFrame : JFrame("Palm Desktop") {
 	private fun undo() {
 		val field = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner as? JTextComponent ?: return
 		TextUndo.manager(field).takeIf { it.canUndo() }?.undo()
-		updateUndo()
+		updateEditState()
 	}
 
-	/** Grays Undo unless the focused text field has an edit to undo. */
-	private fun updateUndo() {
-		val field = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner as? JTextComponent
+	/**
+	 * Grays the Edit items that do not apply to the focus owner, as Palm Desktop does. A text field gets Cut and
+	 * Copy with a selection, Paste when it is editable and the clipboard holds text. A record list gets them from
+	 * its selection and from [RecordTransfer.canPaste]. Undo needs an edit to undo in the focused text field.
+	 */
+	private fun updateEditState() {
+		val owner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+		val field = owner as? JTextComponent
+		val handler = (owner as? JComponent)?.transferHandler as? RecordTransfer<*>
+		var cut = false
+		var copy = false
+		var paste = false
+		if (field != null) {
+			val selected = field.selectionStart != field.selectionEnd
+			val plain = field !is JPasswordField
+			cut = field.isEditable && selected && plain
+			copy = selected && plain
+			paste = field.isEditable && clipboardHasText()
+		} else if (owner is JComponent && handler != null) {
+			val selected = when (owner) {
+				is JList<*> -> !owner.isSelectionEmpty
+				is JTable -> owner.selectedRowCount > 0
+				else -> false
+			}
+			cut = selected
+			copy = selected
+			paste = handler.canPaste(owner)
+		}
+		cutItem.isEnabled = cut
+		cutButton.isEnabled = cut
+		copyItem.isEnabled = copy
+		copyButton.isEnabled = copy
+		pasteItem.isEnabled = paste
+		pasteButton.isEnabled = paste
 		val can = field != null && TextUndo.manager(field).canUndo()
 		undoItem.isEnabled = can
 		undoButton.isEnabled = can
 	}
+
+	/** True when the system clipboard holds text. False when the clipboard cannot be read. */
+	private fun clipboardHasText(): Boolean = runCatching {
+		Toolkit.getDefaultToolkit().systemClipboard.getContents(null)?.isDataFlavorSupported(DataFlavor.stringFlavor) == true
+	}.getOrDefault(false)
 
 	private fun buildMenuBar(): JMenuBar {
 		val bar = JMenuBar()
@@ -244,9 +304,9 @@ class MainFrame : JFrame("Palm Desktop") {
 		bar.add(menu("Edit", 'E').also { m ->
 			m.add(item("Undo", 'U', KeyEvent.VK_Z, CTRL) { undo() }.also { undoItem = it })
 			m.addSeparator()
-			m.add(item("Cut", 't', KeyEvent.VK_X, CTRL) { transfer(TransferHandler.getCutAction()) })
-			m.add(item("Copy", 'C', KeyEvent.VK_C, CTRL) { transfer(TransferHandler.getCopyAction()) })
-			m.add(item("Paste", 'P', KeyEvent.VK_V, CTRL) { transfer(TransferHandler.getPasteAction()) })
+			m.add(item("Cut", 't', KeyEvent.VK_X, CTRL) { transfer(TransferHandler.getCutAction()) }.also { cutItem = it })
+			m.add(item("Copy", 'C', KeyEvent.VK_C, CTRL) { transfer(TransferHandler.getCopyAction()) }.also { copyItem = it })
+			m.add(item("Paste", 'P', KeyEvent.VK_V, CTRL) { transfer(TransferHandler.getPasteAction()) }.also { pasteItem = it })
 			m.add(item("Delete", 'D', KeyEvent.VK_DELETE) { currentView().deleteSelected() })
 			m.addSeparator()
 			m.add(item("Select All", 'A', KeyEvent.VK_A, CTRL) {
@@ -360,9 +420,9 @@ class MainFrame : JFrame("Palm Desktop") {
 		bar.add(toolButton(Icons.save(), "Save All") { saveAll() })
 		bar.add(toolButton(Icons.print(), "Print") { printView() })
 		bar.addSeparator()
-		bar.add(toolButton(Icons.cut(), "Cut") { transfer(TransferHandler.getCutAction()) })
-		bar.add(toolButton(Icons.copy(), "Copy") { transfer(TransferHandler.getCopyAction()) })
-		bar.add(toolButton(Icons.paste(), "Paste") { transfer(TransferHandler.getPasteAction()) })
+		bar.add(toolButton(Icons.cut(), "Cut") { transfer(TransferHandler.getCutAction()) }.also { cutButton = it })
+		bar.add(toolButton(Icons.copy(), "Copy") { transfer(TransferHandler.getCopyAction()) }.also { copyButton = it })
+		bar.add(toolButton(Icons.paste(), "Paste") { transfer(TransferHandler.getPasteAction()) }.also { pasteButton = it })
 		bar.add(toolButton(Icons.undo(), "Undo") { undo() }.also { undoButton = it })
 		bar.addSeparator()
 		bar.add(toolButton(Icons.find(), "Find") { FindDialog.show(this) })
@@ -421,7 +481,7 @@ class MainFrame : JFrame("Palm Desktop") {
 		val bar = JPanel(BorderLayout())
 		bar.border = BorderFactory.createCompoundBorder(
 			BorderFactory.createEtchedBorder(),
-			BorderFactory.createEmptyBorder(2, 4, 2, 6)
+			BorderFactory.createEmptyBorder(1, 4, 1, 6)
 		)
 		statusLabel.font = Theme.status
 		positionLabel.font = Theme.status
@@ -429,8 +489,8 @@ class MainFrame : JFrame("Palm Desktop") {
 			BorderFactory.createLoweredBevelBorder(),
 			BorderFactory.createEmptyBorder(0, 3, 0, 3)
 		)
-		// The label is empty here, so its height comes from the font and the bevel.
-		positionLabel.preferredSize = Dimension(90, positionLabel.getFontMetrics(Theme.status).height + 6)
+		// The official status panels are 17 px tall. The 12 px status font fits in that height.
+		positionLabel.preferredSize = Dimension(90, 17)
 		bar.add(statusLabel, BorderLayout.WEST)
 		bar.add(positionLabel, BorderLayout.EAST)
 		return bar

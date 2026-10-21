@@ -122,7 +122,24 @@ object Theme {
  * SwingConstants value such as WEST or EAST.
  */
 fun arrowButton(direction: Int, action: () -> Unit): javax.swing.JButton =
-	javax.swing.plaf.basic.BasicArrowButton(direction).apply { addActionListener { action() } }
+	javax.swing.plaf.basic.BasicArrowButton(direction, UIManager.getColor("Button.background") ?: Theme.panel, Theme.shadow, Color.BLACK, Color.WHITE)
+		.apply { addActionListener { action() } }
+
+/**
+ * The raised bar of the divider between a list and its detail pane, as in Palm Desktop: 8 px of panel gray,
+ * then six columns from left to right: white, light gray three times, shadow gray and black. The bar starts at x = 8.
+ */
+private val dividerBorder = object : javax.swing.border.AbstractBorder() {
+	private val columns = arrayOf(Color.WHITE, Color(200, 200, 200), Color(200, 200, 200), Color(200, 200, 200), Theme.shadow, Color.BLACK)
+	override fun paintBorder(c: java.awt.Component?, g: java.awt.Graphics, x: Int, y: Int, w: Int, h: Int) {
+		g.color = Theme.panel
+		g.fillRect(x, y, w, h)
+		for (i in columns.indices) {
+			g.color = columns[i]
+			g.fillRect(x + 8 + i, y, 1, h)
+		}
+	}
+}
 
 /**
  * Draws the Palm untimed-row mark centered on (cx, cy): a diamond of 2r + 1 pixel rows, 7 by 7 pixels
@@ -146,7 +163,8 @@ fun raisedCell(g: java.awt.Graphics, x: Int, y: Int, w: Int, h: Int) {
 }
 
 /**
- * A list beside a detail pane, parted by a divider the user drags. The list takes the extra width and the
+ * A list beside a detail pane, parted by a 14 px divider the user drags. The divider draws the raised bar of
+ * Palm Desktop, which is the edge between the list and the detail pane. The list takes the extra width and the
  * detail pane keeps its width, which is saved as the Settings key [key] when the divider is released.
  */
 fun detailSplit(list: JComponent, detail: JComponent, key: String, defaultWidth: Int): JSplitPane {
@@ -155,10 +173,10 @@ fun detailSplit(list: JComponent, detail: JComponent, key: String, defaultWidth:
 	list.minimumSize = Dimension(150, 0)
 	val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, list, detail)
 	split.resizeWeight = 1.0
-	split.dividerSize = 4
+	split.dividerSize = 14
 	split.border = null
 	(split.ui as? BasicSplitPaneUI)?.divider?.let { divider ->
-		divider.border = null
+		divider.border = dividerBorder
 		divider.addMouseListener(object : MouseAdapter() {
 			override fun mouseReleased(e: MouseEvent) = Settings.setInt(key, detail.width)
 		})

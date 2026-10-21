@@ -139,7 +139,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 			val kind = model.cols[col]
 			text = when (kind) {
 				2 -> item.title.replace('\n', ' ')
-				3 -> dueLabel(item)
+				3 -> dueHtml(item)
 				else -> value?.toString() ?: ""
 			}
 			icon = if (kind == 5) marks(item) else null
@@ -292,11 +292,6 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 	private fun buildDetails(): JPanel {
 		val p = JPanel(GridBagLayout())
-		// The raised edge between the list and the details, as in the Memo Pad.
-		p.border = BorderFactory.createCompoundBorder(
-			BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.grid),
-			BorderFactory.createMatteBorder(0, 1, 0, 0, Color.WHITE)
-		)
 		val c = GridBagConstraints()
 		c.insets = Insets(3, 4, 3, 4)
 		c.anchor = GridBagConstraints.WEST
@@ -319,8 +314,11 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		addRow("To Do:", 'T', todoText, JScrollPane(todoText))
 
 		val prio = JPanel(GridLayout(1, 5, 0, 0))
-		prio.border = BorderFactory.createBevelBorder(BevelBorder.LOWERED)
+		prio.border = Theme.sunken
 		for (r in radios) {
+			r.horizontalAlignment = JRadioButton.CENTER
+			r.iconTextGap = 2
+			r.margin = Insets(0, 0, 0, 0)
 			group.add(r)
 			prio.add(r)
 		}
@@ -330,7 +328,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		dueBox.selectedIndex = -1
 		dueField.isEditable = false
 		dueField.font = Theme.font
-		dueField.border = BorderFactory.createBevelBorder(BevelBorder.LOWERED)
+		dueField.border = Theme.sunken
 		// The box has no selected item at times, so give it a width that fits its longest choice.
 		dueBox.preferredSize = Dimension(130, dueBox.preferredSize.height)
 		due.add(dueBox, BorderLayout.WEST)
@@ -831,4 +829,10 @@ fun dueLabel(t: Todo): String {
 	if (t.due < 0) return "-"
 	val d = LocalDate.ofEpochDay(t.due)
 	return "${d.monthValue}/${d.dayOfMonth}" + if (isOverdue(t)) "!" else ""
+}
+
+/** [dueLabel] as label HTML, with the overdue "!" in bold as Palm Desktop draws it. */
+internal fun dueHtml(t: Todo): String {
+	val s = dueLabel(t)
+	return if (s.endsWith("!")) "<html>${s.dropLast(1)}<b>!</b></html>" else s
 }

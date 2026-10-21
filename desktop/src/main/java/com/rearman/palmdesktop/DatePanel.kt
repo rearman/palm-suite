@@ -69,7 +69,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 	private companion object {
 		const val TIME_W = 52        // width of the time column
-		const val UNTIMED_H = 18     // height of one untimed row
+		const val UNTIMED_H = 19     // height of one untimed row
 		const val HALF = 19          // pixels per half hour (Palm Desktop: 38 px per hour)
 		const val PANE_W = 240       // width of the right pane
 		const val CHANGE_TEXT = "Apply the changes to the current event only or to all occurrences?"
@@ -196,7 +196,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				else -> Color.BLACK
 			}
 			due.isVisible = Settings.getBool("todoShowDue", true)
-			due.text = if (t.due < 0) "" else dueLabel(t)
+			due.text = if (t.due < 0) "" else dueHtml(t)
 			noteMark.isVisible = t.note.isNotEmpty()
 			privateMark.isVisible = t.isPrivate
 			return this
@@ -209,7 +209,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		cardPanel.add(monthView, "month")
 		// The views and the calendar pane sit on a raised panel over the workspace gray, and the tabs
 		// sit on the gray beside it, as in Palm Desktop.
-		val body = JPanel(BorderLayout())
+		val body = JPanel(BorderLayout(11, 0))   // an 11 px gap between the Day view and the right pane
 		body.border = BorderFactory.createCompoundBorder(
 			OpenRightBevel,
 			EmptyBorder(6, 6, 6, 6)
@@ -374,10 +374,10 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		top.add(months)
 		top.add(calendarPart)
 
-		// The two-segment switch of Palm Desktop: 113 by 21 px, the selected segment in the highlight color.
+		// The two-segment switch of Palm Desktop: two 56 by 21 px segments in a sunken box, the selected segment in the highlight color.
 		val switchBox = JPanel(GridLayout(1, 2))
-		switchBox.border = BorderFactory.createLineBorder(Color.BLACK)
-		switchBox.preferredSize = Dimension(113, 21)
+		switchBox.border = Theme.sunken
+		switchBox.preferredSize = Dimension(117, 25)
 		switchBox.add(addressSeg)
 		switchBox.add(todoSeg)
 		val switchRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))

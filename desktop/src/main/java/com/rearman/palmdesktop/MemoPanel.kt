@@ -2,7 +2,6 @@ package com.rearman.palmdesktop
 
 import com.rearman.datebook.*
 import java.awt.BorderLayout
-import java.awt.Color
 import java.awt.Component
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
@@ -14,6 +13,7 @@ import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
+import javax.swing.ScrollPaneConstants
 import javax.swing.border.EmptyBorder
 
 /** The Memo Pad view. */
@@ -113,8 +113,8 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		gbc.gridx = 2; gbc.gridy = 1; gbc.anchor = GridBagConstraints.WEST
 		form.add(applyButton, gbc)
 		val right = JPanel(BorderLayout()).apply {
-			border = BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.grid), BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Color.WHITE), EmptyBorder(8, 8, 4, 8)))
-			add(JScrollPane(editor), BorderLayout.CENTER)
+			border = EmptyBorder(8, 8, 4, 8)
+			add(JScrollPane(editor, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER), BorderLayout.CENTER)
 			add(form, BorderLayout.SOUTH)
 		}
 

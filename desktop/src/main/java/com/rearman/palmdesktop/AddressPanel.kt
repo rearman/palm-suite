@@ -152,12 +152,9 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 			add(south, BorderLayout.SOUTH)
 		}
 
-		// The card pane, with the raised edge between the list and the card as in the Memo Pad.
+		// The card pane. The divider draws the raised edge between the list and the card.
 		val right = JPanel(BorderLayout()).apply {
-			border = BorderFactory.createCompoundBorder(
-				BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.grid),
-				BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Color.WHITE), EmptyBorder(8, 8, 4, 8))
-			)
+			border = EmptyBorder(8, 8, 4, 8)
 			add(card, BorderLayout.CENTER)
 		}
 		add(detailSplit(listPanel, right, "addressSplit", 302), BorderLayout.CENTER)   // 302 px: the AddressCard width of Palm Desktop

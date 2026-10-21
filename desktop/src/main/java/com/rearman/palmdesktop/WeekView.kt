@@ -35,7 +35,7 @@ import javax.swing.SwingUtilities
 private const val HOUR_H = 38
 private const val TIME_W = 52
 private const val HEAD_H = 20
-private const val UNTIMED_LINE = 16
+private const val UNTIMED_LINE = 19
 private const val MIN_UNTIMED_H = 20
 private const val MIN_OF_DAY = 1440
 private const val CHANGE_TEXT = "Apply the changes to the current event only or to all occurrences?"
@@ -438,11 +438,11 @@ class WeekView : JPanel(BorderLayout()) {
 		if (hit == null) {
 			selected = null
 			val min = slotStart(e.y)
+			App.refresh()
 			if (e.clickCount >= 2) {
 				EventDialog.edit(this, null, App.day, min)
 				return
 			}
-			App.refresh()
 			startTyping(col, min, days[col].count { it.event.untimed })
 			return
 		}
@@ -552,13 +552,19 @@ class WeekView : JPanel(BorderLayout()) {
 			for (i in 0 until 7) {
 				val x = TIME_W + i * cw
 				val day = start + i
-				g.color = if (day == today) Theme.select else Theme.panel
+				val isSel = day == App.day
+				g.color = if (isSel || day == today) Theme.select else Theme.panel
 				g.fillRect(x, 0, cw, height)
 				val text = "${Fmt.dowShort[dowIndex(i)]} ${Fmt.ld(day).dayOfMonth}"
 				// Today is bold, as in Palm Desktop.
 				g.font = if (day == today) Theme.bold else Theme.font
 				val tfm = g.fontMetrics
-				g.color = if (day == today) Theme.dateRed else Color.BLACK
+				// The selected day is white on the blue cell. Today is red, also on the blue cell.
+				g.color = when {
+					day == today -> Theme.dateRed
+					isSel -> Color.WHITE
+					else -> Color.BLACK
+				}
 				g.drawString(text, x + (cw - tfm.stringWidth(text)) / 2, (height + tfm.ascent - tfm.descent) / 2)
 				g.color = Theme.grid
 				g.drawLine(x, 0, x, height - 1)
