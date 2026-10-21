@@ -9,7 +9,6 @@ import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import java.time.LocalDate
 
@@ -303,68 +302,20 @@ fun MainActivity.showShowOptions() {
  * [app] 0 edits the To Do categories, 1 the Memo Pad categories.
  */
 fun MainActivity.showEditCategories(app: Int = 0) {
-    val d = PalmDialog(this, "Edit Categories", height = 156)
-    val list = vbox()
-    var sel: Category? = null
-    fun fill() {
-        // Keep the selection on the same category after a rename.
-        sel = sel?.let { s -> store.categoriesFor(app).firstOrNull { it.id == s.id } }
-        list.removeAllViews()
-        for (cat in store.categoriesFor(app)) {
-            val picked = cat.id == sel?.id
-            list.addView(label(cat.name).apply {
-                minHeight = pp(11)
-                minimumHeight = pp(11)
-                if (picked) { setBackgroundColor(Palm.INK); setTextColor(Palm.paper) }
-                setOnClickListener { sel = cat; fill() }
-            }, lp(MATCH))
-        }
-        if (store.categoriesFor(app).isEmpty()) list.addView(label("No categories"))
-    }
-    fill()
-    // Palm list: 11 px rows in a 101 px box. The list scrolls when it is longer.
-    val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(list) }
-    d.add(scroll, 6)
-    scroll.layoutParams.height = pp(101)
-    d.button("OK", 22) { d.dismiss(); render() }
-    d.button("New", 27) {
-        val before = store.categoriesFor(app).mapTo(HashSet()) { it.id }
-        renameCategory(null, app) {
-            // Select the new category, found by its id, after the sorted list is shown.
-            sel = store.categoriesFor(app).firstOrNull { it.id !in before } ?: sel
-            fill()
-        }
-    }
-    d.button("Rename", 42) { sel?.let { renameCategory(it, app) { fill() } } }
-    d.button("Delete", 37) {
-        val cat = sel ?: return@button
-        ask("Delete Category", "Delete \"${cat.name}\"? Its items move to Unfiled.",
-            "Yes" to {
+    editCategories(
+        items = { store.categoriesFor(app).map { CategoryItem(it.id, it.name) } },
+        add = { name -> store.addCategory(name, app).id },
+        rename = { id, name -> store.categoriesFor(app).firstOrNull { it.id == id }?.let { store.renameCategory(it, name) } },
+        deleteText = { "Delete \"${it.name}\"? Its items move to Unfiled." },
+        delete = { id ->
+            store.categoriesFor(app).firstOrNull { it.id == id }?.let { cat ->
                 store.deleteCategory(cat)
                 if (prefs.todoCategory == cat.id) prefs.todoCategory = -1
                 if (app == 2 && prefs.addressCategory == cat.id) prefs.addressCategory = -1
-                sel = null
-                fill()
-            }, "No" to {})
-    }
-    d.show()
-}
-
-private fun MainActivity.renameCategory(cat: Category?, app: Int, after: () -> Unit) {
-    val d = PalmDialog(this, "Edit Categories", height = 69)
-    d.add(label("Enter a new category name:", bold = true), 0)
-    val f = field(cat?.name ?: "", "Category name")
-    f.minHeight = pp(20)
-    d.add(f, 3)
-    d.button("OK", 37) {
-        val n = f.text.toString().trim()
-        if (n.isNotEmpty()) {
-            if (cat == null) store.addCategory(n, app) else store.renameCategory(cat, n)
-        }
-        d.dismiss(); after()
-    }
-    d.button("Cancel", 37) { d.dismiss() }
-    d.show()
+            }
+        },
+        onClose = { render() },
+    )
 }
 
 /** ShortCuts list, sorted by name. A tap opens the ShortCut Entry form. "New" starts a new one. */
