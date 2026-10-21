@@ -79,7 +79,8 @@ jobs:
           fi
 
       # Keep the two newest releases of this app (this one and the one before) and delete the older
-      # ones. Their tags stay. Versions sort with sort -V.
+      # ones. Their tags stay. Versions sort with sort -V. The handheld app was released as datebook
+      # up to datebook-v1.12, so a handheld release also deletes the datebook releases.
       - name: Delete old releases
         if: startsWith(github.ref_name, 'handheld-v') || startsWith(github.ref_name, 'launcher-v')
         shell: bash
@@ -87,7 +88,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           prefix="${GITHUB_REF_NAME%-v*}"
-          gh release list --limit 1000 --json tagName -q '.[].tagName' | grep "^$prefix-v" | sort -V | head -n -2 |
+          pattern="^$prefix-v"
+          [ "$prefix" = handheld ] && pattern="^(handheld|datebook)-v"
+          gh release list --limit 1000 --json tagName -q '.[].tagName' | grep -E "$pattern" | sort -V | head -n -2 |
             while read -r tag; do gh release delete "$tag" --yes; done
 
   server:
