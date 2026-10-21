@@ -10,6 +10,7 @@ import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Color
 import java.awt.Component
+import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
@@ -951,9 +952,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 					if (e.button != MouseEvent.BUTTON1) return
 					if (!header) {
 						// The blue bar under the selected box resizes it, so it is tested before the box.
-						val sel = layoutDay(width).firstOrNull { it.first.event.id == selectedId && !it.first.event.untimed }
-						if (sel != null && EventBox.onResizeBar(sel.second, e.point)) {
-							drag = Drag(sel.first, sel.second, true, 0, e.point)
+						val sel = selBox()
+						if (sel != null && EventBox.onResizeBar(sel, e.point)) {
+							drag = Drag(selectedOcc() ?: return, sel, true, 0, e.point)
 							return
 						}
 					}
@@ -967,6 +968,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 						popupAt(e)
 						return
 					}
+					if (!header) cursor = EventBox.cursorAt(selBox(), e.point)
 					val d = drag ?: return
 					drag = null
 					if (!d.moved) return
@@ -984,6 +986,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 							it.end = newStart + (ev.end - ev.start)
 						}
 					}
+					if (!header) cursor = EventBox.cursorAt(selBox(), e.point)
 					repaintDay()
 				}
 
@@ -1014,8 +1017,13 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				}
 			})
 			addMouseMotionListener(object : MouseAdapter() {
+				override fun mouseMoved(e: MouseEvent) {
+					if (!header) cursor = EventBox.cursorAt(selBox(), e.point)
+				}
+
 				override fun mouseDragged(e: MouseEvent) {
 					val d = drag ?: return
+					if (d.resize) cursor = Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR)
 					if (!d.moved) {
 						if (Math.max(Math.abs(e.x - d.origin.x), Math.abs(e.y - d.origin.y)) <= 4) return
 						d.moved = true
@@ -1025,6 +1033,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				}
 			})
 		}
+
+		/** The box of the selected timed event in this grid, or null. */
+		private fun selBox(): Rectangle? = layoutDay(width).firstOrNull { it.first.event.id == selectedId && !it.first.event.untimed }?.second
 
 		/** The menu of the box under a right click, or of the empty hour or header row. */
 		private fun popupAt(e: MouseEvent) {

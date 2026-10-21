@@ -5,6 +5,7 @@ import com.rearman.datebook.Fmt
 import com.rearman.datebook.Occ
 import java.awt.BorderLayout
 import java.awt.Color
+import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Graphics
@@ -344,9 +345,18 @@ class WeekView : JPanel(BorderLayout()) {
 		grid.repaint()
 	}
 
+	/** The box of the selected timed event in the grid, or null. */
+	private fun selRect(): Rectangle? = selectedOcc()?.let { sel -> hits(grid.width).firstOrNull { it.occ === sel && !it.occ.event.untimed }?.rect }
+
+	/** Mouse move: the resize cursor over the blue bar of the selected box, else the default. */
+	private fun moved(e: MouseEvent) {
+		grid.cursor = EventBox.cursorAt(selRect(), e.point)
+	}
+
 	/** Mouse drag: moves the outline of the box to the slot under the mouse. */
 	private fun dragged(e: MouseEvent) {
 		val d = drag ?: return
+		if (d.resize) grid.cursor = Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR)
 		if (!d.moved) {
 			if (Math.abs(e.x - d.origin.x) <= 4 && Math.abs(e.y - d.origin.y) <= 4) return
 			d.moved = true
@@ -379,6 +389,7 @@ class WeekView : JPanel(BorderLayout()) {
 			gridPopup(e)
 			return
 		}
+		grid.cursor = EventBox.cursorAt(selRect(), e.point)
 		val d = drag ?: return
 		drag = null
 		grid.repaint()
@@ -406,6 +417,7 @@ class WeekView : JPanel(BorderLayout()) {
 				}
 			}
 		}
+		grid.cursor = EventBox.cursorAt(selRect(), e.point)
 	}
 
 	/** Mouse click on the grid: a new event on empty space, select or edit a box. */
@@ -469,6 +481,7 @@ class WeekView : JPanel(BorderLayout()) {
 			layout = null   // doLayout places the field of a new event
 			val mouse = object : MouseAdapter() {
 				override fun mousePressed(e: MouseEvent) = pressed(e)
+				override fun mouseMoved(e: MouseEvent) = moved(e)
 				override fun mouseDragged(e: MouseEvent) = dragged(e)
 				override fun mouseReleased(e: MouseEvent) = released(e)
 				override fun mouseClicked(e: MouseEvent) = gridClicked(e)

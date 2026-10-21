@@ -8,6 +8,7 @@ import com.rearman.datebook.Repeat
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
+import java.awt.Cursor
 import java.awt.Dialog
 import java.awt.FlowLayout
 import java.awt.Graphics
@@ -155,6 +156,10 @@ internal object EventBox {
 	/** True when [p] is on the blue bar under the selected box [r]. */
 	fun onResizeBar(r: Rectangle, p: Point): Boolean =
 		p.x in r.x until r.x + r.width && p.y in r.y + r.height until r.y + r.height + SEL_H + 2
+
+	/** The cursor of the grid at [p]: the resize cursor on the blue bar under the selected timed box [sel], else the default. */
+	fun cursorAt(sel: Rectangle?, p: Point): Cursor =
+		if (sel != null && onResizeBar(sel, p)) Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR) else Cursor.getDefaultCursor()
 }
 
 /** Asks Current or All for a repeating event. Returns 0 Current, 1 All, 2 Cancel or closed. */
