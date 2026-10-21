@@ -82,6 +82,8 @@ object NoteDialog {
 		dlg.contentPane.add(JPanel(FlowLayout(FlowLayout.CENTER, 6, 6)).apply { add(ok); add(cancel) }, BorderLayout.SOUTH)
 		dlg.rootPane.defaultButton = ok
 		dlg.pack()
+		// The official Note Editor is 273 x 300 px. The text area takes the space, and the dialog stays resizable.
+		dlg.setSize(273, 300)
 		dlg.setLocationRelativeTo(owner)
 		dlg.isVisible = true
 		return result
@@ -612,10 +614,12 @@ private fun selectTime(owner: Component, t: Event): Boolean {
 	val hours = JList(Array(24) { hourLabel(it) }).themed().apply {
 		selectionMode = ListSelectionModel.SINGLE_SELECTION
 		visibleRowCount = 12
+		fixedCellHeight = 13
 	}
 	val minutes = JList(Array(12) { "%02d".format(it * 5) }).themed().apply {
 		selectionMode = ListSelectionModel.SINGLE_SELECTION
 		visibleRowCount = 12
+		fixedCellHeight = 13
 	}
 
 	fun activeTime(): Int = if (editStart) t.start else t.end
@@ -682,6 +686,8 @@ private fun selectTime(owner: Component, t: Event): Boolean {
 	dlg.rootPane.defaultButton = okBtn
 	refresh()
 	dlg.pack()
+	// The official Select Time dialog is 207 x 248 px. The hour and minute lists take the space above the buttons.
+	dlg.setSize(207, 248)
 	dlg.setLocationRelativeTo(owner)
 	dlg.isVisible = true
 	return ok

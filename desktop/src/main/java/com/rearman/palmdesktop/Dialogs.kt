@@ -213,7 +213,8 @@ object OptionsDialog {
 		cancelBtn.onClick { d.dispose() }
 		d.rootPane.defaultButton = okBtn
 
-		present(d, owner, tabs, bar(okBtn, cancelBtn))
+		// The official Options dialog is 367 x 299 px on every tab.
+		present(d, owner, tabs, bar(okBtn, cancelBtn), Dimension(367, 299))
 	}
 
 	private fun syncStatus(): String = if (App.sync.isOn) App.sync.lastResult else "Sync is off."
@@ -260,7 +261,7 @@ object ListByDialog {
 			add(okBtn)
 			add(cancelBtn)
 		}
-		present(d, owner, group, buttons)
+		present(d, owner, group, buttons, Dimension(194, 156))
 		return result
 	}
 }
@@ -696,13 +697,15 @@ private fun bar(vararg items: JButton): JPanel = JPanel(FlowLayout(FlowLayout.RI
 }
 
 // Adds the content and an optional button bar, then shows the dialog. A null bar adds nothing.
-private fun present(d: JDialog, owner: Component, content: JComponent, buttons: JPanel?) {
+// A non-null [size] is the outer size the dialog keeps, set after the pack and before the location.
+private fun present(d: JDialog, owner: Component, content: JComponent, buttons: JPanel?, size: Dimension? = null) {
 	val body = JPanel(BorderLayout())
 	body.border = EmptyBorder(8, 8, 8, 8)
 	body.add(content, BorderLayout.CENTER)
 	d.contentPane.add(body, BorderLayout.CENTER)
 	buttons?.let { d.contentPane.add(it, BorderLayout.SOUTH) }
 	d.pack()
+	size?.let { d.setSize(it) }
 	d.setLocationRelativeTo(owner)
 	d.isVisible = true
 }
