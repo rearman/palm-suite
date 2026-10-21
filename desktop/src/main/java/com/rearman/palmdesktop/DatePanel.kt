@@ -20,6 +20,9 @@ import java.awt.Point
 import java.awt.Rectangle
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.Transferable
+import java.awt.dnd.DropTargetAdapter
+import java.awt.dnd.DropTargetDropEvent
+import java.awt.dnd.DropTargetEvent
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
 import java.awt.event.KeyEvent
@@ -65,6 +68,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		const val TIME_W = 52        // width of the time column
 		const val UNTIMED_H = 18     // height of one untimed row
 		const val HALF = 19          // pixels per half hour (Palm Desktop: 38 px per hour)
+		val DRAG_NAVY = Color(0, 0, 128)   // the outline of a moved or dragged event, as in Palm Desktop
 		const val PANE_W = 240       // width of the right pane
 		const val CHANGE_TEXT = "Apply the changes to the current event only or to all occurrences?"
 	}
@@ -482,6 +486,12 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 	// Data and state
 
+	/** Sets the header height: a row for each untimed event, and one more for an open untimed field. */
+	private fun updateUntimedH() {
+		val extra = if (typing != null && typingUntimed) 1 else 0
+		untimedH = maxOf(1, occs.count { it.event.untimed } + extra) * UNTIMED_H
+	}
+
 	/** Rebuilds every part of the panel from the store and App.day. */
 	private fun refreshAll() {
 		if (App.day != typingDay) endTyping(true)   // the field belongs to the day it was opened on
@@ -489,9 +499,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		val day = LocalDate.ofEpochDay(App.day)
 		titleLabel.text = dateTitle(App.day)
 		occs = dayOccs()
-		// An open untimed field keeps its row.
-		val typingRow = if (typing != null && typingUntimed) 1 else 0
-		untimedH = maxOf(1, occs.count { it.event.untimed } + typingRow) * UNTIMED_H
+		updateUntimedH()
 		if (selectedOcc() == null) selectedId = null
 		editBtn.isEnabled = selectedOcc() != null
 		yearLabel.text = day.year.toString()
@@ -660,6 +668,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	/** Minutes after midnight at a pixel row of the grid (inverse of yOf). */
 	private fun minAt(y: Int): Int = y * 30 / HALF
 
+	/** Start of an event dropped at pixel row [y]: the half hour under the pointer. The event lasts one hour. */
+	private fun dropMin(y: Int): Int = (minAt(y) / 30 * 30).coerceIn(0, 23 * 60)
+
 	private fun repaintDay() {
 		dayHeader.repaint()
 		grid.repaint()
@@ -667,15 +678,32 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 	// Typing a new event into an empty hour of the grid, as in Palm Desktop.
 
+	/** Box of a one-hour event from [min] in a grid [width] in pixels. */
+	private fun hourBox(min: Int, width: Int): Rectangle {
+		val top = yOf(min)
+		return Rectangle(TIME_W + 2, top + 2, width - TIME_W - 4, yOf(min + 60) - top - 3)
+	}
+
+	/** The outline of a dragged event from [start] to [end] minutes in a grid [width] in pixels, as Palm Desktop draws it. At least a half hour tall. */
+	private fun outlineBox(start: Int, end: Int, width: Int): Rectangle {
+		val top = yOf(start)
+		return Rectangle(TIME_W + 3, top + 1, width - TIME_W - 5, maxOf(yOf(end), top + HALF) - top - 2)
+	}
+
+	/** Draws [r] as Palm Desktop draws a drag outline: navy, 3 px thick, inside [r]. */
+	private fun drawOutline(g: Graphics, r: Rectangle) {
+		g.color = DRAG_NAVY
+		for (i in 0 until 3) g.drawRect(r.x + i, r.y + i, r.width - 1 - 2 * i, r.height - 1 - 2 * i)
+	}
+
+	/** Box of the row below the last untimed event in a header [width] in pixels. */
+	private fun untimedBox(width: Int): Rectangle =
+		Rectangle(TIME_W + 2, occs.count { it.event.untimed } * UNTIMED_H + 1, width - TIME_W - 4, UNTIMED_H - 2)
+
 	/** Box of the hour being typed into, for a grid [width] in pixels, or null when no field is open. */
 	private fun typingBox(width: Int): Rectangle? {
 		if (typing == null) return null
-		if (typingUntimed) {
-			val row = occs.count { it.event.untimed } * UNTIMED_H
-			return Rectangle(TIME_W + 2, row + 1, width - TIME_W - 4, UNTIMED_H - 2)
-		}
-		val top = yOf(typingMin)
-		return Rectangle(TIME_W + 2, top + 2, width - TIME_W - 4, yOf(typingMin + 60) - top - 3)
+		return if (typingUntimed) untimedBox(width) else hourBox(typingMin, width)
 	}
 
 	/** Opens a field in the hour at [min] for the title of a new event. */
@@ -720,7 +748,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		val f = typing ?: return
 		typing = null   // first, so the focus loss of the removed field does nothing
 		if (typingUntimed) dayHeader.remove(f) else grid.remove(f)
-		untimedH = maxOf(1, occs.count { it.event.untimed }) * UNTIMED_H   // the header shrinks back
+		updateUntimedH()   // the header shrinks back
 		dayHeader.revalidate()
 		repaintDay()
 		val title = f.text.trim()
@@ -757,19 +785,26 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		override fun getTransferData(f: DataFlavor): Any = title
 	}
 
-	/** Takes a dragged title: an untimed event on the [header], else a one-hour event at the hour under the drop. */
+	/**
+	 * Takes a dragged title: an untimed event on the [header], else a one-hour event from the half hour under the drop.
+	 * While the drag hovers, the grid shows the outline of that event.
+	 */
 	private inner class DayDrop(private val header: Boolean) : TransferHandler() {
-		override fun canImport(s: TransferHandler.TransferSupport): Boolean =
-			s.isDrop && s.isDataFlavorSupported(TitleTransfer.FLAVOR)
+		override fun canImport(s: TransferHandler.TransferSupport): Boolean {
+			val ok = s.isDrop && s.isDataFlavorSupported(TitleTransfer.FLAVOR)
+			(s.component as? DayGrid)?.showDrop(if (ok) s.dropLocation.dropPoint.y else null)
+			return ok
+		}
 
 		override fun importData(s: TransferHandler.TransferSupport): Boolean {
 			if (!canImport(s)) return false
 			val title = (s.transferable.getTransferData(TitleTransfer.FLAVOR) as String).trim()
 			if (title.isEmpty()) return false
+			val y = s.dropLocation.dropPoint.y
+			(s.component as? DayGrid)?.showDrop(null)
 			endTyping(true)
 			endTitleEdit(true)
-			val min = (minAt(s.dropLocation.dropPoint.y) / 60 * 60).coerceIn(0, 23 * 60)
-			addEvent(title, App.day, min, header)
+			addEvent(title, App.day, dropMin(y), header)
 			return true
 		}
 	}
@@ -852,11 +887,18 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	 * ([header] true: one row for each untimed event, with the diamond mark).
 	 */
 	private inner class DayGrid(private val header: Boolean) : JPanel(), Scrollable {
+		private var dropBox: Rectangle? = null   // the outline of a dragged title over this grid
+
 		init {
 			isOpaque = true
 			background = Color.WHITE
 			layout = null   // doLayout places the typing field and the title editor
 			transferHandler = DayDrop(header)
+			// The outline goes when the drag leaves or drops.
+			dropTarget.addDropTargetListener(object : DropTargetAdapter() {
+				override fun dragExit(e: DropTargetEvent) = showDrop(null)
+				override fun drop(e: DropTargetDropEvent) = showDrop(null)
+			})
 			addMouseListener(object : MouseAdapter() {
 				override fun mousePressed(e: MouseEvent) {
 					suppressClick = false
@@ -968,15 +1010,11 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			if (d.dropDay != null || header) return
 			if (d.resize) {
 				d.newEnd = minOf(1440, maxOf(ev.start + 30, roundHalf(minAt(p.y))))
-				val top = yOf(ev.start) + 2
-				val bottom = maxOf(yOf(d.newEnd), yOf(ev.start) + HALF)
-				d.target = Rectangle(d.box.x, top, d.box.width, bottom - top - 3)
+				d.target = outlineBox(ev.start, d.newEnd, width)
 			} else if (!ev.untimed) {
 				val dur = ev.end - ev.start
 				d.newStart = minOf(1440 - dur, maxOf(0, roundHalf(minAt(p.y - d.grab))))
-				val top = yOf(d.newStart) + 2
-				val bottom = maxOf(yOf(d.newStart + dur), yOf(d.newStart) + HALF)
-				d.target = Rectangle(d.box.x, top, d.box.width, bottom - top - 3)
+				d.target = outlineBox(d.newStart, d.newStart + dur, width)
 			}
 		}
 
@@ -1003,6 +1041,17 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			f.selectAll()
 			f.requestFocusInWindow()
 			repaintDay()
+		}
+
+		/** Shows the outline of the event a drop at pixel row [y] makes, or hides it when [y] is null. */
+		fun showDrop(y: Int?) {
+			val box = when {
+				y == null || header -> null   // no outline over the untimed header, as in Palm Desktop
+				else -> outlineBox(dropMin(y), dropMin(y) + 60, width)
+			}
+			if (box == dropBox) return
+			dropBox = box
+			repaint()
 		}
 
 		// The header keeps SEL_H below its last row for the blue bar of a selected event.
@@ -1052,10 +1101,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			// The hour being typed into: a white box, drawn as selected. The text field is on top of it.
 			if (typingUntimed == header) typingBox(width)?.let { EventBox.draw(g, it, Color.WHITE, true) }
 			// The outline of a box being moved or resized.
-			if (!header) drag?.target?.let {
-				g.color = Color.BLACK
-				g.drawRect(it.x, it.y, it.width - 1, it.height - 1)
-			}
+			if (!header) drag?.target?.let { drawOutline(g, it) }
+			// The outline of the event a dragged address or to-do makes.
+			dropBox?.let { drawOutline(g, it) }
 		}
 
 		override fun doLayout() {
