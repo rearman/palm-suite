@@ -17,6 +17,8 @@ import java.awt.Insets
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
 import java.awt.event.KeyEvent
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import java.time.DateTimeException
 import java.time.LocalDate
 import javax.swing.*
@@ -46,11 +48,30 @@ object NoteDialog {
 		var result: String? = null
 		val area = JTextArea(text, 10, 32).themed().apply { lineWrap = true; wrapStyleWord = true }
 		val history = TextUndo.manager(area)
+		val cut = iconButton(Icons.cut(), "Cut") { area.cut() }
+		val copy = iconButton(Icons.copy(), "Copy") { area.copy() }
+		val paste = iconButton(Icons.paste(), "Paste") { area.paste() }
+		val undo = iconButton(Icons.undo(), "Undo") { if (history.canUndo()) history.undo() }
+		// Grays the buttons that do not apply, as the main toolbar does. Each edit and selection change moves the caret.
+		// The refresh runs after the event, so the undo history already holds the edit. Paste is checked again when
+		// the dialog gets the focus back, since the clipboard can change in another window.
+		fun refresh() {
+			val st = TextMenu.state(area)
+			cut.isEnabled = st.cut
+			copy.isEnabled = st.copy
+			paste.isEnabled = st.paste
+			undo.isEnabled = history.canUndo()
+		}
+		area.addCaretListener { SwingUtilities.invokeLater { refresh() } }
+		dlg.addWindowListener(object : WindowAdapter() {
+			override fun windowActivated(e: WindowEvent) = refresh()
+		})
+		refresh()
 		val toolbar = JPanel(FlowLayout(FlowLayout.LEFT, 2, 2)).apply {
-			add(iconButton(Icons.cut(), "Cut") { area.cut() })
-			add(iconButton(Icons.copy(), "Copy") { area.copy() })
-			add(iconButton(Icons.paste(), "Paste") { area.paste() })
-			add(iconButton(Icons.undo(), "Undo") { if (history.canUndo()) history.undo() })
+			add(cut)
+			add(copy)
+			add(paste)
+			add(undo)
 		}
 		val scroll = JScrollPane(area, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER)
 		val ok = formButton("OK") { result = area.text; dlg.dispose() }
