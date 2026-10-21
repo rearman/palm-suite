@@ -5,6 +5,7 @@ import com.rearman.datebook.Fmt
 import com.rearman.datebook.Recur
 import com.rearman.datebook.Repeat
 import java.awt.BorderLayout
+import java.awt.Color
 import java.awt.Component
 import java.awt.Dialog
 import java.awt.Dimension
@@ -19,6 +20,7 @@ import java.awt.event.KeyEvent
 import java.time.DateTimeException
 import java.time.LocalDate
 import javax.swing.*
+import javax.swing.plaf.basic.BasicToggleButtonUI
 
 /** Edit Event dialog. A new event starts at [startMin], or at 8:00 am. */
 object EventDialog {
@@ -146,7 +148,7 @@ private class EventForm(
 			Repeat.YEAR -> "Yearly..."
 			else -> "None..."
 		}
-		repeatBtn.toolTipText = if (work.repeats) Recur.describe(work) else null
+		repeatBtn.toolTipText = if (work.repeats) describeDesktop(work) else null
 	}
 
 	/** Select Time dialog, run on a copy of the time fields. The fields take the copy on OK or No Time. */
@@ -261,10 +263,19 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 	private val hint = JTextArea("Click one of the buttons to the left to set a repeat interval.", 3, 18)
 		.themed().apply { isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true }
 	private val everySpin = countSpinner(e.every, 1).themed()
+	private val everyLabel = repeatLabel("Every:", 'E', everySpin)
 	private val everyUnit = JLabel("Months").themed()
 	private val endField = JTextField(10).themed().apply { isEditable = false }
+	private val endLabel = repeatLabel("End on:", 'O', endField)
+	private val calBtn: JButton = iconButton(Icons.calendar(), "Choose end date", 20) { endMenu.show(calBtn, 0, calBtn.height) }
 	private val dayToggles = Array(7) { i ->
-		val btn = JToggleButton(Fmt.dowLetter[i]).themed()
+		val btn = JToggleButton(Fmt.dowLetter[i]).themed().apply {
+			setUI(BasicToggleButtonUI())
+			isBorderPainted = false
+			isContentAreaFilled = true
+			isOpaque = true
+			margin = Insets(0, 0, 0, 0)
+		}
 		btn.isSelected = (weekMask and (1 shl i)) != 0
 		btn.addActionListener {
 			val bit = 1 shl i
@@ -273,6 +284,13 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 		}
 		btn
 	}
+	/** The seven day cells in week order. The black background shows as the 1 px lines between the cells and around them. */
+	private val weekStrip = JPanel(GridLayout(1, 7, 1, 0)).apply {
+		background = Color.BLACK
+		border = BorderFactory.createEmptyBorder(1, 1, 1, 1)
+		for (c in 0 until 7) add(dayToggles[dowIndex(c)])
+	}
+	private val daysLabel = repeatLabel("Days:", 's', dayToggles[0])
 	private val byCombo = JComboBox(arrayOf("Date", "Day")).themed().apply {
 		selectedIndex = if (monthBy == Repeat.MONTH_DAY) 1 else 0
 		addActionListener {
@@ -281,18 +299,21 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 			refresh()
 		}
 	}
-	private val summary = JTextArea(2, 24).themed().apply { isEditable = false; lineWrap = true; wrapStyleWord = true }
+	private val byLabel = repeatLabel("By:", 'B', byCombo)
+	private val summary = JTextArea(3, 20).themed().apply {
+		isEditable = false
+		background = Theme.panel
+		lineWrap = true
+		wrapStyleWord = true
+	}
 	private val endMenu = JPopupMenu().apply {
 		add(JMenuItem("No End Date").apply { addActionListener { end = -1; refresh() } })
 		add(JMenuItem("Date...").apply { addActionListener { pickEnd() } })
 	}
-	private val everyRow = line(everySpin, everyUnit)
-	private val endRow = line(endField, JButton(Icons.calendar()).themed().apply {
-		toolTipText = "Choose end date"
-		addActionListener { endMenu.show(this, 0, height) }
-	})
-	private val weekRow = line(*dayToggles)
-	private val byRow = line(byCombo)
+
+	/** A label with an Alt key that moves focus to [target]. */
+	private fun repeatLabel(text: String, key: Char, target: Component): JLabel =
+		JLabel(text).themed().apply { setDisplayedMnemonic(key); labelFor = target }
 
 	init {
 		buildLayout()
@@ -304,6 +325,7 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 		return changed
 	}
 
+	/** Places every part at a fixed position. The form keeps one size for every kind, as Palm Desktop does. */
 	private fun buildLayout() {
 		noneRadio.mnemonic = KeyEvent.VK_N
 		dailyRadio.mnemonic = KeyEvent.VK_D
@@ -311,10 +333,11 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 		monthlyRadio.mnemonic = KeyEvent.VK_M
 		yearlyRadio.mnemonic = KeyEvent.VK_Y
 		val group = ButtonGroup()
-		val left = JPanel(GridLayout(0, 1, 0, 6))
-		for (r in listOf(noneRadio, dailyRadio, weeklyRadio, monthlyRadio, yearlyRadio)) {
+		val content = JPanel(null)
+		for ((i, r) in listOf(noneRadio, dailyRadio, weeklyRadio, monthlyRadio, yearlyRadio).withIndex()) {
 			group.add(r)
-			left.add(r)
+			content.add(r)
+			r.setBounds(10, 16 + 24 * i, 72, 20)
 		}
 		val picked = when (kind) {
 			Repeat.DAY -> dailyRadio
@@ -331,25 +354,31 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 		yearlyRadio.addActionListener { setKind(Repeat.YEAR) }
 		everySpin.addChangeListener { refresh() }
 
-		val right = JPanel(GridBagLayout())
-		FormRow("", hint).addTo(right, 0)
-		FormRow("Every:", everyRow).key('E', everySpin).addTo(right, 1)
-		FormRow("End on:", endRow).key('O', endField).addTo(right, 2)
-		FormRow("Days:", weekRow).key('s', dayToggles[0]).addTo(right, 3)
-		FormRow("By:", byRow).key('B', byCombo).addTo(right, 4)
-
-		val top = JPanel(BorderLayout(12, 0))
-		top.add(left, BorderLayout.WEST)
-		top.add(right, BorderLayout.CENTER)
-		val bottom = JPanel(BorderLayout(0, 6))
-		bottom.add(JScrollPane(summary), BorderLayout.CENTER)
-		val ok = JButton("OK").themed().apply { addActionListener { save() } }
-		val cancel = JButton("Cancel").themed().apply { addActionListener { dlg.dispose() } }
-		bottom.add(buttonRow(ok, cancel), BorderLayout.SOUTH)
-		dlg.contentPane.add(top, BorderLayout.NORTH)
-		dlg.contentPane.add(bottom, BorderLayout.CENTER)
+		hint.setBounds(96, 40, 157, 56)
+		everyLabel.setBounds(96, 18, 44, 17)
+		everySpin.setBounds(144, 16, 40, 21)
+		everyUnit.setBounds(190, 18, 66, 17)
+		endLabel.setBounds(96, 44, 44, 17)
+		endField.setBounds(144, 42, 80, 21)
+		calBtn.setBounds(224, 42, 20, 20)
+		daysLabel.setBounds(96, 70, 44, 17)
+		weekStrip.setBounds(144, 69, 99, 18)
+		byLabel.setBounds(96, 70, 44, 17)
+		byCombo.setBounds(144, 68, 100, 21)
+		val summaryBox = JScrollPane(summary).apply {
+			border = Theme.sunken
+			viewport.background = Theme.panel
+		}
+		summaryBox.setBounds(10, 136, 243, 52)
+		val ok = formButton("OK") { save() }.apply { setBounds(10, 194, 68, 23) }
+		val cancel = formButton("Cancel") { dlg.dispose() }.apply { setBounds(82, 194, 68, 23) }
+		for (c in listOf(hint, everyLabel, everySpin, everyUnit, endLabel, endField, calBtn, daysLabel, weekStrip, byLabel, byCombo, summaryBox, ok, cancel)) {
+			content.add(c)
+		}
+		dlg.contentPane.add(content, BorderLayout.CENTER)
 		dlg.rootPane.defaultButton = ok
-		dlg.pack()
+		dlg.isResizable = false
+		dlg.setSize(269, 248)
 		dlg.setLocationRelativeTo(owner)
 	}
 
@@ -381,23 +410,33 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 		return w
 	}
 
-	/** Shows the rows that fit the kind, and the summary of the working copy. */
+	/** Shows the rows that fit the kind, and the summary of the working copy. Hidden rows take no room. */
 	private fun refresh() {
 		val on = kind != Repeat.NONE
+		val n = everySpin.value as Int
 		hint.isVisible = !on
-		everyRow.isVisible = on
-		endRow.isVisible = on
-		weekRow.isVisible = kind == Repeat.WEEK
-		byRow.isVisible = isMonthly()
+		everyLabel.isVisible = on
+		everySpin.isVisible = on
+		everyUnit.isVisible = on
+		endLabel.isVisible = on
+		endField.isVisible = on
+		calBtn.isVisible = on
+		daysLabel.isVisible = kind == Repeat.WEEK
+		weekStrip.isVisible = kind == Repeat.WEEK
+		byLabel.isVisible = isMonthly()
+		byCombo.isVisible = isMonthly()
 		everyUnit.text = when (kind) {
-			Repeat.DAY -> "Days"
-			Repeat.WEEK -> "Weeks"
-			Repeat.YEAR -> "Years"
-			else -> "Months"
+			Repeat.DAY -> if (n == 1) "Day" else "Days"
+			Repeat.WEEK -> if (n == 1) "Week" else "Weeks"
+			Repeat.YEAR -> if (n == 1) "Year" else "Years"
+			else -> if (n == 1) "Month" else "Months"
 		}
 		endField.text = if (end < 0) "No End Date" else Fmt.shortDate(end)
-		summary.text = Recur.describe(preview())
-		dlg.pack()
+		summary.text = if (on) describeDesktop(preview()) else ""
+		for (b in dayToggles) {
+			b.background = if (b.isSelected) Theme.select else Color.WHITE
+			b.foreground = if (b.isSelected) Color.WHITE else Color.BLACK
+		}
 	}
 
 	private fun save() {
