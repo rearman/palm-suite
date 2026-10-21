@@ -1,16 +1,12 @@
 package com.rearman.palmdesktop
 
 import com.rearman.datebook.Fmt
-import java.awt.AWTEvent
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Dimension
 import java.awt.Insets
 import java.awt.KeyboardFocusManager
-import java.awt.Toolkit
 import java.awt.event.ActionEvent
-import java.awt.event.AWTEventListener
-import java.awt.event.FocusEvent
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
 import java.awt.event.WindowEvent
@@ -75,6 +71,8 @@ class MainFrame : JFrame("Palm Desktop") {
 	private val visibleIn = HashMap<JComponent, Set<String>>()
 	private lateinit var categoriesItem: JMenuItem
 	private lateinit var purgeItem: JMenuItem
+	private lateinit var undoItem: JMenuItem
+	private lateinit var undoButton: JButton
 	private var current = "date"
 
 	init {
@@ -93,6 +91,8 @@ class MainFrame : JFrame("Palm Desktop") {
 		center.border = centerBorder(6)
 		contentPane.add(center, BorderLayout.CENTER)
 		contentPane.add(buildStatusBar(), BorderLayout.SOUTH)
+		TextUndo.onChange = { updateUndo() }
+		updateUndo()
 		rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
 			.put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, InputEvent.SHIFT_DOWN_MASK), "deleteNoConfirm")
 		rootPane.actionMap.put("deleteNoConfirm", object : AbstractAction() {
@@ -206,6 +206,15 @@ class MainFrame : JFrame("Palm Desktop") {
 	private fun undo() {
 		val field = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner as? JTextComponent ?: return
 		TextUndo.manager(field).takeIf { it.canUndo() }?.undo()
+		updateUndo()
+	}
+
+	/** Grays Undo unless the focused text field has an edit to undo. */
+	private fun updateUndo() {
+		val field = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner as? JTextComponent
+		val can = field != null && TextUndo.manager(field).canUndo()
+		undoItem.isEnabled = can
+		undoButton.isEnabled = can
 	}
 
 	private fun buildMenuBar(): JMenuBar {
@@ -225,7 +234,7 @@ class MainFrame : JFrame("Palm Desktop") {
 			m.add(item("Exit", 'x') { processWindowEvent(WindowEvent(this, WindowEvent.WINDOW_CLOSING)) })
 		})
 		bar.add(menu("Edit", 'E').also { m ->
-			m.add(item("Undo", 'U', KeyEvent.VK_Z, CTRL) { undo() })
+			m.add(item("Undo", 'U', KeyEvent.VK_Z, CTRL) { undo() }.also { undoItem = it })
 			m.addSeparator()
 			m.add(item("Cut", 't', KeyEvent.VK_X, CTRL) { transfer(TransferHandler.getCutAction()) })
 			m.add(item("Copy", 'C', KeyEvent.VK_C, CTRL) { transfer(TransferHandler.getCopyAction()) })
@@ -342,7 +351,7 @@ class MainFrame : JFrame("Palm Desktop") {
 		bar.add(toolButton(Icons.cut(), "Cut") { transfer(TransferHandler.getCutAction()) })
 		bar.add(toolButton(Icons.copy(), "Copy") { transfer(TransferHandler.getCopyAction()) })
 		bar.add(toolButton(Icons.paste(), "Paste") { transfer(TransferHandler.getPasteAction()) })
-		bar.add(toolButton(Icons.undo(), "Undo") { undo() })
+		bar.add(toolButton(Icons.undo(), "Undo") { undo() }.also { undoButton = it })
 		bar.addSeparator()
 		bar.add(toolButton(Icons.find(), "Find") { FindDialog.show(this) })
 		bar.addSeparator()
@@ -423,17 +432,23 @@ class MainFrame : JFrame("Palm Desktop") {
 private object TextUndo {
 	private val histories = WeakHashMap<JTextComponent, UndoManager>()
 
+	/** Runs after the focus moves or a history changes. */
+	var onChange: () -> Unit = {}
+
+	/** Listens for focus changes. A text field gets its history the first time it takes the focus. */
 	fun install() {
-		Toolkit.getDefaultToolkit().addAWTEventListener(AWTEventListener { event ->
-			val focus = event as? FocusEvent ?: return@AWTEventListener
-			val field = focus.component as? JTextComponent
-			if (focus.id == FocusEvent.FOCUS_GAINED && field != null) manager(field)
-		}, AWTEvent.FOCUS_EVENT_MASK)
+		KeyboardFocusManager.getCurrentKeyboardFocusManager().addPropertyChangeListener("focusOwner") { e ->
+			(e.newValue as? JTextComponent)?.let { manager(it) }
+			onChange()
+		}
 	}
 
 	fun manager(field: JTextComponent): UndoManager = histories.getOrPut(field) {
 		val history = UndoManager()
-		field.document.addUndoableEditListener { history.addEdit(it.edit) }
+		field.document.addUndoableEditListener {
+			history.addEdit(it.edit)
+			onChange()
+		}
 		history
 	}
 }
