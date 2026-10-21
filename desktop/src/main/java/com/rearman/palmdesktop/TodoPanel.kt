@@ -143,6 +143,8 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 				else -> value?.toString() ?: ""
 			}
 			icon = if (kind == 5) marks(item) else null
+			// The priority stands 9 px after the check box, as in Palm Desktop.
+			if (kind == 1) border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
 			// Set on every cell: DefaultTableCellRenderer keeps the last value as the unselected color.
 			foreground = when {
 				sel && isOverdue(item) -> Color.YELLOW   // a selected overdue item is yellow, as in Palm Desktop
@@ -463,7 +465,8 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 			val col = table.columnModel.getColumn(c)
 			val kind = model.cols[c]
 			val fixed = when (kind) {
-				0, 1 -> 20
+				0 -> 20
+				1 -> 18   // with the 4 px pad, 10 px from the priority to the To Do text, as in Palm Desktop
 				3 -> 45
 				4 -> 50
 				5 -> 34

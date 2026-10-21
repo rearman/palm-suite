@@ -150,13 +150,17 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 
 		init {
 			background = Color.WHITE
-			val lead = JPanel(FlowLayout(FlowLayout.LEFT, 2, 0))
+			// The check box and the priority fill the row height, so the priority centers on the same
+			// line as the description. Palm Desktop puts 9 px before the priority and 10 px after it.
+			val lead = JPanel(BorderLayout())
 			lead.isOpaque = false
+			lead.border = EmptyBorder(0, 2, 0, 2)
 			check.isOpaque = false
 			check.icon = Theme.plainCheck
 			check.border = EmptyBorder(0, 2, 0, 0)
-			lead.add(check)
-			lead.add(pri)
+			pri.border = EmptyBorder(0, 7, 0, 5)
+			lead.add(check, BorderLayout.WEST)
+			lead.add(pri, BorderLayout.CENTER)
 			for (l in listOf(pri, title, due, noteMark, privateMark)) l.font = Theme.font
 			title.isOpaque = true
 			due.preferredSize = Dimension(45, due.getFontMetrics(Theme.font).height)
