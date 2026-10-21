@@ -197,13 +197,14 @@ jobs:
             mv out/*.msi "$file"
           else
             jpackage --type app-image --name palm-desktop --input desktop/build/install/desktop/lib \
-              --main-jar desktop.jar --main-class com.rearman.palmdesktop.MainKt --dest out
+              --main-jar desktop.jar --main-class com.rearman.palmdesktop.MainKt \
+              --icon desktop/packaging/palm-desktop.png --dest out
             file=palm-desktop-linux.tar.gz
             tar -C out -czf "$file" palm-desktop
             # The jars and the icon alone, for the Gentoo ebuild in gentoo/, which runs them on the system Java.
             mkdir -p jars/palm-desktop
             cp -r desktop/build/install/desktop/lib jars/palm-desktop/
-            cp desktop/src/main/resources/com/rearman/palmdesktop/icons/app32.png jars/palm-desktop/palm-desktop.png
+            cp desktop/packaging/palm-desktop.png jars/palm-desktop/palm-desktop.png
             tar -C jars -czf palm-desktop-jars.tar.gz palm-desktop
             echo "jars=palm-desktop-jars.tar.gz" >> "$GITHUB_OUTPUT"
           fi

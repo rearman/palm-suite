@@ -46,8 +46,13 @@ object Icons {
 
 	fun newItem(): Icon = load("new")
 
-	/** The 16 and 32 pixel frame icons, for JFrame.iconImages. */
-	fun appImages(): List<Image> = listOf(load("app16").image, load("app32").image)
+	/** The app icon in 16, 32, 48 and 256 pixels, for JFrame.iconImages (window and taskbar). */
+	fun appImages(): List<Image> = listOf(
+		load("app16").image,
+		load("app32").image,
+		load("app48").image,
+		load("app256").image,
+	)
 
 	private fun load(name: String): ImageIcon = cache.getOrPut(name) {
 		ImageIcon(Icons::class.java.getResource("icons/$name.png") ?: error("missing icon $name"))

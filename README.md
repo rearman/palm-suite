@@ -216,8 +216,12 @@ The desktop keeps the Address Book records for sync.
 - On Linux, the app uses these Microsoft fonts when they are installed.
   Each font it cannot find falls back to Arial, then to Liberation Sans, so
   all text uses one family.
-- The toolbar, launcher, window and marker icons are the Palm Desktop 3.1.1
+- The toolbar, launcher and marker icons are the Palm Desktop 3.1.1
   bitmaps. See [Palm Desktop artwork](#palm-desktop-artwork).
+- The app icon (window, taskbar, shortcuts and installer) follows the style of
+  the Android icons: a monitor showing the Date Book page.
+  `desktop/packaging/make-icon.py` draws it and writes `palm-desktop.ico`,
+  `palm-desktop.png` and the `app*.png` window icons.
 - Each category list ends with Edit Categories..., which opens the category
   editor of the To Do List or the Memo Pad.
 - The category lists show the categories in alphabetical order. Edit
@@ -277,8 +281,8 @@ emerge --ask --update app-office/palm-desktop-bin
 
 # Palm Desktop artwork
 
-The icons in `desktop/src/main/resources/com/rearman/palmdesktop/icons/` and
-`desktop/packaging/palm-desktop.ico` come from Palm Desktop 3.1.1 for Windows
+The icons in `desktop/src/main/resources/com/rearman/palmdesktop/icons/`,
+except the `app*.png` files, come from Palm Desktop 3.1.1 for Windows
 (`palm.exe`, `date20.dll`, `todo20.dll`, `memo20.dll` and `addr20.dll`). They are Copyright © 2000 Palm, Inc. or its
 subsidiaries. All rights reserved by their current rights holders.
 
