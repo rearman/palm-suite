@@ -274,7 +274,13 @@ class MainActivity : Activity() {
 			categoryText = this
 		}
 		// The gauge is a local val too: a mutable property does not smart-cast to non-null for addView.
-		val gauge = BatteryGauge(this, { pp(it).toFloat() }, paper()).also { it.set(batteryLevel, batteryCharging) }
+		val gauge = BatteryGauge(this, { pp(it).toFloat() }, paper()).also {
+			it.set(batteryLevel, batteryCharging)
+			// A tap opens the battery page of Settings; a device without it gets the battery saver settings.
+			it.setOnClickListener {
+				if (!startSafely(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))) startSafely(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS))
+			}
+		}
 		battery = gauge
 		return LinearLayout(this).apply {
 			orientation = LinearLayout.HORIZONTAL
@@ -479,11 +485,13 @@ class MainActivity : Activity() {
 	private fun deleteApp(e: AppEntry) = startSafely(Intent(Intent.ACTION_DELETE,
 		Uri.fromParts("package", e.packageName, null)))
 
-	private fun startSafely(intent: Intent) {
-		try {
+	/** Starts [intent]. False when no activity on this device handles it. */
+	private fun startSafely(intent: Intent): Boolean {
+		return try {
 			startActivity(intent)
+			true
 		} catch (ex: ActivityNotFoundException) {
-			// No activity on this device handles the intent.
+			false
 		}
 	}
 

@@ -61,6 +61,7 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 	- Options: View as List or Grid, Grid Columns, Wallpaper, Text Size, Icon
 	  Size and Change Wallpaper.
 - The battery gauge of the Palm IIIxe, with a bolt while the phone charges.
+  Tap it to open the battery page of Settings.
 - The Android status bar is hidden, and the header goes to the top edge of
   the screen. Swipe down on the header, or on the top of the app list, to
   open the notifications.
