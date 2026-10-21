@@ -299,7 +299,7 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 	private val everyUnit = JLabel("Months").themed()
 	private val endField = JTextField(10).themed().apply { isEditable = false }
 	private val endLabel = repeatLabel("End on:", 'O', endField)
-	private val calBtn: JButton = iconButton(Icons.calendar(), "Choose end date", 20) { endMenu.show(calBtn, 0, calBtn.height) }
+	private val calBtn: JButton = iconButton(Icons.calendar(), "Choose end date", 20) { showEndMenu() }
 	private val dayToggles = Array(7) { i ->
 		val btn = JToggleButton(Fmt.dowLetter[i]).themed().apply {
 			setUI(BasicToggleButtonUI())
@@ -338,6 +338,9 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 		lineWrap = true
 		wrapStyleWord = true
 	}
+	/** Opens the End on menu under the calendar button. */
+	private fun showEndMenu() = endMenu.show(calBtn, 0, calBtn.height)
+
 	private val endMenu = JPopupMenu().apply {
 		add(JMenuItem("No End Date").apply { addActionListener { end = -1; refresh() } })
 		add(JMenuItem("Date...").apply { addActionListener { pickEnd() } })
