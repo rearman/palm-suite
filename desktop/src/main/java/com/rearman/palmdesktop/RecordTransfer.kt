@@ -1,5 +1,6 @@
 package com.rearman.palmdesktop
 
+import java.awt.Point
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.Transferable
@@ -7,8 +8,10 @@ import java.awt.datatransfer.UnsupportedFlavorException
 import java.awt.event.ActionEvent
 import javax.swing.Action
 import javax.swing.JComponent
+import javax.swing.JList
 import javax.swing.JMenuItem
 import javax.swing.JPopupMenu
+import javax.swing.JTable
 import javax.swing.TransferHandler
 import javax.swing.TransferHandler.TransferSupport
 
@@ -91,6 +94,36 @@ internal class RecordTransfer<T : Any>(private val kind: RecordKind<T>) : Transf
 	}.getOrDefault(false)
 }
 
+/** True when [c] is a list or a table with a selected row. False for any other component. */
+internal fun hasRecordSelection(c: JComponent): Boolean = when (c) {
+	is JList<*> -> !c.isSelectionEmpty
+	is JTable -> c.selectedRowCount > 0
+	else -> false
+}
+
+/** True when [c] is a list or a table with at least one row. False for any other component. */
+internal fun hasRows(c: JComponent): Boolean = when (c) {
+	is JList<*> -> c.model.size > 0
+	is JTable -> c.rowCount > 0
+	else -> false
+}
+
+/** The lead row of the selection, the row clicked last, when it is selected. Else the selected value. */
+internal fun <T> JList<T>.leadValue(): T? {
+	val i = leadSelectionIndex
+	return if (i in 0 until model.size && isSelectedIndex(i)) model.getElementAt(i) else selectedValue
+}
+
+/** A right click on a row that is not selected selects that row alone, as in Palm Desktop. */
+internal fun JList<*>.selectForPopup(p: Point) {
+	val row = locationToIndex(p)
+	if (row >= 0 && getCellBounds(row, row)?.contains(p) == true && !isSelectedIndex(row)) selectedIndex = row
+}
+
+/** The question before a delete: [one] for a single record, else the count and the plural [many]. */
+internal fun deleteQuestion(count: Int, one: String, many: String): String =
+	if (count == 1) one else "Delete the $count selected $many?"
+
 /**
  * The right-click menu of a record list, as in Palm Desktop: Cut, Copy, Paste, Delete, then Select All, then
  * [extra] after a separator. Cut, Copy and Delete need a selection. Select All needs rows. [extra] items are added as given.
@@ -98,21 +131,21 @@ internal class RecordTransfer<T : Any>(private val kind: RecordKind<T>) : Transf
 internal fun listMenu(
 	list: JComponent,
 	transfer: RecordTransfer<*>,
-	hasSelection: Boolean,
-	hasRows: Boolean,
 	delete: () -> Unit,
 	selectAll: () -> Unit,
 	extra: List<JMenuItem> = emptyList(),
 ): JPopupMenu {
 	fun fire(action: Action, command: String) =
 		action.actionPerformed(ActionEvent(list, ActionEvent.ACTION_PERFORMED, command))
+	val selected = hasRecordSelection(list)
+	val rows = hasRows(list)
 	val menu = JPopupMenu()
-	menu.add(editItem("Cut", 't', hasSelection) { fire(TransferHandler.getCutAction(), "cut") })
-	menu.add(editItem("Copy", 'C', hasSelection) { fire(TransferHandler.getCopyAction(), "copy") })
+	menu.add(editItem("Cut", 't', selected) { fire(TransferHandler.getCutAction(), "cut") })
+	menu.add(editItem("Copy", 'C', selected) { fire(TransferHandler.getCopyAction(), "copy") })
 	menu.add(editItem("Paste", 'P', transfer.canPaste(list)) { fire(TransferHandler.getPasteAction(), "paste") })
-	menu.add(editItem("Delete", 'D', hasSelection) { delete() })
+	menu.add(editItem("Delete", 'D', selected) { delete() })
 	menu.addSeparator()
-	menu.add(editItem("Select All", 'A', hasRows) { selectAll() })
+	menu.add(editItem("Select All", 'A', rows) { selectAll() })
 	if (extra.isNotEmpty()) {
 		menu.addSeparator()
 		extra.forEach { menu.add(it) }
@@ -121,7 +154,7 @@ internal fun listMenu(
 }
 
 /** A menu item in the Palm Desktop font, with the Alt mnemonic [mnemonic] underlined in [text]. */
-internal fun editItem(text: String, mnemonic: Char, enabled: Boolean, action: () -> Unit): JMenuItem {
+internal fun editItem(text: String, mnemonic: Char, enabled: Boolean = true, action: () -> Unit): JMenuItem {
 	val item = JMenuItem(text)
 	item.font = Theme.font
 	item.mnemonic = mnemonic.uppercaseChar().code

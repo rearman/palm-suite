@@ -28,25 +28,39 @@ internal object TextMenu {
 
 	/** Builds the menu for [f]. Each item is enabled from the state of [f] when the menu opens. */
 	private fun textMenu(f: JTextComponent): JPopupMenu {
-		val hasSelection = f.selectionStart != f.selectionEnd
-		val plain = f !is JPasswordField
+		val st = state(f)
 		val menu = JPopupMenu()
 		menu.add(editItem("Undo", 'U', TextUndo.manager(f).canUndo()) {
 			TextUndo.manager(f).undo()
 			TextUndo.onChange()
 		})
 		menu.addSeparator()
-		menu.add(editItem("Cut", 't', f.isEditable && hasSelection && plain) { f.cut() })
-		menu.add(editItem("Copy", 'C', hasSelection && plain) { f.copy() })
-		menu.add(editItem("Paste", 'P', f.isEditable && clipboardHasText()) { f.paste() })
-		menu.add(editItem("Delete", 'D', f.isEditable && hasSelection) { f.replaceSelection("") })
+		menu.add(editItem("Cut", 't', st.cut) { f.cut() })
+		menu.add(editItem("Copy", 'C', st.copy) { f.copy() })
+		menu.add(editItem("Paste", 'P', st.paste) { f.paste() })
+		menu.add(editItem("Delete", 'D', st.delete) { f.replaceSelection("") })
 		menu.addSeparator()
 		menu.add(editItem("Select All", 'A', f.document.length > 0) { f.selectAll() })
 		return menu
 	}
 
-	/** True when the system clipboard holds text. */
-	private fun clipboardHasText(): Boolean = runCatching {
-		Toolkit.getDefaultToolkit().systemClipboard.getContents(null)?.isDataFlavorSupported(DataFlavor.stringFlavor) == true
-	}.getOrDefault(false)
+	/** The enabled state of Cut, Copy, Paste and Delete for [f]. A password field gives no Cut or Copy. */
+	fun state(f: JTextComponent): TextEditState {
+		val hasSelection = f.selectionStart != f.selectionEnd
+		val plain = f !is JPasswordField
+		return TextEditState(
+			cut = f.isEditable && hasSelection && plain,
+			copy = hasSelection && plain,
+			paste = f.isEditable && clipboardHasText(),
+			delete = f.isEditable && hasSelection,
+		)
+	}
 }
+
+/** The enabled flags of the Cut, Copy, Paste and Delete items of a text field. */
+internal class TextEditState(val cut: Boolean, val copy: Boolean, val paste: Boolean, val delete: Boolean)
+
+/** True when the system clipboard holds text. */
+internal fun clipboardHasText(): Boolean = runCatching {
+	Toolkit.getDefaultToolkit().systemClipboard.getContents(null)?.isDataFlavorSupported(DataFlavor.stringFlavor) == true
+}.getOrDefault(false)

@@ -38,7 +38,6 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		"Category, Priority",
 		"Category, Due Date"
 	)
-	private val dueNames = arrayOf("Today", "Tomorrow", "One week later", "No date", "Choose date...")
 	private val dayRenderer = DefaultListCellRenderer()
 
 	private var rows: List<Todo> = emptyList()   // the items the table shows
@@ -55,7 +54,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	private val categoryBox = JComboBox<Choice>()
 	private val todoText = JTextArea(3, 20)
 	private val radios = (1..5).map { n -> JRadioButton("$n").apply { font = Theme.font; mnemonic = KeyEvent.VK_0 + n } }
-	private val dueBox = JComboBox(dueNames)
+	private val dueBox = JComboBox(DUE_NAMES)
 	private val dueField = JTextField(9)
 	private val noteField = JTextField(12)
 	private val noteButton = JButton(Icons.note())
@@ -211,8 +210,8 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 				val c = table.columnAtPoint(p)
 				if (r < 0 || c < 0) return
 				val menu = when (model.cols[c]) {
-					1 -> priorityMenu(rows[r])
-					3 -> dueMenu(rows[r])
+					1 -> priorityPopup(rows[r]) { saveFromCell(it) }
+					3 -> duePopup(this@TodoPanel, rows[r]) { saveFromCell(it) }
 					4 -> categoryMenu(rows[r])
 					else -> return
 				}
@@ -262,7 +261,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		dueBox.addActionListener {
 			val pick = dueBox.selectedIndex
 			if (busy || pick < 0) return@addActionListener
-			dueFor(pick, pendingDue)?.let { pendingDue = it }
+			dueFor(this, pick, pendingDue)?.let { pendingDue = it }
 			quiet { dueBox.selectedIndex = -1 }
 			showDue()
 		}
@@ -387,7 +386,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	override fun deleteSelected() {
 		val list = selectedTodos()
 		if (list.isEmpty()) return
-		val question = if (list.size == 1) "Delete the To Do item?" else "Delete the ${list.size} selected To Do items?"
+		val question = deleteQuestion(list.size, "Delete the To Do item?", "To Do items")
 		if (!confirmDelete(this, question)) return
 		selectedId = null
 		list.forEach { App.store.delete(it) }
@@ -591,44 +590,11 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		App.refresh()
 	}
 
-	/** The due date that Due menu row [pick] gives, or null when the date picker is cancelled. */
-	private fun dueFor(pick: Int, current: Long): Long? {
-		val day = today()
-		return when (pick) {
-			0 -> day
-			1 -> day + 1
-			2 -> day + 7
-			3 -> -1L
-			else -> DatePicker.pick(this, "day", if (current >= 0) current else day)
-		}
-	}
-
 	/** Saves an item changed from a cell popup, and reloads the details panel when it shows the item. */
 	private fun saveFromCell(t: Todo) {
 		App.store.save(t)
 		if (selectedId == t.id) loadedId = null
 		App.refresh()
-	}
-
-	private fun priorityMenu(t: Todo) = JPopupMenu().apply {
-		for (n in 1..5) add(JMenuItem("$n").apply {
-			addActionListener {
-				t.priority = n
-				saveFromCell(t)
-			}
-		})
-	}
-
-	private fun dueMenu(t: Todo) = JPopupMenu().apply {
-		dueNames.forEachIndexed { i, name ->
-			add(JMenuItem(name).apply {
-				addActionListener {
-					val due = dueFor(i, t.due) ?: return@addActionListener
-					t.due = due
-					saveFromCell(t)
-				}
-			})
-		}
 	}
 
 	private fun categoryMenu(t: Todo) = JPopupMenu().apply {
@@ -746,12 +712,11 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		val r = table.rowAtPoint(p)
 		if (r >= 0 && !table.isRowSelected(r)) table.setRowSelectionInterval(r, r)
 		listMenu(
-			table, transfer, hasSelection = table.selectedRowCount > 0, hasRows = table.rowCount > 0,
+			table, transfer,
 			delete = { deleteSelected() }, selectAll = { table.selectAll() },
 		).show(e.component, e.x, e.y)
 	}
 
-	private fun today() = LocalDate.now().toEpochDay()
 	private fun firstLine(s: String) = s.lineSequence().firstOrNull() ?: ""
 
 	/** The due text of the Due box: M/d/yyyy, or empty when no date. */

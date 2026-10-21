@@ -8,7 +8,6 @@ import java.awt.Dimension
 import java.awt.Insets
 import java.awt.KeyboardFocusManager
 import java.awt.Toolkit
-import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.FlavorListener
 import java.awt.event.AWTEventListener
 import java.awt.event.ActionEvent
@@ -40,7 +39,6 @@ import javax.swing.JMenuBar
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
 import javax.swing.JPanel
-import javax.swing.JPasswordField
 import javax.swing.JPopupMenu
 import javax.swing.JRadioButtonMenuItem
 import javax.swing.JTable
@@ -254,17 +252,12 @@ class MainFrame : JFrame("Palm Desktop") {
 		var copy = false
 		var paste = false
 		if (field != null) {
-			val selected = field.selectionStart != field.selectionEnd
-			val plain = field !is JPasswordField
-			cut = field.isEditable && selected && plain
-			copy = selected && plain
-			paste = field.isEditable && clipboardHasText()
+			val s = TextMenu.state(field)
+			cut = s.cut
+			copy = s.copy
+			paste = s.paste
 		} else if (owner is JComponent && handler != null) {
-			val selected = when (owner) {
-				is JList<*> -> !owner.isSelectionEmpty
-				is JTable -> owner.selectedRowCount > 0
-				else -> false
-			}
+			val selected = hasRecordSelection(owner)
 			cut = selected
 			copy = selected
 			paste = handler.canPaste(owner)
@@ -279,11 +272,6 @@ class MainFrame : JFrame("Palm Desktop") {
 		undoItem.isEnabled = can
 		undoButton.isEnabled = can
 	}
-
-	/** True when the system clipboard holds text. False when the clipboard cannot be read. */
-	private fun clipboardHasText(): Boolean = runCatching {
-		Toolkit.getDefaultToolkit().systemClipboard.getContents(null)?.isDataFlavorSupported(DataFlavor.stringFlavor) == true
-	}.getOrDefault(false)
 
 	private fun buildMenuBar(): JMenuBar {
 		val bar = JMenuBar()

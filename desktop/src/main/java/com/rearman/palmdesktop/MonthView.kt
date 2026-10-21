@@ -14,7 +14,6 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
 import javax.swing.SwingUtilities
@@ -79,10 +78,10 @@ class MonthView : JPanel(BorderLayout()) {
 		App.day = day
 		App.refresh()
 		val menu = JPopupMenu()
-		menu.add(cellItem("Day View", KeyEvent.VK_D) { showMode("day") })
-		menu.add(cellItem("Week View", KeyEvent.VK_W) { showMode("week") })
+		menu.add(editItem("Day View", 'D') { showMode("day") })
+		menu.add(editItem("Week View", 'W') { showMode("week") })
 		menu.addSeparator()
-		menu.add(cellItem("New Event...", KeyEvent.VK_N) { EventDialog.edit(this, null, day) })
+		menu.add(editItem("New Event...", 'N') { EventDialog.edit(this, null, day) })
 		menu.show(grid, e.x, e.y)
 	}
 
@@ -91,13 +90,6 @@ class MonthView : JPanel(BorderLayout()) {
 		if (e.isControlDown || e.isAltDown || e.keyChar.isISOControl()) return
 		EventDialog.edit(this, null, App.day, title = e.keyChar.toString())
 	}
-
-	private fun cellItem(text: String, key: Int, action: () -> Unit): JMenuItem =
-		JMenuItem(text).apply {
-			font = Theme.font
-			mnemonic = key
-			addActionListener { action() }
-		}
 
 	/** Event line text: an asterisk for an untimed event, the start time for a timed one. */
 	private fun lineText(o: Occ): String =

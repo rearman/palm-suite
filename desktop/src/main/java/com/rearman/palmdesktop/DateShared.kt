@@ -24,7 +24,6 @@ import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JDialog
-import javax.swing.JMenuItem
 import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
@@ -320,18 +319,11 @@ internal fun editAlarm(owner: Component, occ: Occ) {
 /** The context menu of an event box in the Date Book. */
 internal fun eventMenu(owner: Component, occ: Occ): JPopupMenu {
 	val menu = JPopupMenu()
-	menu.add(menuItem("Delete", KeyEvent.VK_D) { deleteOccurrence(owner, occ) })
+	menu.add(editItem("Delete", 'D') { deleteOccurrence(owner, occ) })
 	menu.addSeparator()
-	menu.add(menuItem("Note...", KeyEvent.VK_N) { editNote(owner, occ) })
-	menu.add(menuItem("Alarm...", KeyEvent.VK_A) { editAlarm(owner, occ) })
+	menu.add(editItem("Note...", 'N') { editNote(owner, occ) })
+	menu.add(editItem("Alarm...", 'A') { editAlarm(owner, occ) })
 	menu.addSeparator()
-	menu.add(menuItem("Edit...", KeyEvent.VK_E) { EventDialog.edit(owner, occ.event, occ.day) })
+	menu.add(editItem("Edit...", 'E') { EventDialog.edit(owner, occ.event, occ.day) })
 	return menu
 }
-
-private fun menuItem(text: String, key: Int, action: () -> Unit): JMenuItem =
-	JMenuItem(text).apply {
-		font = Theme.font
-		mnemonic = key
-		addActionListener { action() }
-	}

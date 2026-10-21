@@ -43,9 +43,7 @@ import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
-import javax.swing.JMenuItem
 import javax.swing.JPanel
-import javax.swing.JPopupMenu
 import javax.swing.JScrollPane
 import javax.swing.JTextField
 import javax.swing.JToggleButton
@@ -414,9 +412,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 					App.store.save(item)
 					App.refresh()
 				} else if (e.clickCount == 1 && rowPartBounds(idx, todoRenderer.pri)?.contains(e.point) == true) {
-					priorityMenu(item).show(todoList, e.x, e.y)
+					priorityPopup(item) { saveTodo(it) {} }.show(todoList, e.x, e.y)
 				} else if (e.clickCount == 1 && rowPartBounds(idx, todoRenderer.due)?.contains(e.point) == true) {
-					dueMenu(item).show(todoList, e.x, e.y)
+					duePopup(this@DatePanel, item) { saveTodo(it) {} }.show(todoList, e.x, e.y)
 				} else if (e.clickCount == 2) {
 					App.show("todo", item)
 				}
@@ -663,45 +661,11 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		return Rectangle(cell.x + r.x, cell.y + r.y, r.width, r.height)
 	}
 
-	/** The popup of a To Do priority: 1 to 5. */
-	private fun priorityMenu(t: Todo): JPopupMenu =
-		popupOf((1..5).map { n -> "$n" to { saveTodo(t) { t.priority = n } } })
-
-	/** The popup of a To Do due date. */
-	private fun dueMenu(t: Todo): JPopupMenu {
-		val today = LocalDate.now().toEpochDay()
-		return popupOf(listOf(
-			"Today" to { saveTodo(t) { t.due = today } },
-			"Tomorrow" to { saveTodo(t) { t.due = today + 1 } },
-			"One week later" to { saveTodo(t) { t.due = today + 7 } },
-			"No date" to { saveTodo(t) { t.due = -1L } },
-			"Choose date..." to { pickDue(t) }
-		))
-	}
-
-	/** Asks a day in the picker and sets the due date of [t] to it. */
-	private fun pickDue(t: Todo) {
-		val day = DatePicker.pick(this, "day", if (t.due >= 0) t.due else LocalDate.now().toEpochDay()) ?: return
-		saveTodo(t) { t.due = day }
-	}
-
 	/** Applies [change] to [t], saves it and redraws the panel. */
 	private fun saveTodo(t: Todo, change: () -> Unit) {
 		change()
 		App.store.save(t)
 		App.refresh()
-	}
-
-	/** A popup menu with one item for each of [items]. */
-	private fun popupOf(items: List<Pair<String, () -> Unit>>): JPopupMenu {
-		val menu = JPopupMenu()
-		for ((text, action) in items) {
-			menu.add(JMenuItem(text).apply {
-				font = Theme.font
-				addActionListener { action() }
-			})
-		}
-		return menu
 	}
 
 	// Day grid geometry: HALF px per half hour. The untimed rows are in a fixed header above the grid.

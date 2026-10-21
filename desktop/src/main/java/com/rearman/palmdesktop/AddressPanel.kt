@@ -73,7 +73,7 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 		list.addListSelectionListener {
 			if (it.valueIsAdjusting) return@addListSelectionListener
 			if (!busy) {
-				selectedId = lead()?.id
+				selectedId = list.leadValue()?.id
 				showCard()
 			}
 			updateButtons()
@@ -168,15 +168,14 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	override fun editSelected() {
-		val a = lead() ?: return
+		val a = list.leadValue() ?: return
 		AddressDialog.edit(this, a)
 	}
 
 	override fun deleteSelected() {
 		val picked = list.selectedValuesList
 		if (picked.isEmpty()) return
-		val question = if (picked.size == 1) "Delete the address?" else "Delete the ${picked.size} selected addresses?"
-		if (!confirmDelete(this, question)) return
+		if (!confirmDelete(this, deleteQuestion(picked.size, "Delete the address?", "addresses"))) return
 		selectedId = null
 		kind.delete(picked)
 	}
@@ -265,17 +264,11 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	private fun showCard() {
-		card.address = lead()
+		card.address = list.leadValue()
 	}
 
 	private fun updateButtons() {
-		editButton.isEnabled = lead() != null
-	}
-
-	/** The lead address of the selection, the row clicked last; else the first selected one. */
-	private fun lead(): Address? {
-		val i = list.leadSelectionIndex
-		return if (i >= 0 && list.isSelectedIndex(i)) listModel.getElementAt(i) else list.selectedValue
+		editButton.isEnabled = list.leadValue() != null
 	}
 
 	/** The phone slots of [a] that Dial offers: a non-blank number whose label is not E-mail. */
@@ -286,13 +279,10 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 	private fun showListMenu(e: MouseEvent) {
 		if (!e.isPopupTrigger) return
 		val p = SwingUtilities.convertPoint(e.component, e.point, list)
-		val row = list.locationToIndex(p)
-		if (row >= 0 && list.getCellBounds(row, row)?.contains(p) == true && !list.isSelectedIndex(row)) list.selectedIndex = row
-		val lead = lead()
+		list.selectForPopup(p)
+		val lead = list.leadValue()
 		val menu = listMenu(
 			list, transfer,
-			hasSelection = !list.isSelectionEmpty,
-			hasRows = listModel.size() > 0,
 			delete = { deleteSelected() },
 			selectAll = { list.setSelectionInterval(0, listModel.size() - 1) },
 			extra = listOf(

@@ -79,7 +79,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		list.addListSelectionListener {
 			if (!it.valueIsAdjusting) {
 				App.positionChanged()
-				if (!busy) onPick(lead())
+				if (!busy) onPick(list.leadValue())
 			}
 		}
 		// A printable key starts a new memo that holds the typed character, as on the Palm.
@@ -157,8 +157,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 	override fun deleteSelected() {
 		val ms = list.selectedValuesList
 		if (ms.isEmpty()) return
-		val question = if (ms.size == 1) "Delete the memo?" else "Delete the ${ms.size} selected memos?"
-		if (!confirmDelete(this, question)) return
+		if (!confirmDelete(this, deleteQuestion(ms.size, "Delete the memo?", "memos"))) return
 		loadEditor(null)
 		ms.forEach { App.store.delete(it) }
 		App.refresh()
@@ -179,10 +178,9 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 	private fun popupAt(e: MouseEvent) {
 		if (!e.isPopupTrigger) return
 		val p = SwingUtilities.convertPoint(e.component, e.point, list)
-		val row = list.locationToIndex(p)
-		if (row >= 0 && list.getCellBounds(row, row).contains(p) && !list.isSelectedIndex(row)) list.selectedIndex = row
+		list.selectForPopup(p)
 		listMenu(
-			list, transfer, hasSelection = !list.isSelectionEmpty, hasRows = listModel.size() > 0,
+			list, transfer,
 			delete = { deleteSelected() },
 			selectAll = { if (listModel.size() > 0) list.setSelectionInterval(0, listModel.size() - 1) },
 		).show(e.component, e.x, e.y)
@@ -263,13 +261,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		}
 		if (list.isSelectionEmpty) pick(want?.let { w -> shown.firstOrNull { it.id == w.id } })
 		App.positionChanged()
-		return lead()
-	}
-
-	/** The lead memo of the selection, the row clicked last; else the first selected one. */
-	private fun lead(): Memo? {
-		val i = list.leadSelectionIndex
-		return if (i >= 0 && i < listModel.size() && list.isSelectedIndex(i)) listModel.getElementAt(i) else list.selectedValue
+		return list.leadValue()
 	}
 
 	private fun pick(m: Memo?) {
