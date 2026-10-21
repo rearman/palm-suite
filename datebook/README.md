@@ -43,7 +43,7 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Tap New to make a memo.
 - Sort: manual or alphabetic. Select Options, then Preferences to set the sort order.
 - Manual sort: touch and hold a memo, then drag it to move it.
-- Memo view shows "Memo N of M". The page has a full page of dotted lines. A memo can have up to 4,096 characters.
+- Memo view shows "Memo N of M". The page has a full page of dotted lines.
 - Memo view has the Done and Details buttons.
 - Details: Category, Private and Delete.
 - The text is saved as you type. An empty memo is deleted.
