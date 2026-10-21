@@ -329,13 +329,6 @@ internal fun eventMenu(owner: Component, occ: Occ): JPopupMenu {
 	return menu
 }
 
-/** The context menu of an empty hour in the Date Book. [startMin] is null for an untimed event. */
-internal fun slotMenu(owner: Component, day: Long, startMin: Int?): JPopupMenu {
-	val menu = JPopupMenu()
-	menu.add(menuItem("New Event", KeyEvent.VK_N) { EventDialog.edit(owner, null, day, startMin) })
-	return menu
-}
-
 private fun menuItem(text: String, key: Int, action: () -> Unit): JMenuItem =
 	JMenuItem(text).apply {
 		font = Theme.font

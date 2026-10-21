@@ -28,6 +28,7 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JFrame
 import javax.swing.JLabel
+import javax.swing.JList
 import javax.swing.JMenu
 import javax.swing.JMenuBar
 import javax.swing.JMenuItem
@@ -35,6 +36,7 @@ import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
 import javax.swing.JRadioButtonMenuItem
+import javax.swing.JTable
 import javax.swing.JToggleButton
 import javax.swing.JToolBar
 import javax.swing.KeyStroke
@@ -81,6 +83,7 @@ class MainFrame : JFrame("Palm Desktop") {
 		setSize(1000, 700)
 		iconImages = Icons.appImages()
 		TextUndo.install()
+		TextMenu.install()
 		jMenuBar = buildMenuBar()
 		center.add(datePanel, "date")
 		center.add(addressPanel, "address")
@@ -247,7 +250,11 @@ class MainFrame : JFrame("Palm Desktop") {
 			m.add(item("Delete", 'D', KeyEvent.VK_DELETE) { currentView().deleteSelected() })
 			m.addSeparator()
 			m.add(item("Select All", 'A', KeyEvent.VK_A, CTRL) {
-				(KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner as? JTextComponent)?.selectAll()
+				when (val owner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner) {
+					is JTextComponent -> owner.selectAll()
+					is JTable -> owner.selectAll()
+					is JList<*> -> if (owner.model.size > 0) owner.setSelectionInterval(0, owner.model.size - 1)
+				}
 			})
 			m.add(onlyIn(item("New Event...", 'N', KeyEvent.VK_N, CTRL) { newRecord() }, "date"))
 			m.add(onlyIn(item("Edit Event...", 'E') { currentView().editSelected() }, "date"))
@@ -434,7 +441,7 @@ class MainFrame : JFrame("Palm Desktop") {
  * One undo history per text field. A field gets its history the first time it takes the focus, so
  * Edit > Undo covers every edit made after that.
  */
-private object TextUndo {
+internal object TextUndo {
 	private val histories = WeakHashMap<JTextComponent, UndoManager>()
 
 	/** Runs after the focus moves or a history changes. */

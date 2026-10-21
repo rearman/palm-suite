@@ -1030,19 +1030,13 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		/** The box of the selected timed event in this grid, or null. */
 		private fun selBox(): Rectangle? = layoutDay(width).firstOrNull { it.first.event.id == selectedId && !it.first.event.untimed }?.second
 
-		/** The menu of the box under a right click, or of the empty hour or header row. */
+		/** The menu of the box under a right click. Empty space has no menu, as in Palm Desktop. */
 		private fun popupAt(e: MouseEvent) {
-			val hit = boxAt(width, e.point, header)
-			if (hit != null) {
-				selectedId = hit.first.event.id
-				editBtn.isEnabled = true
-				repaintDay()
-				eventMenu(this@DatePanel, hit.first).show(this, e.x, e.y)
-			} else if (header) {
-				slotMenu(this@DatePanel, App.day, null).show(this, e.x, e.y)
-			} else {
-				slotMenu(this@DatePanel, App.day, (minAt(e.y) / 60).coerceIn(0, 23) * 60).show(this, e.x, e.y)
-			}
+			val hit = boxAt(width, e.point, header) ?: return
+			selectedId = hit.first.event.id
+			editBtn.isEnabled = true
+			repaintDay()
+			eventMenu(this@DatePanel, hit.first).show(this, e.x, e.y)
 		}
 
 		/** Sets the target of [d] for the mouse at [p] in this grid: a calendar day, or an outline in the grid. */

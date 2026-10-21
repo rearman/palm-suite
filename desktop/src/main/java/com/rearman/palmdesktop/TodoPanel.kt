@@ -66,6 +66,27 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	private val cell = Cell()
 	private val table = JTable(model)
 
+	/** The items for Cut, Copy, Paste and Delete: the selected rows. */
+	private val recordKind = RecordKind<Todo>(
+		"todo",
+		selected = ::selectedTodos,
+		copyOf = { it.copy() },
+		text = { it.title },
+		pasteRecords = { list ->
+			list.forEach { App.store.save(it.copy(id = 0, uid = "")) }
+			App.refresh()
+		},
+		pasteText = { s ->
+			s.lines().filter { it.isNotBlank() }.forEach { App.store.save(newTodo(it.trim())) }
+			App.refresh()
+		},
+		delete = { list ->
+			list.forEach { App.store.delete(it) }
+			App.refresh()
+		},
+	)
+	private val transfer = RecordTransfer(recordKind)
+
 	/** The table model. Its columns depend on the Settings "todoShowPri", "todoShowDue" and "todoShowCat". */
 	private inner class Model : AbstractTableModel() {
 		/** The kind of each column: 0 Done, 1 Priority, 2 To Do, 3 Due Date, 4 Category, 5 Note and Private marks. */
@@ -165,7 +186,9 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		table.background = Color.WHITE
 		table.selectionBackground = Theme.select
 		table.selectionForeground = Color.WHITE
-		table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+		table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
+		table.dragEnabled = false
+		table.transferHandler = transfer
 		table.tableHeader = null
 		// Palm Desktop draws the Done boxes as plain black squares.
 		(table.getDefaultRenderer(Boolean::class.javaObjectType) as? javax.swing.JCheckBox)?.icon = Theme.plainCheck
@@ -176,13 +199,14 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 			if (e.valueIsAdjusting) return@addListSelectionListener
 			App.positionChanged()
 			if (busy) return@addListSelectionListener
-			rows.getOrNull(table.selectedRow)?.let { loadDetails(it) }
+			rows.getOrNull(leadRow())?.let { loadDetails(it) }
 		}
-		table.addMouseListener(object : MouseAdapter() {
+		val mouse = object : MouseAdapter() {
 			override fun mouseClicked(e: MouseEvent) {
 				if (e.clickCount != 1 || !SwingUtilities.isLeftMouseButton(e)) return
-				val r = table.rowAtPoint(e.point)
-				val c = table.columnAtPoint(e.point)
+				val p = SwingUtilities.convertPoint(e.component, e.point, table)
+				val r = table.rowAtPoint(p)
+				val c = table.columnAtPoint(p)
 				if (r < 0 || c < 0) return
 				val menu = when (model.cols[c]) {
 					1 -> priorityMenu(rows[r])
@@ -190,9 +214,13 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 					4 -> categoryMenu(rows[r])
 					else -> return
 				}
-				menu.show(table, e.x, e.y)
+				menu.show(table, p.x, p.y)
 			}
-		})
+
+			override fun mousePressed(e: MouseEvent) = showListMenu(e)
+			override fun mouseReleased(e: MouseEvent) = showListMenu(e)
+		}
+		table.addMouseListener(mouse)
 		table.addKeyListener(object : KeyAdapter() {
 			override fun keyTyped(e: KeyEvent) {
 				if (e.isControlDown || e.isAltDown || e.keyChar.isISOControl()) return
@@ -205,6 +233,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 		val scroll = JScrollPane(table)
 		scroll.viewport.background = Color.WHITE
+		scroll.viewport.addMouseListener(mouse)
 		scroll.border = BorderFactory.createBevelBorder(BevelBorder.LOWERED)
 
 		val showButton = JButton("Show...")
@@ -342,8 +371,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	override fun newRecord() {
-		val filter = Settings.getInt("todoCategory", -1)
-		val t = Todo(title = "", priority = 1, category = if (filter == -1) 0 else filter)
+		val t = newTodo("")
 		App.store.save(t)
 		reveal(t)
 		selectedId = t.id
@@ -357,10 +385,12 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	override fun deleteSelected() {
-		val t = selectedTodo() ?: return
-		if (!confirmDelete(this, "Delete the To Do item?")) return
+		val list = selectedTodos()
+		if (list.isEmpty()) return
+		val question = if (list.size == 1) "Delete the To Do item?" else "Delete the ${list.size} selected To Do items?"
+		if (!confirmDelete(this, question)) return
 		selectedId = null
-		App.store.delete(t)
+		list.forEach { App.store.delete(it) }
 		App.refresh()
 	}
 
@@ -376,7 +406,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	override fun position(): String {
-		val row = table.selectedRow
+		val row = leadRow()
 		return if (row < 0) "" else "${row + 1} of ${rows.size}"
 	}
 
@@ -691,6 +721,34 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	private fun selectedTodo(): Todo? = App.store.todos.firstOrNull { it.id == selectedId }
+
+	/** The items of the selected rows, in table order. */
+	private fun selectedTodos(): List<Todo> = table.selectedRows.sorted().mapNotNull { rows.getOrNull(it) }
+
+	/** The lead row of the selection, the row clicked last. Falls back to the first selected row, or -1 when none is selected. */
+	private fun leadRow(): Int {
+		if (table.selectedRowCount == 0) return -1
+		val lead = table.selectionModel.leadSelectionIndex
+		return if (table.isRowSelected(lead)) lead else table.selectedRow
+	}
+
+	/** A new to do with [title], in the category that the category filter shows, as the New button makes it. */
+	private fun newTodo(title: String): Todo {
+		val filter = Settings.getInt("todoCategory", -1)
+		return Todo(title = title, priority = 1, category = if (filter == -1) 0 else filter)
+	}
+
+	/** The right-click menu of the list. A row under the pointer that is not selected becomes the only selection. */
+	private fun showListMenu(e: MouseEvent) {
+		if (!e.isPopupTrigger) return
+		val p = SwingUtilities.convertPoint(e.component, e.point, table)
+		val r = table.rowAtPoint(p)
+		if (r >= 0 && !table.isRowSelected(r)) table.setRowSelectionInterval(r, r)
+		listMenu(
+			table, transfer, hasSelection = table.selectedRowCount > 0, hasRows = table.rowCount > 0,
+			delete = { deleteSelected() }, selectAll = { table.selectAll() },
+		).show(e.component, e.x, e.y)
+	}
 
 	private fun today() = LocalDate.now().toEpochDay()
 	private fun firstLine(s: String) = s.lineSequence().firstOrNull() ?: ""

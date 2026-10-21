@@ -11,6 +11,8 @@ import java.awt.GridLayout
 import java.awt.Insets
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 
@@ -39,6 +41,23 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 	private val privateBox = JCheckBox()
 	private val applyButton = JButton("Apply")
 
+	// Cut, Copy, Paste and Delete of the selected memos.
+	private val transfer = RecordTransfer(RecordKind<Memo>(
+		"memo",
+		selected = { list.selectedValuesList },
+		copyOf = { it.copy() },
+		text = { it.text },
+		pasteRecords = { ms -> ms.forEach { App.store.save(it.copy(id = 0, uid = "")) }; App.refresh() },
+		pasteText = { s -> App.store.save(newMemo(s)); App.refresh() },
+		delete = { ms -> ms.forEach { App.store.delete(it) }; App.refresh() },
+	))
+
+	// The right-click menu. Mouse events on the list, or on the viewport below the rows, come here.
+	private val listMouse = object : MouseAdapter() {
+		override fun mousePressed(e: MouseEvent) = popupAt(e)
+		override fun mouseReleased(e: MouseEvent) = popupAt(e)
+	}
+
 	init {
 		val title = JLabel("Memo Pad").apply {
 			font = Theme.caption
@@ -53,10 +72,14 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		list.font = Theme.font
 		list.fixedCellHeight = 16
 		list.cellRenderer = MemoCell()
+		list.selectionMode = ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
+		list.dragEnabled = false
+		list.transferHandler = transfer
+		list.addMouseListener(listMouse)
 		list.addListSelectionListener {
 			if (!it.valueIsAdjusting) {
 				App.positionChanged()
-				if (!busy) onPick(list.selectedValue)
+				if (!busy) onPick(lead())
 			}
 		}
 		// A printable key starts a new memo that holds the typed character, as on the Palm.
@@ -103,7 +126,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		}
 		val listPanel = JPanel(BorderLayout()).apply {
 			add(top, BorderLayout.NORTH)
-			add(JScrollPane(list), BorderLayout.CENTER)
+			add(JScrollPane(list).apply { viewport.addMouseListener(listMouse) }, BorderLayout.CENTER)
 			add(bottom, BorderLayout.SOUTH)
 		}
 		add(detailSplit(listPanel, right, "memoSplit", 315), BorderLayout.CENTER)
@@ -116,22 +139,28 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 
 	override fun newRecord() {
 		saveIfChanged()
-		val m = Memo(text = "", category = if (filterId > UNFILED) filterId else UNFILED)
+		val m = newMemo("")
 		App.store.save(m)
-		loadEditor(m)
 		App.refresh()
+		pick(m)
+		loadEditor(m)
 		editor.requestFocusInWindow()
 	}
+
+	/** A new memo with [text], in the category the filter shows. */
+	private fun newMemo(text: String) = Memo(text = text, category = if (filterId > UNFILED) filterId else UNFILED)
 
 	override fun editSelected() {
 		if (current != null) editor.requestFocusInWindow()
 	}
 
 	override fun deleteSelected() {
-		val m = current ?: return
-		if (!confirmDelete(this, "Delete the memo?")) return
+		val ms = list.selectedValuesList
+		if (ms.isEmpty()) return
+		val question = if (ms.size == 1) "Delete the memo?" else "Delete the ${ms.size} selected memos?"
+		if (!confirmDelete(this, question)) return
 		loadEditor(null)
-		App.store.delete(m)
+		ms.forEach { App.store.delete(it) }
 		App.refresh()
 	}
 
@@ -143,6 +172,20 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		}
 		loadEditor(m)
 		reflow(m, false)
+		pick(m)
+	}
+
+	/** Shows the list menu at the pointer on a popup trigger. An unselected row under the pointer becomes the only selection. */
+	private fun popupAt(e: MouseEvent) {
+		if (!e.isPopupTrigger) return
+		val p = SwingUtilities.convertPoint(e.component, e.point, list)
+		val row = list.locationToIndex(p)
+		if (row >= 0 && list.getCellBounds(row, row).contains(p) && !list.isSelectedIndex(row)) list.selectedIndex = row
+		listMenu(
+			list, transfer, hasSelection = !list.isSelectionEmpty, hasRows = listModel.size() > 0,
+			delete = { deleteSelected() },
+			selectAll = { if (listModel.size() > 0) list.setSelectionInterval(0, listModel.size() - 1) },
+		).show(e.component, e.x, e.y)
 	}
 
 	override fun printLines(): Pair<String, List<String>> {
@@ -174,7 +217,6 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		if (next?.id == current?.id) return
 		saveIfChanged()
 		loadEditor(next)
-		pick(next)
 	}
 
 	private fun setFilter(id: Int) {
@@ -206,17 +248,28 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		return memoOrder(shown, Settings.get("memoSort", "0") == "1")
 	}
 
-	/** Fills the list with the visible memos and selects [want] when it is shown. */
+	/**
+	 * Fills the list with the visible memos. Keeps the selected memos that are still shown. Selects [want] only when
+	 * nothing is left selected. Returns the lead memo, which the editor shows.
+	 */
 	private fun rebuildList(want: Memo?): Memo? {
 		val shown = visibleMemos()
+		val selected = list.selectedValuesList.map { it.id }.toSet()
 		quiet {
 			listModel.clear()
 			shown.forEach { listModel.addElement(it) }
+			list.clearSelection()
+			shown.forEachIndexed { i, m -> if (m.id in selected) list.addSelectionInterval(i, i) }
 		}
-		val hit = want?.let { w -> shown.firstOrNull { it.id == w.id } }
-		pick(hit)
+		if (list.isSelectionEmpty) pick(want?.let { w -> shown.firstOrNull { it.id == w.id } })
 		App.positionChanged()
-		return hit
+		return lead()
+	}
+
+	/** The lead memo of the selection, the row clicked last; else the first selected one. */
+	private fun lead(): Memo? {
+		val i = list.leadSelectionIndex
+		return if (i >= 0 && i < listModel.size() && list.isSelectedIndex(i)) listModel.getElementAt(i) else list.selectedValue
 	}
 
 	private fun pick(m: Memo?) {

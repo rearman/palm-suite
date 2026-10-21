@@ -183,6 +183,12 @@ In the Address Book, To Do List and Memo Pad, drag the divider between the
 list and the right pane to change the width of the pane. The app keeps the
 width.
 
+Right-click a record for its menu, as in Palm Desktop. Events have Delete, Note,
+Alarm and Edit; Month view days have Day View, Week View and New Event; the To
+Do List, Memo Pad and Address List have Cut, Copy, Paste, Delete and Select All,
+and the Address List adds Edit and Dial. Ctrl and Shift select more than one
+record. Text fields have Undo, Cut, Copy, Paste, Delete and Select All.
+
 The desktop keeps the Address Book records for sync.
 
 - Windows: download `palm-desktop-windows.msi` from a `desktop-v*` release

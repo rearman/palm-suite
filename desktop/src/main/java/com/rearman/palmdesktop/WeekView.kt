@@ -457,21 +457,14 @@ class WeekView : JPanel(BorderLayout()) {
 		}
 	}
 
-	/** Right click on the grid: the menu of a box, or of an empty hour or the untimed row. */
+	/** Right click on the grid: the menu of a box. Empty space has no menu, as in Palm Desktop. */
 	private fun gridPopup(e: MouseEvent) {
 		if (e.x < TIME_W) return
 		closeFields(save = true)
-		val day = start + ((e.x - TIME_W) / colW(grid.width)).coerceIn(0, 6)
 		val hit = hitAt(e.point)
-		val menu = if (hit != null) {
-			selected = hit.occ
-			eventMenu(this, hit.occ)
-		} else {
-			selected = null
-			slotMenu(this, day, slotStart(e.y))
-		}
+		selected = hit?.occ
 		grid.repaint()
-		menu.show(grid, e.x, e.y)
+		if (hit != null) eventMenu(this, hit.occ).show(grid, e.x, e.y)
 	}
 
 	private fun headerClicked(e: MouseEvent) {

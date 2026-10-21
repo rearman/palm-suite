@@ -6,12 +6,14 @@ import org.json.JSONArray
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
+import java.awt.Desktop
 import java.awt.FlowLayout
 import java.awt.Graphics
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.net.URI
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
@@ -35,6 +37,16 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 	private val filterCombo = JComboBox<Choice>()
 	private val listModel = DefaultListModel<Address>()
 	private val list = JList(listModel)
+	private val kind = RecordKind<Address>(
+		name = "address",
+		selected = { list.selectedValuesList },
+		copyOf = { it.copy() },
+		text = { a -> (listOf(a.listName(listByCompany())) + cardLines(a, customLabels())).joinToString("\n") },
+		pasteRecords = { recs -> recs.forEach { App.store.save(it.copy(id = 0, uid = "")) }; App.refresh() },
+		pasteText = null,
+		delete = { recs -> recs.forEach { App.store.delete(it) }; App.refresh() },
+	)
+	private val transfer = RecordTransfer(kind)
 	private val card = AddressCard()
 	private val lookField = JTextField()
 	private val editButton = JButton("Edit...")
@@ -55,17 +67,22 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 		list.font = Theme.font
 		list.fixedCellHeight = 16
 		list.cellRenderer = AddressRowRenderer()
+		list.selectionMode = ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
+		list.dragEnabled = false
+		list.transferHandler = transfer
 		list.addListSelectionListener {
 			if (it.valueIsAdjusting) return@addListSelectionListener
 			if (!busy) {
-				selectedId = list.selectedValue?.id
+				selectedId = lead()?.id
 				showCard()
 			}
 			updateButtons()
 			App.positionChanged()
 		}
-		// A double click edits the row. The Delete key deletes it.
+		// A double click edits the lead row. The Delete key deletes the selected rows. A popup trigger opens the list menu.
 		list.addMouseListener(object : MouseAdapter() {
+			override fun mousePressed(e: MouseEvent) = showListMenu(e)
+			override fun mouseReleased(e: MouseEvent) = showListMenu(e)
 			override fun mouseClicked(e: MouseEvent) {
 				if (e.clickCount == 2 && SwingUtilities.isLeftMouseButton(e)) editSelected()
 			}
@@ -79,6 +96,11 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 		})
 
 		val scroll = JScrollPane(list)
+		// The empty area below the rows is the viewport, so a popup there opens the same menu.
+		scroll.viewport.addMouseListener(object : MouseAdapter() {
+			override fun mousePressed(e: MouseEvent) = showListMenu(e)
+			override fun mouseReleased(e: MouseEvent) = showListMenu(e)
+		})
 
 		val lookLabel = JLabel("Look up:").apply {
 			font = Theme.font
@@ -149,16 +171,17 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	override fun editSelected() {
-		val a = list.selectedValue ?: return
+		val a = lead() ?: return
 		AddressDialog.edit(this, a)
 	}
 
 	override fun deleteSelected() {
-		val a = list.selectedValue ?: return
-		if (!confirmDelete(this, "Delete the address?")) return
+		val picked = list.selectedValuesList
+		if (picked.isEmpty()) return
+		val question = if (picked.size == 1) "Delete the address?" else "Delete the ${picked.size} selected addresses?"
+		if (!confirmDelete(this, question)) return
 		selectedId = null
-		App.store.delete(a)
-		App.refresh()
+		kind.delete(picked)
 	}
 
 	override fun select(record: Any) {
@@ -245,11 +268,65 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 	}
 
 	private fun showCard() {
-		card.address = list.selectedValue
+		card.address = lead()
 	}
 
 	private fun updateButtons() {
-		editButton.isEnabled = list.selectedValue != null
+		editButton.isEnabled = lead() != null
+	}
+
+	/** The lead address of the selection, the row clicked last; else the first selected one. */
+	private fun lead(): Address? {
+		val i = list.leadSelectionIndex
+		return if (i >= 0 && list.isSelectedIndex(i)) listModel.getElementAt(i) else list.selectedValue
+	}
+
+	/** The phone slots of [a] that Dial offers: a non-blank number whose label is not E-mail. */
+	private fun phoneSlots(a: Address): List<Int> =
+		(0 until 5).filter { a.phones.getOrElse(it) { "" }.isNotBlank() && a.phoneLabels[it] != Address.EMAIL }
+
+	/** Opens the list menu on a popup trigger. A right click on a row that is not selected selects that row alone. */
+	private fun showListMenu(e: MouseEvent) {
+		if (!e.isPopupTrigger) return
+		val p = SwingUtilities.convertPoint(e.component, e.point, list)
+		val row = list.locationToIndex(p)
+		if (row >= 0 && list.getCellBounds(row, row)?.contains(p) == true && !list.isSelectedIndex(row)) list.selectedIndex = row
+		val lead = lead()
+		val menu = listMenu(
+			list, transfer,
+			hasSelection = !list.isSelectionEmpty,
+			hasRows = listModel.size() > 0,
+			delete = { deleteSelected() },
+			selectAll = { list.setSelectionInterval(0, listModel.size() - 1) },
+			extra = listOf(
+				editItem("Edit...", 'E', lead != null) { editSelected() },
+				editItem("Dial...", 'i', lead != null && phoneSlots(lead).isNotEmpty()) { lead?.let { dial(it) } },
+			),
+		)
+		menu.show(e.component, e.x, e.y)
+	}
+
+	/**
+	 * The Dial dialog: the phones of [a] that have a number, the list number first. Palm Desktop dialed through a
+	 * modem; a tel: link goes to the calling app of the system.
+	 */
+	private fun dial(a: Address) {
+		val slots = phoneSlots(a)
+		if (slots.isEmpty()) return
+		val combo = JComboBox(slots.map { "${Address.LABELS[a.phoneLabels[it]]}: ${a.phones[it]}" }.toTypedArray())
+		combo.font = Theme.font
+		combo.selectedIndex = slots.indexOf(a.showPhone).coerceAtLeast(0)
+		val pick = JOptionPane.showOptionDialog(
+			this, combo, "Dial", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, arrayOf("Dial", "Cancel"), "Dial"
+		)
+		if (pick != 0) return
+		val digits = a.phones[slots[combo.selectedIndex]].filter { it.isDigit() || it == '+' }
+		val opened = runCatching {
+			Desktop.isDesktopSupported() &&
+				Desktop.getDesktop().isSupported(Desktop.Action.BROWSE) &&
+				run { Desktop.getDesktop().browse(URI("tel:$digits")); true }
+		}.getOrDefault(false)
+		if (!opened) JOptionPane.showMessageDialog(this, "This computer has no app that makes phone calls.", "Dial", JOptionPane.INFORMATION_MESSAGE)
 	}
 
 	private inline fun quiet(block: () -> Unit) {
