@@ -3,7 +3,7 @@ package com.rearman.datebook
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import com.rearman.palmsync.*
+import com.rearman.palmsync.SyncClient
 import com.rearman.palmui.*
 import java.time.LocalDateTime
 
@@ -11,8 +11,8 @@ import java.time.LocalDateTime
  * Sync with the sync server. The wire format and the endpoints are in sync-server/PROTOCOL.md.
  *
  * The round logic is in sync-core [SyncRunner]: it collects the dirty rows, applies the server
- * answer, and applies the changes made on other devices. This object runs the rounds on the
- * threads and gives SyncRunner the Android side through [AndroidSyncStore].
+ * answer, and applies the changes made on other devices. The run loop is in sync-core [SyncSession].
+ * This object gives SyncSession the threads and gives SyncRunner the Android side through [AndroidSyncStore].
  *
  * Keep-both rule (in SyncRunner): a record that changed here and on the server is kept twice.
  * The local copy becomes a new record with its own uid, which goes to the server on the next round,
@@ -28,15 +28,17 @@ object SyncEngine {
 
     private val main = Handler(Looper.getMainLooper())
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
-    @Volatile private var running = false
-    private var again = false  // a request came during a run; run once more at its end
     private var pending: Runnable? = null
+    private val session = SyncSession(
+        onWorker = { block -> worker.execute { block() } },
+        onUi = { block -> main.post { block() } },
+    )
 
     /** Sets up sync on a server with no passphrase yet, or joins the one that is there. */
     fun setUp(ctx: Context, url: String, token: String, passphrase: CharArray, done: (String?) -> Unit) {
         worker.execute {
             try {
-                val key = firstKey(url, token, passphrase)
+                val key = SyncKeys.firstKey(SyncClient(url, token), passphrase)
                 if (key == null) {
                     report(done, "Wrong passphrase.")
                     return@execute
@@ -62,7 +64,7 @@ object SyncEngine {
 
     /** Runs one sync. Call it on the main thread. [done] gets null on success. */
     fun run(ctx: Context, done: (String?) -> Unit) {
-        if (running) {
+        if (session.running) {
             done("A sync is already running.")
             return
         }
@@ -77,14 +79,38 @@ object SyncEngine {
             done("Set up sync again in Options, Sync.")
             return
         }
-        running = true
-        nextRound(Session(ctx, key, String(token, Charsets.UTF_8), done))
+        val tokenText = String(token, Charsets.UTF_8)
+        val url = prefs.syncUrl
+        session.start(
+            SyncSession.Run(
+                store = adapter(ctx),
+                key = key,
+                send = { since, items -> SyncClient(url, tokenText).sync(since, items) },
+                beforeCollect = {
+                    // Format 2 is a new wire format, so each live record goes up once more in it. The ShortCuts list
+                    // goes up too, but only when it synced before: a new device must not replace the list with its defaults.
+                    val p = Prefs(ctx)
+                    if (p.syncFormat < 2) {
+                        Store.get(ctx).markAllForUpload()
+                        if (p.shortCutsRev > 0) p.shortCutsDirty = true
+                        p.syncFormat = 2
+                    }
+                },
+                afterRound = { o -> if (o.shortCutsChanged) ShortCuts.list = Prefs(ctx).shortCuts },
+                finish = { error, changed ->
+                    Prefs(ctx).syncLast = if (error == null) lastSyncText() else "Sync failed: $error"
+                    if (changed) onApplied?.invoke()
+                    done(error)
+                },
+                again = { request(ctx) },
+            )
+        )
     }
 
     /** Main thread. Syncs now, or once more when the running sync ends. A success cancels the pending backup job. */
     fun request(ctx: Context) {
-        if (running) {
-            again = true
+        if (session.running) {
+            session.requestAgain()
             return
         }
         val app = ctx.applicationContext
@@ -99,27 +125,6 @@ object SyncEngine {
     }
 
     // Set up
-
-    /** Worker thread. Returns the sync key, or null for a wrong passphrase. */
-    private fun firstKey(url: String, token: String, passphrase: CharArray): ByteArray? {
-        val client = SyncClient(url, token)
-        val meta = client.getMeta()
-        if (meta.salt.isEmpty()) {
-            val salt = SyncCrypto.newSalt()
-            val key = SyncCrypto.deriveKey(passphrase, salt)
-            if (client.putMeta(SyncMeta(salt.b64(), SyncCrypto.checkBlob(key)))) return key
-            // 409: another device stored the first passphrase between the two calls.
-            return keyFromMeta(passphrase, client.getMeta())
-        }
-        return keyFromMeta(passphrase, meta)
-    }
-
-    /** Worker thread. Derives the key from the stored salt and checks it against the stored check blob. */
-    private fun keyFromMeta(passphrase: CharArray, meta: SyncMeta): ByteArray? {
-        if (meta.salt.isEmpty()) throw IllegalStateException("Sync setup failed.")
-        val key = SyncCrypto.deriveKey(passphrase, meta.salt.unb64())
-        return if (SyncCrypto.checkOk(key, meta.check)) key else null
-    }
 
     /** Main thread. Saves the key and the settings, then runs the first sync. */
     private fun finishSetUp(ctx: Context, url: String, token: String, key: ByteArray, done: (String?) -> Unit) {
@@ -141,68 +146,6 @@ object SyncEngine {
             return
         }
         run(ctx, done)
-    }
-
-    // Rounds
-
-    /** The state of one run. */
-    private class Session(val ctx: Context, val key: ByteArray, val token: String, val done: (String?) -> Unit) {
-        var rounds = 0
-        var changed = false
-    }
-
-    /** Main thread. Starts the next round: collects the dirty rows, then sends them on the worker. */
-    private fun nextRound(s: Session) {
-        s.rounds++
-        val prefs = Prefs(s.ctx)
-        val plan = try {
-            // Format 2 is a new wire format, so each live record goes up once more in it. The ShortCuts list
-            // goes up too, but only when it synced before: a new device must not replace the list with its defaults.
-            if (prefs.syncFormat < 2) {
-                Store.get(s.ctx).markAllForUpload()
-                if (prefs.shortCutsRev > 0) prefs.shortCutsDirty = true
-                prefs.syncFormat = 2
-            }
-            SyncRunner.collect(adapter(s.ctx), s.key)
-        } catch (e: Exception) {
-            finish(s, e.message ?: "Sync failed.")
-            return
-        }
-        val url = prefs.syncUrl
-        worker.execute {
-            val net = runCatching { SyncClient(url, s.token).sync(plan.since, plan.items) }
-            main.post { applyNet(s, plan, net) }
-        }
-    }
-
-    /** Main thread. Applies the server answer of a round, then starts the next round when needed. */
-    private fun applyNet(s: Session, plan: SyncPlan, net: Result<SyncResult>) {
-        val result = net.getOrNull()
-        if (result == null) {
-            finish(s, net.exceptionOrNull()?.message ?: "Sync failed.")
-            return
-        }
-        val outcome = try {
-            SyncRunner.apply(adapter(s.ctx), s.key, plan, result)
-        } catch (e: Exception) {
-            finish(s, e.message ?: "Sync failed.")
-            return
-        }
-        if (outcome.shortCutsChanged) ShortCuts.list = Prefs(s.ctx).shortCuts
-        if (outcome.changed) s.changed = true
-        if (outcome.noConflicts || s.rounds >= SyncRunner.MAX_ROUNDS) finish(s, null) else nextRound(s)
-    }
-
-    /** Main thread. Ends a run: saves the result, tells the UI, then calls [Session.done]. */
-    private fun finish(s: Session, error: String?) {
-        Prefs(s.ctx).syncLast = if (error == null) lastSyncText() else "Sync failed: $error"
-        if (s.changed) onApplied?.invoke()
-        running = false
-        s.done(error)
-        if (again) {
-            again = false
-            request(s.ctx)
-        }
     }
 
     private fun adapter(ctx: Context): AndroidSyncStore = AndroidSyncStore(Store.get(ctx), Prefs(ctx))

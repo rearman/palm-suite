@@ -26,19 +26,18 @@ class DesktopSync(private val store: DesktopStore) {
 	val lastResult: String get() = Settings.get("lastSync", "")
 
 	private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "palm-sync").apply { isDaemon = true } }
-	private var running = false
-	private var again = false   // a request came during a run; run once more at its end
+	private val session = SyncSession(onWorker = { worker.execute(it) }, onUi = { SwingUtilities.invokeLater(it) })
 	private var lastEnd = 0L   // System.currentTimeMillis() when the last run ended
 	private val changeTimer = Timer(CHANGE_DELAY_MS) { request() }.apply { isRepeats = false }
 
 	/** Sets up sync on the server. Joins the passphrase of the server, or creates one when the server has none. */
 	fun setUp(server: String, token: String, passphrase: CharArray, done: (String?) -> Unit) {
-		if (running) {
+		if (session.running) {
 			done("A sync is already running.")
 			return
 		}
 		worker.execute {
-			val result = runCatching { firstKey(server, token, passphrase) }
+			val result = runCatching { SyncKeys.firstKey(SyncClient(server, token), passphrase) }
 			passphrase.fill(' ')
 			SwingUtilities.invokeLater { finishSetUp(server, token, result, done) }
 		}
@@ -53,7 +52,7 @@ class DesktopSync(private val store: DesktopStore) {
 
 	/** Runs one sync. [done] gets null on success, or the message. Call it on the event thread. */
 	fun syncNow(done: ((String?) -> Unit)? = null) {
-		if (running) {
+		if (session.running) {
 			done?.invoke("A sync is already running.")
 			return
 		}
@@ -67,13 +66,26 @@ class DesktopSync(private val store: DesktopStore) {
 			done?.invoke("Set up sync again.")
 			return
 		}
-		running = true
-		nextRound(SyncRun(server, token, keyText.unb64(), done))
+		val server = this.server
+		session.start(SyncSession.Run(
+			store = store,
+			key = keyText.unb64(),
+			send = { since, items -> SyncClient(server, token).sync(since, items) },
+			afterRound = { o -> if (o.changed) onApplied?.invoke() },
+			finish = { error, _ ->
+				val text = if (error == null) "Last sync: " + nowText() else "Sync failed: $error"
+				Settings.set("lastSync", text)
+				lastEnd = System.currentTimeMillis()
+				onStatus?.invoke(text)
+				done?.invoke(error)
+			},
+			again = { SwingUtilities.invokeLater { syncNow() } },
+		))
 	}
 
 	/** Syncs now, or once more when the running sync ends. For the automatic syncs. */
 	fun request() {
-		if (running) again = true else syncNow()
+		if (session.running) session.requestAgain() else syncNow()
 	}
 
 	/** Syncs when the last sync ended more than a minute ago. The main window calls it when it is activated. */
@@ -110,86 +122,9 @@ class DesktopSync(private val store: DesktopStore) {
 		syncNow(done)
 	}
 
-	/** Worker thread. Returns the sync key, or null for a wrong passphrase. */
-	private fun firstKey(server: String, token: String, passphrase: CharArray): ByteArray? {
-		val client = SyncClient(server, token)
-		val meta = client.getMeta()
-		if (meta.salt.isEmpty()) {
-			val salt = SyncCrypto.newSalt()
-			val key = SyncCrypto.deriveKey(passphrase, salt)
-			if (client.putMeta(SyncMeta(salt.b64(), SyncCrypto.checkBlob(key)))) return key
-			// 409: another device stored the first passphrase between the two calls.
-			return keyFromMeta(passphrase, client.getMeta())
-		}
-		return keyFromMeta(passphrase, meta)
-	}
-
-	/** Worker thread. Derives the key from the stored salt and checks it against the stored check blob. */
-	private fun keyFromMeta(passphrase: CharArray, meta: SyncMeta): ByteArray? {
-		if (meta.salt.isEmpty()) throw IllegalStateException("Sync setup failed.")
-		val key = SyncCrypto.deriveKey(passphrase, meta.salt.unb64())
-		return if (SyncCrypto.checkOk(key, meta.check)) key else null
-	}
-
-	/** Event thread. Collects the dirty rows, then sends them on the worker. */
-	private fun nextRound(run: SyncRun) {
-		run.rounds++
-		val plan = try {
-			SyncRunner.collect(store, run.key)
-		} catch (e: Exception) {
-			finish(run, e.message ?: "Sync failed.")
-			return
-		}
-		worker.execute {
-			val net = runCatching { SyncClient(run.server, run.token).sync(plan.since, plan.items) }
-			SwingUtilities.invokeLater { applyNet(run, plan, net) }
-		}
-	}
-
-	/** Event thread. Applies the server answer of a round, then starts the next round when there are conflicts. */
-	private fun applyNet(run: SyncRun, plan: SyncPlan, net: Result<SyncResult>) {
-		val result = net.getOrNull()
-		if (result == null) {
-			finish(run, net.exceptionOrNull()?.message ?: "Sync failed.")
-			return
-		}
-		val outcome = try {
-			SyncRunner.apply(store, run.key, plan, result)
-		} catch (e: Exception) {
-			finish(run, e.message ?: "Sync failed.")
-			return
-		}
-		if (outcome.changed) onApplied?.invoke()
-		if (outcome.noConflicts || run.rounds >= SyncRunner.MAX_ROUNDS) finish(run, null) else nextRound(run)
-	}
-
-	/** Event thread. Ends a run: saves the result, tells the status bar, then calls the caller. */
-	private fun finish(run: SyncRun, error: String?) {
-		val text = if (error == null) "Last sync: " + nowText() else "Sync failed: $error"
-		Settings.set("lastSync", text)
-		running = false
-		lastEnd = System.currentTimeMillis()
-		onStatus?.invoke(text)
-		run.done?.invoke(error)
-		if (again) {
-			again = false
-			SwingUtilities.invokeLater { syncNow() }
-		}
-	}
-
 	private fun nowText(): String {
 		val now = LocalDateTime.now()
 		return Fmt.shortDate(now.toLocalDate().toEpochDay()) + " " + Fmt.time(now.hour * 60 + now.minute)
-	}
-
-	/** The state of one run. */
-	private class SyncRun(
-		val server: String,
-		val token: String,
-		val key: ByteArray,
-		val done: ((String?) -> Unit)?,
-	) {
-		var rounds = 0
 	}
 
 	private companion object {
