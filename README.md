@@ -178,6 +178,10 @@ An outline shows the one-hour event, from the half hour under the pointer. Drop
 it there, or on the untimed row to make an untimed event. An address gives its
 list line (the name and the number) as the event text.
 
+In the Address Book, To Do List and Memo Pad, drag the divider between the
+list and the right pane to change the width of the pane. The app keeps the
+width.
+
 The desktop keeps the Address Book records for sync.
 
 - Windows: download `palm-desktop-windows.msi` from a `desktop-v*` release

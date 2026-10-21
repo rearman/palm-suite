@@ -253,8 +253,7 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		controls.add(completeBox)
 		controls.add(applyButton)
 
-		add(center, BorderLayout.CENTER)
-		add(buildDetails(), BorderLayout.EAST)
+		add(detailSplit(center, buildDetails(), "todoSplit", 315), BorderLayout.CENTER)
 
 		App.onRefresh { onRefresh() }
 		onRefresh()
@@ -262,7 +261,6 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 
 	private fun buildDetails(): JPanel {
 		val p = JPanel(GridBagLayout())
-		p.preferredSize = Dimension(315, 0)
 		// The raised edge between the list and the details, as in the Memo Pad.
 		p.border = BorderFactory.createCompoundBorder(
 			BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.grid),

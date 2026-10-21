@@ -4,7 +4,6 @@ import com.rearman.datebook.*
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
-import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -91,12 +90,10 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 		gbc.gridx = 2; gbc.gridy = 1; gbc.anchor = GridBagConstraints.WEST
 		form.add(applyButton, gbc)
 		val right = JPanel(BorderLayout()).apply {
-			preferredSize = Dimension(315, 0)
 			border = BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.grid), BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Color.WHITE), EmptyBorder(8, 8, 4, 8)))
 			add(JScrollPane(editor), BorderLayout.CENTER)
 			add(form, BorderLayout.SOUTH)
 		}
-		add(right, BorderLayout.EAST)
 
 		val listByButton = JButton("List by...").apply { font = Theme.font; mnemonic = KeyEvent.VK_L; addActionListener { listBy() } }
 		val newButton = JButton("New").apply { font = Theme.font; mnemonic = KeyEvent.VK_N; addActionListener { newRecord() } }
@@ -109,7 +106,7 @@ class MemoPanel : JPanel(BorderLayout()), AppView {
 			add(JScrollPane(list), BorderLayout.CENTER)
 			add(bottom, BorderLayout.SOUTH)
 		}
-		add(listPanel, BorderLayout.CENTER)
+		add(detailSplit(listPanel, right, "memoSplit", 315), BorderLayout.CENTER)
 
 		refreshCombos()
 		loadEditor(null)

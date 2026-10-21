@@ -6,7 +6,6 @@ import org.json.JSONArray
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
-import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Graphics
 import java.awt.event.KeyAdapter
@@ -130,18 +129,16 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 			add(scroll, BorderLayout.CENTER)
 			add(south, BorderLayout.SOUTH)
 		}
-		add(listPanel, BorderLayout.CENTER)
 
 		// The card pane, with the raised edge between the list and the card as in the Memo Pad.
 		val right = JPanel(BorderLayout()).apply {
-			preferredSize = Dimension(302, 0)   // the AddressCard width of Palm Desktop
 			border = BorderFactory.createCompoundBorder(
 				BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.grid),
 				BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Color.WHITE), EmptyBorder(8, 8, 4, 8))
 			)
 			add(card, BorderLayout.CENTER)
 		}
-		add(right, BorderLayout.EAST)
+		add(detailSplit(listPanel, right, "addressSplit", 302), BorderLayout.CENTER)   // 302 px: the AddressCard width of Palm Desktop
 
 		App.onRefresh { reload() }
 		reload()

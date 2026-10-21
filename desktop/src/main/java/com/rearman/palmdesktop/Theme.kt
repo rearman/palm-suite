@@ -1,14 +1,20 @@
 package com.rearman.palmdesktop
 
 import java.awt.Color
+import java.awt.Dimension
 import java.awt.Font
 import java.awt.GraphicsEnvironment
 import java.awt.Paint
 import java.awt.Rectangle
 import java.awt.TexturePaint
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import java.awt.image.BufferedImage
 import java.util.Collections
+import javax.swing.JComponent
+import javax.swing.JSplitPane
 import javax.swing.UIManager
+import javax.swing.plaf.basic.BasicSplitPaneUI
 import javax.swing.plaf.metal.DefaultMetalTheme
 import javax.swing.plaf.metal.MetalLookAndFeel
 
@@ -137,4 +143,25 @@ fun raisedCell(g: java.awt.Graphics, x: Int, y: Int, w: Int, h: Int) {
 	g.drawLine(x, y, x + w - 1, y)
 	g.color = Theme.shadow
 	g.drawLine(x, y + h - 1, x + w - 1, y + h - 1)
+}
+
+/**
+ * A list beside a detail pane, parted by a divider the user drags. The list takes the extra width and the
+ * detail pane keeps its width, which is saved as the Settings key [key] when the divider is released.
+ */
+fun detailSplit(list: JComponent, detail: JComponent, key: String, defaultWidth: Int): JSplitPane {
+	detail.preferredSize = Dimension(Settings.getInt(key, defaultWidth).coerceAtLeast(200), 0)
+	detail.minimumSize = Dimension(200, 0)
+	list.minimumSize = Dimension(150, 0)
+	val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, list, detail)
+	split.resizeWeight = 1.0
+	split.dividerSize = 4
+	split.border = null
+	(split.ui as? BasicSplitPaneUI)?.divider?.let { divider ->
+		divider.border = null
+		divider.addMouseListener(object : MouseAdapter() {
+			override fun mouseReleased(e: MouseEvent) = Settings.setInt(key, detail.width)
+		})
+	}
+	return split
 }
