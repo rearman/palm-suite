@@ -249,15 +249,6 @@ class CategoryModel<T : Any>(items: List<T>, private val entry: T, private val o
 }
 
 object CategoriesDialog {
-	private const val MAX_NAME = 15
-
-	// Names have at most MAX_NAME characters. Warns and returns true when [name] is longer.
-	private fun tooLong(owner: Component, name: String, title: String): Boolean {
-		if (name.trim().length <= MAX_NAME) return false
-		JOptionPane.showMessageDialog(owner, "A category name can have at most $MAX_NAME characters.", title, JOptionPane.WARNING_MESSAGE)
-		return true
-	}
-
 	// True when a record of the category's app holds [cat]: To Dos for app 0, Memos for app 1.
 	private fun inUse(cat: Category): Boolean = when (cat.app) {
 		1 -> App.store.memos.any { it.category == cat.id }
@@ -338,7 +329,7 @@ object CategoriesDialog {
 
 		newBtn.onClick {
 			val name: String? = JOptionPane.showInputDialog(d, "Name:", "New Category", JOptionPane.PLAIN_MESSAGE)
-			if (name.isNullOrBlank() || tooLong(d, name, "New Category")) return@onClick
+			if (name.isNullOrBlank()) return@onClick
 			val added = App.store.addCategory(name.trim(), app)
 			if (added == null) {
 				JOptionPane.showMessageDialog(d, "You can have at most 15 categories.", "New Category", JOptionPane.WARNING_MESSAGE)
@@ -349,7 +340,7 @@ object CategoriesDialog {
 		renameBtn.onClick {
 			val cat = selected() ?: return@onClick
 			val name = JOptionPane.showInputDialog(d, "Name:", "Rename Category", JOptionPane.PLAIN_MESSAGE, null, null, cat.name) as String?
-			if (name.isNullOrBlank() || tooLong(d, name, "Rename Category")) return@onClick
+			if (name.isNullOrBlank()) return@onClick
 			App.store.renameCategory(cat, name.trim())
 			changed(cat.id)
 		}
