@@ -179,6 +179,9 @@ class WeekView : JPanel(BorderLayout()) {
 	/** Y of the top of [hour] in the grid, below the untimed row. */
 	private fun hourY(hour: Int): Int = untimedH + hour * HOUR_H
 
+	/** The pixel row of the time line at [min] minutes. */
+	private fun lineY(min: Int) = untimedH + min * HOUR_H / 60
+
 	private fun colW(w: Int): Int = ((w - TIME_W) / 7).coerceAtLeast(1)
 
 	/** Minutes of the grid row at [y]. */
@@ -366,7 +369,8 @@ class WeekView : JPanel(BorderLayout()) {
 		when {
 			d.resize -> {
 				d.newEnd = minOf(maxOf(round30(minOfY(e.y)), d.occ.event.start + 30), MIN_OF_DAY)
-				d.outline = Rectangle(d.rect.x, d.rect.y, d.rect.width, boxH(d.newEnd - d.occ.event.start))
+				val start = d.occ.event.start
+				d.outline = Rectangle(d.rect.x, lineY(start) + 1, d.rect.width, maxOf(lineY(d.newEnd), lineY(start) + HOUR_H / 2) - lineY(start) - 2)
 			}
 			d.occ.event.untimed -> {
 				d.newDay = start + col
@@ -376,7 +380,7 @@ class WeekView : JPanel(BorderLayout()) {
 				d.newDay = start + col
 				d.newStart = minOf(maxOf(round30(minOfY(e.y - d.grabY)), 0), MIN_OF_DAY - d.dur)
 				d.newEnd = d.newStart + d.dur
-				d.outline = Rectangle(TIME_W + col * cw + 1, untimedH + d.newStart * HOUR_H / 60, cw - 3, boxH(d.dur))
+				d.outline = Rectangle(d.rect.x + e.x - d.origin.x, lineY(d.newStart) + 1, d.rect.width, lineY(d.newEnd) - lineY(d.newStart) - 2)
 			}
 		}
 		grid.repaint()
@@ -535,10 +539,7 @@ class WeekView : JPanel(BorderLayout()) {
 			// The field of a new event: a white box, drawn as selected. The field is on top of it.
 			typingRect(w)?.let { EventBox.draw(g, it, Color.WHITE, true) }
 			// The outline of a box being moved or resized.
-			drag?.outline?.let {
-				g.color = Color.BLACK
-				g.drawRect(it.x, it.y, it.width - 1, it.height - 1)
-			}
+			drag?.outline?.let { EventBox.drawOutline(g, it) }
 		}
 	}
 

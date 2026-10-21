@@ -71,7 +71,6 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		const val TIME_W = 52        // width of the time column
 		const val UNTIMED_H = 18     // height of one untimed row
 		const val HALF = 19          // pixels per half hour (Palm Desktop: 38 px per hour)
-		val DRAG_NAVY = Color(0, 0, 128)   // the outline of a moved or dragged event, as in Palm Desktop
 		const val PANE_W = 240       // width of the right pane
 		const val CHANGE_TEXT = "Apply the changes to the current event only or to all occurrences?"
 	}
@@ -731,12 +730,6 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		return Rectangle(TIME_W + 3, top + 1, width - TIME_W - 5, maxOf(yOf(end), top + HALF) - top - 2)
 	}
 
-	/** Draws [r] as Palm Desktop draws a drag outline: navy, 3 px thick, inside [r]. */
-	private fun drawOutline(g: Graphics, r: Rectangle) {
-		g.color = DRAG_NAVY
-		for (i in 0 until 3) g.drawRect(r.x + i, r.y + i, r.width - 1 - 2 * i, r.height - 1 - 2 * i)
-	}
-
 	/** Box of the row below the last untimed event in a header [width] in pixels. */
 	private fun untimedBox(width: Int): Rectangle =
 		Rectangle(TIME_W + 2, occs.count { it.event.untimed } * UNTIMED_H + 1, width - TIME_W - 4, UNTIMED_H - 2)
@@ -1152,9 +1145,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 			// The hour being typed into: a white box, drawn as selected. The text field is on top of it.
 			if (typingUntimed == header) typingBox(width)?.let { EventBox.draw(g, it, Color.WHITE, true) }
 			// The outline of a box being moved or resized.
-			if (!header) drag?.target?.let { drawOutline(g, it) }
+			if (!header) drag?.target?.let { EventBox.drawOutline(g, it) }
 			// The outline of the event a dragged address or to-do makes.
-			dropBox?.let { drawOutline(g, it) }
+			dropBox?.let { EventBox.drawOutline(g, it) }
 		}
 
 		override fun doLayout() {

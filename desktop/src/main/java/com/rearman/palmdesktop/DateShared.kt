@@ -160,6 +160,14 @@ internal object EventBox {
 	/** The cursor of the grid at [p]: the resize cursor on the blue bar under the selected timed box [sel], else the default. */
 	fun cursorAt(sel: Rectangle?, p: Point): Cursor =
 		if (sel != null && onResizeBar(sel, p)) Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR) else Cursor.getDefaultCursor()
+
+	val DRAG_NAVY = Color(0, 0, 128)   // the outline of a moved or dragged event, as in Palm Desktop
+
+	/** Draws [r] as Palm Desktop draws a drag outline: navy, 3 px thick, inside [r]. */
+	fun drawOutline(g: Graphics, r: Rectangle) {
+		g.color = DRAG_NAVY
+		for (i in 0 until 3) g.drawRect(r.x + i, r.y + i, r.width - 1 - 2 * i, r.height - 1 - 2 * i)
+	}
 }
 
 /** Asks Current or All for a repeating event. Returns 0 Current, 1 All, 2 Cancel or closed. */
