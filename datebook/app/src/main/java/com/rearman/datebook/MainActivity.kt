@@ -120,9 +120,14 @@ open class MainActivity : Activity() {
         ShortCuts.list = prefs.shortCuts
         ShortCuts.date = { Fmt.shortDate(LocalDate.now().toEpochDay()) }
         ShortCuts.time = { LocalTime.now().let { Fmt.time(it.hour * 60 + it.minute) } }
-        // A local change starts a sync 30 s later, when sync is on.
         val app = applicationContext
-        store.onWrite = { if (Prefs(app).syncOn) SyncJob.scheduleSoon(app) }
+        store.onWrite = {
+            if (Prefs(app).syncOn) {
+                // A save syncs 1 s later in the app; job 42 is the backup when that sync cannot run.
+                SyncJob.scheduleSoon(app)
+                SyncEngine.requestSoon(app)
+            }
+        }
         mode = if (isAddressApp) ADDRESS else if (isMemoApp) MEMO else if (isTodoApp) TODO else prefs.lastView
         // Palm: without Remember last category, the Address Book opens on All.
         if (isAddressApp && !prefs.addressRemember) prefs.addressCategory = -1
@@ -148,6 +153,8 @@ open class MainActivity : Activity() {
         render()
         Alarms.scheduleNext(this)
         SyncEngine.onApplied = { ShortCuts.list = prefs.shortCuts; changed() }
+        // Opening or coming back to the app syncs.
+        if (prefs.syncOn) SyncEngine.request(this)
     }
 
     override fun onPause() {

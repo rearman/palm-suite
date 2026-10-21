@@ -201,8 +201,9 @@ The desktop keeps the Address Book records for sync.
   server, the device token and the sync passphrase, and click Set Up. The
   app saves the token and the sync key in a file that only your user
   account can read.
-- The app syncs with `palmsync` at start, 30 seconds after a change, every
-  hour, and when you choose Tools > Sync Now.
+- The app syncs with `palmsync` at start, 1 second after a change, every
+  hour, when the window is activated after a minute without a sync, and when
+  you choose Tools > Sync Now.
 - Install a desktop version with address sync before you sync addresses from
   the phone. A desktop version without it misses the addresses until it
   updates. The new version reads the server again one time to get them.

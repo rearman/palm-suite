@@ -9,6 +9,7 @@ import java.awt.KeyboardFocusManager
 import java.awt.event.ActionEvent
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
+import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.awt.print.PageFormat
 import java.awt.print.PrinterJob
@@ -102,6 +103,10 @@ class MainFrame : JFrame("Palm Desktop") {
 		})
 		App.onPosition = { updatePosition() }
 		App.onRefresh { updatePosition() }
+		// Coming back to the window syncs, as opening the app does.
+		addWindowListener(object : WindowAdapter() {
+			override fun windowActivated(e: WindowEvent) = App.sync.requestIfStale()
+		})
 		// The startView setting wins. Without it, the view of the last session opens.
 		val start = Settings.get("startView", "").ifEmpty { Settings.get("view", "date") }
 		switchTo(if (start in panels) start else "date")

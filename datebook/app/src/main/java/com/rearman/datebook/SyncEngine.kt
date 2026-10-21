@@ -29,6 +29,8 @@ object SyncEngine {
     private val main = Handler(Looper.getMainLooper())
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
     @Volatile private var running = false
+    private var again = false  // a request came during a run; run once more at its end
+    private var pending: Runnable? = null
 
     /** Sets up sync on a server with no passphrase yet, or joins the one that is there. */
     fun setUp(ctx: Context, url: String, token: String, passphrase: CharArray, done: (String?) -> Unit) {
@@ -77,6 +79,23 @@ object SyncEngine {
         }
         running = true
         nextRound(Session(ctx, key, String(token, Charsets.UTF_8), done))
+    }
+
+    /** Main thread. Syncs now, or once more when the running sync ends. A success cancels the pending backup job. */
+    fun request(ctx: Context) {
+        if (running) {
+            again = true
+            return
+        }
+        val app = ctx.applicationContext
+        run(app) { err -> if (err == null) SyncJob.cancelSoon(app) }
+    }
+
+    /** Main thread. Syncs 1 s after the last call, so one action that writes several records syncs once. */
+    fun requestSoon(ctx: Context) {
+        val app = ctx.applicationContext
+        pending?.let { main.removeCallbacks(it) }
+        pending = Runnable { pending = null; request(app) }.also { main.postDelayed(it, 1_000) }
     }
 
     // Set up
@@ -180,6 +199,10 @@ object SyncEngine {
         if (s.changed) onApplied?.invoke()
         running = false
         s.done(error)
+        if (again) {
+            again = false
+            request(s.ctx)
+        }
     }
 
     private fun adapter(ctx: Context): AndroidSyncStore = AndroidSyncStore(Store.get(ctx), Prefs(ctx))

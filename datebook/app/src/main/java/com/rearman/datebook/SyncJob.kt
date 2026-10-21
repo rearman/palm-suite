@@ -10,8 +10,9 @@ import android.content.Context
 /**
  * Runs [SyncEngine] in the background.
  *
- * Two jobs start it: the hourly job (id 41) and the job that runs 30 s after a local change
- * (id 42). JobScheduler waits for a network before it starts either job.
+ * Two jobs start it: the hourly job (id 41) and the backup job (id 42) that runs 30 s after a
+ * change, when the in-app sync could not run (offline, or the app closed first). The in-app sync
+ * runs 1 s after a save and on each open. JobScheduler waits for a network before it starts either job.
  */
 class SyncJob : JobService() {
 
@@ -49,6 +50,11 @@ class SyncJob : JobService() {
                     .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                     .build()
             )
+        }
+
+        /** Cancels the pending sync (42), after an in-app sync did its work. */
+        fun cancelSoon(ctx: Context) {
+            ctx.getSystemService(JobScheduler::class.java).cancel(SOON_ID)
         }
 
         /** Cancels the hourly sync (41) and the pending sync (42). */

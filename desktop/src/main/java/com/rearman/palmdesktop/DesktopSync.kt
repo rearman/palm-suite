@@ -27,7 +27,9 @@ class DesktopSync(private val store: DesktopStore) {
 
 	private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "palm-sync").apply { isDaemon = true } }
 	private var running = false
-	private val changeTimer = Timer(CHANGE_DELAY_MS) { syncNow() }.apply { isRepeats = false }
+	private var again = false   // a request came during a run; run once more at its end
+	private var lastEnd = 0L   // System.currentTimeMillis() when the last run ended
+	private val changeTimer = Timer(CHANGE_DELAY_MS) { request() }.apply { isRepeats = false }
 
 	/** Sets up sync on the server. Joins the passphrase of the server, or creates one when the server has none. */
 	fun setUp(server: String, token: String, passphrase: CharArray, done: (String?) -> Unit) {
@@ -69,10 +71,20 @@ class DesktopSync(private val store: DesktopStore) {
 		nextRound(SyncRun(server, token, keyText.unb64(), done))
 	}
 
-	/** Syncs now when sync is on. Then syncs every hour, and 30 s after each local change. */
+	/** Syncs now, or once more when the running sync ends. For the automatic syncs. */
+	fun request() {
+		if (running) again = true else syncNow()
+	}
+
+	/** Syncs when the last sync ended more than a minute ago. The main window calls it when it is activated. */
+	fun requestIfStale() {
+		if (isOn && System.currentTimeMillis() - lastEnd > STALE_MS) request()
+	}
+
+	/** Syncs now when sync is on. Then syncs every hour, 1 s after each local change, and when the window is activated after a minute without a sync. */
 	fun start() {
-		if (isOn) syncNow()
-		Timer(HOUR_MS) { syncNow() }.start()
+		if (isOn) request()
+		Timer(HOUR_MS) { request() }.start()
 		val previous = store.onChange
 		store.onChange = {
 			previous?.invoke()
@@ -156,8 +168,13 @@ class DesktopSync(private val store: DesktopStore) {
 		val text = if (error == null) "Last sync: " + nowText() else "Sync failed: $error"
 		Settings.set("lastSync", text)
 		running = false
+		lastEnd = System.currentTimeMillis()
 		onStatus?.invoke(text)
 		run.done?.invoke(error)
+		if (again) {
+			again = false
+			SwingUtilities.invokeLater { syncNow() }
+		}
 	}
 
 	private fun nowText(): String {
@@ -177,7 +194,8 @@ class DesktopSync(private val store: DesktopStore) {
 
 	private companion object {
 		const val DEFAULT_SERVER = "https://sync.earman.xyz"
-		const val CHANGE_DELAY_MS = 30_000
+		const val CHANGE_DELAY_MS = 1_000   // 1 s after the last local change, so one action that writes several records syncs once
+		const val STALE_MS = 60_000L
 		const val HOUR_MS = 60 * 60 * 1000
 	}
 }
