@@ -90,7 +90,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private val todoList = object : JList<Todo>(todoModel) {
 		override fun getScrollableTracksViewportWidth(): Boolean = true
 	}
-	private val catCombo = JComboBox<CatChoice>()
+	private val catCombo = JComboBox<CatChoice>().apply { maximumRowCount = 30 }
 	// The right pane shows the To Do list or the Address list, as Settings "datePane" says.
 	private val addressModel = DefaultListModel<Address>()
 	private val addressList = object : JList<Address>(addressModel) {
@@ -252,7 +252,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	// AppView
 
 	override fun newRecord() {
-		EventDialog.edit(this, null, App.day, 8 * 60)
+		EventDialog.edit(this, null, App.day)
 	}
 
 	override fun editSelected() {

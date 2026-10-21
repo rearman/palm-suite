@@ -7,6 +7,7 @@ import com.rearman.datebook.Repeat
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dialog
+import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -24,7 +25,7 @@ object EventDialog {
 	/** Opens Edit Event for [e], or for a new event on [day] when [e] is null. [title] is the description of a new event. */
 	fun edit(owner: Component, e: Event?, day: Long, startMin: Int? = null, title: String = "") {
 		val start = startMin ?: 8 * 60
-		val work = e?.deepCopy() ?: Event(title = title, date = day, start = start, end = start + 60, untimed = false)
+		val work = e?.deepCopy() ?: Event(title = title, date = day, start = start, end = start + 60, untimed = startMin == null)
 		if (e == null) applyAlarmPreset(work)
 		EventForm(owner, e, work, day).show()
 	}
@@ -63,11 +64,14 @@ private class EventForm(
 	private val occDay: Long
 ) {
 	private val dlg = modalDialog(owner, "Edit Event")
-	private val desc = JTextArea(work.title, 3, 28).themed().apply { lineWrap = true; wrapStyleWord = true }
-	private val startField = JTextField(9).themed()
-	private val endField = JTextField(9).themed()
-	private val dateField = JTextField(Fmt.shortDate(occDay), 8).themed()
-	private val dayName = JLabel(weekdayName(occDay)).themed()
+	private val desc = JTextArea(work.title, 4, 20).themed().apply { lineWrap = true; wrapStyleWord = true }
+	private val startField = JTextField(6).themed()
+	private val endField = JTextField(6).themed()
+	private val dateField = JTextField(fullDate(occDay), 10).themed()
+	private val dayName = JLabel(weekdayName(occDay)).themed().apply {
+		border = Theme.sunken
+		horizontalAlignment = SwingConstants.CENTER
+	}
 	private val noteField = readOnlyField().apply { text = firstLine(work.note) }
 	private val repeatBtn = JButton().themed()
 	private val alarmBox = JCheckBox("", work.alarm).themed()
@@ -95,28 +99,33 @@ private class EventForm(
 	}
 
 	private fun buildLayout() {
-		val clockBtn = JButton(Icons.clock()).apply { toolTipText = "Set time"; addActionListener { pickTime() } }
-		val calBtn = JButton(Icons.calendar()).apply { toolTipText = "Choose date"; addActionListener { pickCalendarDate() } }
-		val noteBtn = JButton(Icons.note()).apply { toolTipText = "Edit note"; addActionListener { pickNote() } }
+		val clockBtn = iconButton(Icons.clock(), "Set time") { pickTime() }
+		val calBtn = iconButton(Icons.calendar(), "Choose date") { pickCalendarDate() }
+		val noteBtn = iconButton(Icons.note(), "Edit note") { pickNote() }
 		repeatBtn.addActionListener { pickRepeat() }
 		val toLabel = JLabel(" to ").themed().apply { setDisplayedMnemonic('t'); labelFor = endField }
+		val dayWidth = dayName.getFontMetrics(dayName.font).stringWidth("Wednesday") + 8
+		dayName.preferredSize = Dimension(dayWidth, dayName.preferredSize.height)
 		val form = JPanel(GridBagLayout())
-		val rows = listOf(
-			FormRow("Description:", JScrollPane(desc)).key('s', desc),
-			FormRow("Time:", line(startField, toLabel, endField, clockBtn)).key('i', startField),
-			FormRow("Date:", line(dateField, dayName, calBtn)).key('a', dateField),
-			FormRow("Note:", line(noteField, noteBtn)).key('e', noteField),
-			FormRow("Repeat:", repeatBtn).key('R', repeatBtn),
-			FormRow("Alarm:", line(alarmBox, alarmLine)).key('l', alarmBox),
-			FormRow("Private:", privateBox).key('P', privateBox)
-		)
-		rows.forEachIndexed { i, r -> r.addTo(form, i) }
+		val scroll = JScrollPane(desc, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER)
+		FormRow("Description:", scroll).key('s', desc).addCompact(form, 0, wide = true)
+		FormRow("Time:", line(startField, toLabel, endField)).key('i', startField).addCompact(form, 1, clockBtn)
+		FormRow("Date:", line(dateField, dayName)).key('a', dateField).addCompact(form, 2, calBtn)
+		FormRow("Note:", noteField).key('e', noteField).addCompact(form, 3, noteBtn)
+		FormRow("Repeat:", line(repeatBtn)).key('R', repeatBtn).addCompact(form, 4)
+		FormRow("Alarm:", line(alarmBox, alarmLine)).key('l', alarmBox).addCompact(form, 5)
+		FormRow("Private:", privateBox).key('P', privateBox).addCompact(form, 6)
 
-		val ok = JButton("OK").themed().apply { addActionListener { save() } }
-		val cancel = JButton("Cancel").themed().apply { addActionListener { dlg.dispose() } }
+		val ok = formButton("OK") { save() }
+		val cancel = formButton("Cancel") { dlg.dispose() }
+		val buttons = JPanel(FlowLayout(FlowLayout.LEFT, 6, 6)).apply {
+			add(ok)
+			add(cancel)
+			add(Box.createRigidArea(Dimension(68, 1)))
+		}
 
 		dlg.contentPane.add(form, BorderLayout.CENTER)
-		dlg.contentPane.add(buttonRow(ok, cancel), BorderLayout.SOUTH)
+		dlg.contentPane.add(buttons, BorderLayout.SOUTH)
 		dlg.rootPane.defaultButton = ok
 		dlg.pack()
 		dlg.setLocationRelativeTo(owner)
@@ -124,8 +133,8 @@ private class EventForm(
 
 	/** Fills the time fields from [t]. Both are empty when [t] is untimed. */
 	private fun showTime(t: Event) {
-		startField.text = if (t.untimed) "" else Fmt.time(t.start)
-		endField.text = if (t.untimed) "" else Fmt.time(t.end)
+		startField.text = if (t.untimed) NO_TIME else Fmt.time(t.start)
+		endField.text = if (t.untimed) NO_TIME else Fmt.time(t.end)
 	}
 
 	/** Sets the Repeat button text and tooltip from the type of the working copy. */
@@ -153,7 +162,7 @@ private class EventForm(
 
 	private fun pickCalendarDate() {
 		val d = DatePicker.pick(dlg, "day", parseShortDate(dateField.text) ?: occDay) ?: return
-		dateField.text = Fmt.shortDate(d)
+		dateField.text = fullDate(d)
 		dayName.text = weekdayName(d)
 	}
 
@@ -174,9 +183,9 @@ private class EventForm(
 			JOptionPane.showMessageDialog(dlg, "Enter a date as M/D/YY.", "Edit Event", JOptionPane.WARNING_MESSAGE)
 			return
 		}
-		val timed = startField.text.isNotBlank()
+		val timed = !isNoTime(startField.text)
 		val s = parseTime(startField.text)
-		val en = if (endField.text.isBlank()) s?.let { minOf(it + 60, 1439) } else parseTime(endField.text)
+		val en = if (isNoTime(endField.text)) s?.let { minOf(it + 60, 1439) } else parseTime(endField.text)
 		if (timed) {
 			if (s == null || en == null) {
 				JOptionPane.showMessageDialog(dlg, "Invalid time entered.", "Edit Event", JOptionPane.WARNING_MESSAGE)
@@ -416,6 +425,14 @@ private class FormRow(text: String, private val field: Component) {
 		panel.add(label, GridBagConstraints(0, y, 1, 1, 0.0, 0.0, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, Insets(3, 6, 3, 4), 0, 0))
 		panel.add(field, GridBagConstraints(1, y, 1, 1, 1.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.NONE, Insets(3, 4, 3, 6), 0, 0))
 	}
+
+	/** Compact row of the Edit Event form: the field fills column 1, [side] sits at the right edge in column 2. [wide] lets the field span both. */
+	fun addCompact(panel: JPanel, y: Int, side: Component? = null, wide: Boolean = false) {
+		panel.add(label, GridBagConstraints(0, y, 1, 1, 0.0, 0.0, GridBagConstraints.NORTHEAST, GridBagConstraints.NONE, Insets(2, 6, 2, 4), 0, 0))
+		val span = if (wide) 2 else 1
+		panel.add(field, GridBagConstraints(1, y, span, 1, 1.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, Insets(2, 4, 2, if (side == null) 6 else 4), 0, 0))
+		if (side != null) panel.add(side, GridBagConstraints(2, y, 1, 1, 0.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.NONE, Insets(2, 0, 2, 6), 0, 0))
+	}
 }
 
 /** A modal dialog over the window that holds [owner]. Escape closes it. */
@@ -437,16 +454,45 @@ private fun buttonRow(vararg buttons: JButton): JPanel =
 
 private fun readOnlyField(): JTextField = JTextField(9).themed().apply { isEditable = false }
 
+/** The text of an untimed start or end field. */
+private const val NO_TIME = "None"
+
+/** True when a time field says no time: blank or "None". */
+private fun isNoTime(text: String): Boolean = text.isBlank() || text.trim().equals(NO_TIME, ignoreCase = true)
+
+/** An icon button, [size] px square. The Edit Event form uses 22 px at the right edge of its column. */
+private fun iconButton(icon: Icon, tip: String, size: Int = 22, action: () -> Unit): JButton =
+	JButton(icon).apply {
+		toolTipText = tip
+		margin = Insets(0, 0, 0, 0)
+		preferredSize = Dimension(size, size)
+		addActionListener { action() }
+	}
+
+/** An OK or Cancel button of the Palm Desktop forms: 68 px wide. */
+private fun formButton(text: String, action: () -> Unit): JButton =
+	JButton(text).themed().apply {
+		addActionListener { action() }
+		preferredSize = Dimension(68, preferredSize.height)
+	}
+
+/** The Windows short date with a four-digit year and no leading zeros: "5/3/2026". */
+private fun fullDate(day: Long): String {
+	val d = LocalDate.ofEpochDay(day)
+	return "${d.monthValue}/${d.dayOfMonth}/${d.year}"
+}
+
 private fun firstLine(text: String): String = text.lineSequence().firstOrNull().orEmpty()
 
 private fun weekdayName(day: Long): String = Fmt.dowLong[Recur.dow(LocalDate.ofEpochDay(day))]
 
-/** Parses a date field such as "10/19/26" to an epoch day, or null. Years 70 to 99 mean 19xx. */
+/** Parses a date field such as "10/21/2026" or "10/19/26" to an epoch day, or null. Two-digit years 70 to 99 mean 19xx. */
 private fun parseShortDate(text: String): Long? {
 	val m = Regex("""\s*(\d{1,2})/(\d{1,2})/(\d{2}|\d{4})\s*""").matchEntire(text) ?: return null
-	val yy = m.groupValues[3].toInt()
+	val digits = m.groupValues[3]
+	val yy = digits.toInt()
 	val year = when {
-		yy >= 100 -> yy
+		digits.length == 4 -> yy
 		yy >= 70 -> 1900 + yy
 		else -> 2000 + yy
 	}

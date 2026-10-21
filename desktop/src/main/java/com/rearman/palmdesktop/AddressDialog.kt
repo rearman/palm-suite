@@ -55,6 +55,7 @@ private class AddressForm(private val owner: Component, private var orig: Addres
 
 	private val catBox = JComboBox((listOf("Unfiled") + cats.map { it.name }).toTypedArray()).themed().apply {
 		accessibleContext.accessibleName = "Category"
+		maximumRowCount = 30
 	}
 	private val privateBox = JCheckBox("Private").themed().apply {
 		mnemonic = KeyEvent.VK_P

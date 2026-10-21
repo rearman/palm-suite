@@ -17,6 +17,8 @@ import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -50,11 +52,11 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 	private val controls = ArrayList<JComponent>()
 	private val group = ButtonGroup()
 
-	private val filterBox = JComboBox<Choice>()
-	private val categoryBox = JComboBox<Choice>()
+	private val filterBox = JComboBox<Choice>().apply { maximumRowCount = 30 }
+	private val categoryBox = JComboBox<Choice>().apply { maximumRowCount = 30 }
 	private val todoText = JTextArea(3, 20)
 	private val radios = (1..5).map { n -> JRadioButton("$n").apply { font = Theme.font; mnemonic = KeyEvent.VK_0 + n } }
-	private val dueBox = JComboBox(DUE_NAMES)
+	private val dueBox = JComboBox(DUE_NAMES).apply { maximumRowCount = 30 }
 	private val dueField = JTextField(9)
 	private val noteField = JTextField(12)
 	private val noteButton = JButton(Icons.note())
@@ -635,6 +637,9 @@ class TodoPanel : JPanel(BorderLayout()), AppView {
 		val okButton = JButton("OK").apply { addActionListener { ok = true; dlg.dispose() } }
 		val cancelButton = JButton("Cancel").apply { addActionListener { dlg.dispose() } }
 		dlg.rootPane.defaultButton = okButton
+		dlg.addWindowListener(object : WindowAdapter() {
+			override fun windowOpened(e: WindowEvent) { okButton.requestFocusInWindow() }
+		})
 		dlg.rootPane.registerKeyboardAction({ dlg.dispose() }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW)
 
 		val sortRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))

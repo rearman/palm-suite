@@ -27,7 +27,6 @@ import javax.swing.AbstractButton
 import javax.swing.BorderFactory
 import javax.swing.ButtonGroup
 import javax.swing.DefaultComboBoxModel
-import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JCheckBox
@@ -44,6 +43,7 @@ import javax.swing.JScrollPane
 import javax.swing.JTabbedPane
 import javax.swing.JTextField
 import javax.swing.KeyStroke
+import javax.swing.ListCellRenderer
 import javax.swing.ListSelectionModel
 import javax.swing.SwingUtilities
 import javax.swing.WindowConstants
@@ -357,6 +357,8 @@ object CategoriesDialog {
 		d.rootPane.defaultButton = okBtn
 
 		reload()
+		// The first category is selected when there is one, so Delete and Rename are enabled.
+		if (names.size > 0) list.selectedIndex = 0
 		// The buttons stack on the right of the list, as in Palm Desktop.
 		val side = JPanel(GridLayout(0, 1, 0, 6)).apply {
 			add(okBtn)
@@ -379,7 +381,7 @@ object FindDialog {
 		val findLabel = keyed("Find what:", 'w', field)
 		val wholeBox = JCheckBox("Match whole word only").withFont().key('M')
 		val caseBox = JCheckBox("Match case").withFont().key('C')
-		val findBtn = button("Find").key('F')
+		val findBtn = button("Find").key('F').apply { isEnabled = false }
 		val results = DefaultListModel<Any>()
 		val list = JList(results).withFont()
 		list.selectionMode = ListSelectionModel.SINGLE_SELECTION
@@ -387,47 +389,6 @@ object FindDialog {
 		val goBtn = button("Go To").key('G').apply { isEnabled = false }
 		val cancelBtn = button("Cancel")
 		val status = label("")
-
-		fun go(record: Any) {
-			d.dispose()
-			when (record) {
-				is Event -> App.show("date", record)
-				is Todo -> App.show("todo", record)
-				is Memo -> App.show("memo", record)
-				is Address -> App.show("address", record)
-			}
-		}
-
-		fun search() {
-			results.clear()
-			status.text = ""
-			val text = field.text.trim()
-			if (text.isEmpty()) return
-			val caseOn = caseBox.isSelected
-			val word = if (wholeBox.isSelected) {
-				Regex("\\b" + Regex.escape(text) + "\\b", if (caseOn) emptySet<RegexOption>() else setOf(RegexOption.IGNORE_CASE))
-			} else {
-				null
-			}
-			App.store.find(text)
-				.filter { App.showPrivate || !isPrivate(it) }
-				.filter { !caseOn || searchable(it).contains(text) }
-				.filter { word == null || word.containsMatchIn(searchable(it)) }
-				.forEach { results.addElement(it) }
-			status.text = "${results.size} items found."
-		}
-
-		field.addActionListener { search() }
-		findBtn.onClick { search() }
-		list.addListSelectionListener { goBtn.isEnabled = list.selectedIndex >= 0 }
-		list.addMouseListener(object : MouseAdapter() {
-			override fun mouseClicked(e: MouseEvent) {
-				if (e.clickCount == 2) list.selectedValue?.let { go(it) }
-			}
-		})
-		goBtn.onClick { list.selectedValue?.let { go(it) } }
-		cancelBtn.onClick { d.dispose() }
-		d.rootPane.defaultButton = findBtn
 
 		val fieldRow = JPanel(BorderLayout(6, 0)).apply {
 			add(findLabel, BorderLayout.WEST)
@@ -449,11 +410,69 @@ object FindDialog {
 			}, BorderLayout.CENTER)
 			add(JPanel(BorderLayout()).apply { add(buttons, BorderLayout.NORTH) }, BorderLayout.EAST)
 		}
-		val content = JPanel(BorderLayout(0, 8)).apply {
-			add(top, BorderLayout.NORTH)
+		// The results list and its status line. The first search adds them, and the dialog grows to show them.
+		val resultsPane = JPanel(BorderLayout(0, 8)).apply {
 			add(JScrollPane(list).apply { preferredSize = Dimension(360, 200) }, BorderLayout.CENTER)
 			add(status, BorderLayout.SOUTH)
 		}
+		val content = JPanel(BorderLayout(0, 8)).apply { add(top, BorderLayout.NORTH) }
+
+		fun go(record: Any) {
+			d.dispose()
+			when (record) {
+				is Event -> App.show("date", record)
+				is Todo -> App.show("todo", record)
+				is Memo -> App.show("memo", record)
+				is Address -> App.show("address", record)
+			}
+		}
+
+		fun search() {
+			results.clear()
+			status.text = ""
+			val text = field.text.trim()
+			if (text.isEmpty()) return
+			if (resultsPane.parent == null) {
+				content.add(resultsPane, BorderLayout.CENTER)
+				d.pack()
+			}
+			val caseOn = caseBox.isSelected
+			val word = if (wholeBox.isSelected) {
+				Regex("\\b" + Regex.escape(text) + "\\b", if (caseOn) emptySet<RegexOption>() else setOf(RegexOption.IGNORE_CASE))
+			} else {
+				null
+			}
+			App.store.find(text)
+				.filter { App.showPrivate || !isPrivate(it) }
+				.filter { !caseOn || searchable(it).contains(text) }
+				.filter { word == null || word.containsMatchIn(searchable(it)) }
+				.forEach { results.addElement(it) }
+			status.text = if (results.size == 1) "1 item found." else "${results.size} items found."
+			// The first row is selected, so Go To is enabled.
+			list.selectedIndex = if (results.size > 0) 0 else -1
+		}
+
+		// Find stays gray until Find what has text.
+		fun refreshFind() {
+			findBtn.isEnabled = field.text.isNotBlank()
+		}
+		field.document.addDocumentListener(object : DocumentListener {
+			override fun insertUpdate(e: DocumentEvent) = refreshFind()
+			override fun removeUpdate(e: DocumentEvent) = refreshFind()
+			override fun changedUpdate(e: DocumentEvent) = refreshFind()
+		})
+		field.addActionListener { search() }
+		findBtn.onClick { search() }
+		list.addListSelectionListener { goBtn.isEnabled = list.selectedIndex >= 0 }
+		list.addMouseListener(object : MouseAdapter() {
+			override fun mouseClicked(e: MouseEvent) {
+				if (e.clickCount == 2) list.selectedValue?.let { go(it) }
+			}
+		})
+		goBtn.onClick { list.selectedValue?.let { go(it) } }
+		cancelBtn.onClick { d.dispose() }
+		d.rootPane.defaultButton = findBtn
+
 		present(d, owner, content, null)
 	}
 
@@ -475,28 +494,51 @@ object FindDialog {
 		else -> false
 	}
 
-	private fun describe(record: Any): String = when (record) {
-		is Event -> "Date Book: ${record.title} (${Fmt.shortDate(record.date)})"
-		is Todo -> "To Do: ${record.title}"
-		is Memo -> "Memo: ${record.text.lineSequence().firstOrNull().orEmpty()}"
-		is Address -> addressLine(record)
-		else -> ""
+	// The app name, the text and the right-hand column of a result row, as the official Find dialog shows them.
+	private fun rowParts(record: Any): Triple<String, String, String> = when (record) {
+		is Event -> Triple("Date Book", record.title, eventWhen(record))
+		is Todo -> Triple("To Do List", record.title, if (record.due >= 0) dayText(record.due) else "")
+		is Memo -> Triple("Memo Pad", record.title, "")
+		is Address -> Triple(
+			"Address Book",
+			record.listName(Settings.getInt("addressListBy", 0) == 1),
+			record.listPhone()?.let { "${it.first} ${it.second}" }.orEmpty()
+		)
+		else -> Triple("", "", "")
 	}
 
-	// The list name and the list phone of an address, as the Address List shows them.
-	private fun addressLine(a: Address): String {
-		val name = a.listName(Settings.getInt("addressListBy", 0) == 1)
-		val phone = a.listPhone() ?: return "Address: $name"
-		return "Address: $name, ${phone.first} ${phone.second}"
-	}
+	// "10/19/2026 13:00", or the date alone for an untimed event.
+	private fun eventWhen(e: Event): String =
+		if (e.untimed) dayText(e.date) else "${dayText(e.date)} ${"%02d:%02d".format(e.start / 60, e.start % 60)}"
 
-	private class ResultRenderer : DefaultListCellRenderer() {
-		override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
-			super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-			font = Theme.font
-			text = value?.let { describe(it) }.orEmpty()
-			icon = if (value != null && isPrivate(value)) Icons.privateRecord() else null
-			return this
+	// "10/19/2026": the month, the day and the 4-digit year.
+	private fun dayText(day: Long): String = Fmt.ld(day).let { "${it.monthValue}/${it.dayOfMonth}/${it.year}" }
+
+	// One result row. The app name is at the left, the text fills the middle, and the date, time or phone is at the right edge.
+	private class ResultRenderer : ListCellRenderer<Any?> {
+		private val row = JPanel(BorderLayout(8, 0)).apply { border = EmptyBorder(1, 2, 1, 2) }
+		private val name = JLabel().withFont()
+		private val text = JLabel().withFont()
+		private val right = JLabel().withFont()
+
+		init {
+			row.add(name, BorderLayout.WEST)
+			row.add(text, BorderLayout.CENTER)
+			row.add(right, BorderLayout.EAST)
+		}
+
+		override fun getListCellRendererComponent(list: JList<out Any?>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
+			val parts = value?.let { rowParts(it) } ?: Triple("", "", "")
+			name.text = parts.first
+			text.text = parts.second
+			right.text = parts.third
+			text.icon = if (value != null && isPrivate(value)) Icons.privateRecord() else null
+			// The name column is as wide as "Address Book", so the text columns line up.
+			name.preferredSize = Dimension(name.getFontMetrics(Theme.font).stringWidth("Address Book") + 4, name.preferredSize.height)
+			val fg = if (isSelected) list?.selectionForeground else list?.foreground
+			row.background = if (isSelected) list?.selectionBackground else list?.background
+			for (l in listOf(name, text, right)) l.foreground = fg
+			return row
 		}
 	}
 }

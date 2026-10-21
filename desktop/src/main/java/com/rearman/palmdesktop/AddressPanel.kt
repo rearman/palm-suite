@@ -34,7 +34,7 @@ class AddressPanel : JPanel(BorderLayout()), AppView {
 	// True while the code sets widgets. Listeners ignore those changes.
 	private var busy = false
 
-	private val filterCombo = JComboBox<Choice>()
+	private val filterCombo = JComboBox<Choice>().apply { maximumRowCount = 30 }
 	private val listModel = DefaultListModel<Address>()
 	private val list = JList(listModel)
 	private val kind = RecordKind<Address>(
