@@ -9,6 +9,7 @@ import com.rearman.datebook.Todo
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Color
+import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
@@ -53,10 +54,11 @@ import javax.swing.Scrollable
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 import javax.swing.TransferHandler
-import javax.swing.border.BevelBorder
+import javax.swing.border.AbstractBorder
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+import javax.swing.plaf.basic.BasicGraphicsUtils
 
 /**
  * The Date view: the Day grid, the right pane (calendar, then the Address or To Do list) and the view tabs.
@@ -108,6 +110,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	private val dayTab = VerticalTab("Day", 'D')
 	private val weekTab = VerticalTab("Week", 'W')
 	private val monthTab = VerticalTab("Month", 'M')
+	private lateinit var tabStrip: JPanel   // holds the tabs; set by buildTabs
 	private var shownCats: List<Category> = emptyList()
 	private var catId: Int? = null
 	private var updating = false
@@ -204,7 +207,7 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		// sit on the gray beside it, as in Palm Desktop.
 		val body = JPanel(BorderLayout())
 		body.border = BorderFactory.createCompoundBorder(
-			BorderFactory.createBevelBorder(BevelBorder.RAISED, Color.WHITE, Theme.panel, Color.BLACK, Theme.shadow),
+			OpenRightBevel,
 			EmptyBorder(6, 6, 6, 6)
 		)
 		body.add(cardPanel, BorderLayout.CENTER)
@@ -231,6 +234,14 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		dayTab.isSelected = name == "day"
 		weekTab.isSelected = name == "week"
 		monthTab.isSelected = name == "month"
+		val sel = when (name) {
+			"week" -> weekTab
+			"month" -> monthTab
+			else -> dayTab
+		}
+		tabStrip.setComponentZOrder(sel, 0)   // index 0 paints on top, so the selected tab joins the body
+		tabStrip.revalidate()
+		tabStrip.repaint()
 		// Palm Desktop shows the calendar pane only in the Day view; Week and Month use the full width.
 		rightPane.isVisible = name == "day"
 		Settings.set("dateMode", name)
@@ -463,8 +474,40 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 	}
 
 	private fun buildTabs(): JPanel {
-		val column = JPanel(GridLayout(3, 1))
-		column.isOpaque = false
+		// The tabs overlap, so the strip paints them in its own order and draws the body edge they join.
+		tabStrip = object : JPanel(null) {
+			init {
+				isOpaque = true
+				background = Theme.workspace
+				preferredSize = Dimension(24, 0)
+			}
+
+			override fun isOptimizedDrawingEnabled(): Boolean = false
+
+			override fun paintComponent(g: Graphics) {
+				super.paintComponent(g)
+				val g2 = g.create() as Graphics2D
+				// The right edge of the body: white at the top, shadow gray, black at the bottom.
+				g2.color = Color.WHITE
+				g2.fillRect(0, 0, 1, 1)
+				g2.color = Theme.shadow
+				g2.fillRect(0, 1, 1, height - 2)
+				g2.color = Color.BLACK
+				g2.fillRect(0, height - 1, 1, 1)
+				g2.fillRect(1, 0, 1, height)
+				g2.dispose()
+			}
+
+			// The selected tab is 4 px longer and starts 2 px higher, so it covers the body edge.
+			override fun doLayout() {
+				var y = 2
+				for (tab in listOf(dayTab, weekTab, monthTab)) {
+					val len = tab.length()
+					if (tab.isSelected) tab.setBounds(0, y - 2, 24, len + 4) else tab.setBounds(1, y, 21, len)
+					y += len
+				}
+			}
+		}
 		for ((tab, name) in listOf(dayTab to "day", weekTab to "week", monthTab to "month")) {
 			tab.addActionListener { showMode(name) }
 			// A double click goes to today, as in Palm Desktop.
@@ -476,12 +519,9 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 				}
 			})
 			tabGroup.add(tab)
-			column.add(tab)
+			tabStrip.add(tab)
 		}
-		val panel = JPanel(BorderLayout())
-		panel.isOpaque = false   // the workspace gray shows under the tabs
-		panel.add(column, BorderLayout.NORTH)
-		return panel
+		return tabStrip
 	}
 
 	// Data and state
@@ -1193,29 +1233,83 @@ class DatePanel : JPanel(BorderLayout()), AppView {
 		override fun toString(): String = label
 	}
 
-	/** A vertical tab on the right edge, with its caption turned clockwise. */
+	/**
+	 * The raised bevel of the body without its right side. The tab strip draws that edge, so the
+	 * selected tab can join the body.
+	 */
+	private object OpenRightBevel : AbstractBorder() {
+		override fun getBorderInsets(c: Component, insets: Insets): Insets {
+			insets.set(2, 2, 2, 0)
+			return insets
+		}
+
+		override fun getBorderInsets(c: Component): Insets = Insets(2, 2, 2, 0)
+
+		override fun paintBorder(c: Component, g: Graphics, x: Int, y: Int, w: Int, h: Int) {
+			val g2 = g.create() as Graphics2D
+			g2.color = Color.WHITE
+			g2.drawLine(x, y, x + w - 1, y)
+			g2.drawLine(x, y, x, y + h - 2)
+			g2.color = Theme.panel
+			g2.drawLine(x + 1, y + 1, x + w - 1, y + 1)
+			g2.drawLine(x + 1, y + 1, x + 1, y + h - 3)
+			g2.color = Theme.shadow
+			g2.drawLine(x + 1, y + h - 2, x + w - 1, y + h - 2)
+			g2.color = Color.BLACK
+			g2.drawLine(x, y + h - 1, x + w - 1, y + h - 1)
+			g2.dispose()
+		}
+	}
+
 	/** A tab on the right edge with its caption turned clockwise and [key] underlined (Alt+key selects it). */
 	private class VerticalTab(private val caption: String, key: Char) : JToggleButton() {
 		private val keyIndex = caption.indexOf(key)
 
 		init {
+			isOpaque = false
+			isContentAreaFilled = false
+			isBorderPainted = false
 			isFocusPainted = false
 			font = Theme.font
 			mnemonic = key.uppercaseChar().code
 		}
 
-		override fun getPreferredSize(): Dimension = Dimension(24, 58)
+		/** Tab length along the strip: the caption plus the Windows tab padding. */
+		fun length(): Int = getFontMetrics(Theme.font).stringWidth(caption) + 28
 
 		override fun paintComponent(g: Graphics) {
+			val w = width
+			val h = height
+			val s = isSelected
 			val g2 = g.create() as Graphics2D
-			g2.color = if (isSelected) Color.WHITE else Theme.panel
-			g2.fillRect(0, 0, width, height)
-			g2.color = Theme.grid
-			g2.drawRect(0, 0, width - 1, height - 1)
+			g2.color = Theme.panel
+			g2.fillRect(0, 0, w - 2, h - 2)
+			g2.color = Color.WHITE
+			g2.drawLine(if (s) 0 else 1, 0, w - 4, 0)
+			g2.color = Theme.shadow
+			g2.fillRect(w - 3, 0, 1, 1)
+			g2.drawLine(w - 2, 1, w - 2, h - 3)
+			g2.color = Color.BLACK
+			g2.drawLine(w - 1, 3, w - 1, h - 3)
+			g2.color = Theme.shadow
+			g2.drawLine(if (s) 2 else 1, h - 3, w - 2, h - 3)
+			g2.color = Color.BLACK
+			g2.drawLine(if (s) 2 else 0, h - 2, w - 2, h - 2)
+			if (s) {
+				// The body edge line meets the bottom of the selected tab.
+				g2.color = Theme.shadow
+				g2.fillRect(0, h - 2, 1, 1)
+				g2.color = Theme.panel
+				g2.fillRect(1, h - 2, 1, 1)
+			}
+			if (isFocusOwner) {
+				g2.color = Color.BLACK
+				BasicGraphicsUtils.drawDashedRect(g2, 3, 2, w - 6, h - 6)
+			}
+			g2.color = Color.BLACK
 			g2.font = Theme.font
 			val fm = g2.fontMetrics
-			g2.color = Color.BLACK
-			g2.translate(width / 2, height / 2)
+			g2.translate((w - 2) / 2, (h - 2) / 2)
 			g2.rotate(Math.PI / 2)
 			val x = -fm.stringWidth(caption) / 2
 			val y = (fm.ascent - fm.descent) / 2
