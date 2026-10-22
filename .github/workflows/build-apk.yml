@@ -365,16 +365,23 @@ jobs:
         run: |
           cargo build --release
           cp target/release/palm-desktop-spike${{ matrix.exe }} palm-desktop-spike-${{ matrix.name }}${{ matrix.exe }}
+          cp target/release/palm-desktop${{ matrix.exe }} palm-desktop-${{ matrix.name }}${{ matrix.exe }}
 
-      # Shows the window at three scales on a virtual X server and captures the screen, to judge the Linux
-      # rendering. The offscreen --shot capture does not test Cairo's device-pixel drawing.
+      # Shows the spike and the app at three scales on a virtual X server and captures the screen, to judge
+      # the Linux rendering. The offscreen --shot capture does not test Cairo's device-pixel drawing. The app
+      # opens the format 1 fixture store of its tests, with no settings, so it does not sync.
       - name: Screenshots
         if: runner.os == 'Linux'
         run: |
           mkdir shots
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/config"
+          mkdir -p "$XDG_CONFIG_HOME/palm-suite"
           for s in 1 1.25 1.5; do
             FLTK_SCALING_FACTOR=$s xvfb-run -a -s "-screen 0 1400x900x24" sh -c \
-              "./palm-desktop-spike-${{ matrix.name }} & sleep 3; import -window root shots/scale-$s.png; kill \$!"
+              "./palm-desktop-spike-${{ matrix.name }} & sleep 3; import -window root shots/spike-scale-$s.png; kill \$!"
+            cp app/tests/fixtures/desktop-data-v1.json "$XDG_CONFIG_HOME/palm-suite/desktop-data.json"
+            FLTK_SCALING_FACTOR=$s xvfb-run -a -s "-screen 0 1400x900x24" sh -c \
+              "./palm-desktop-${{ matrix.name }} & sleep 3; import -window root shots/app-scale-$s.png; kill \$!"
           done
 
       # archive: false uploads the file itself and accepts only one file.
@@ -384,9 +391,15 @@ jobs:
           path: desktop-rs/palm-desktop-spike-${{ matrix.name }}${{ matrix.exe }}
           archive: false
 
+      - name: Upload app
+        uses: actions/upload-artifact@v7
+        with:
+          path: desktop-rs/palm-desktop-${{ matrix.name }}${{ matrix.exe }}
+          archive: false
+
       - name: Upload screenshots
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v7
         with:
-          name: spike-shots-${{ matrix.name }}
+          name: desktop-rs-shots-${{ matrix.name }}
           path: desktop-rs/shots

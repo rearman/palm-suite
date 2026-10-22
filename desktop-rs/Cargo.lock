@@ -480,6 +480,7 @@ dependencies = [
 name = "palm-desktop"
 version = "0.0.0"
 dependencies = [
+ "fltk",
  "getrandom 0.4.3",
  "jiff",
  "palm-core",
