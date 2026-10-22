@@ -32,8 +32,11 @@ object SyncCrypto {
         }
     }
 
-    fun seal(key: ByteArray, id: String, plain: ByteArray): String {
-        val nonce = ByteArray(NONCE_BYTES).also { random.nextBytes(it) }
+    fun seal(key: ByteArray, id: String, plain: ByteArray): String =
+        seal(key, id, plain, ByteArray(NONCE_BYTES).also { random.nextBytes(it) })
+
+    /** Seals with a given [nonce]. Only the test vectors pass one: a nonce must never repeat under one key. */
+    internal fun seal(key: ByteArray, id: String, plain: ByteArray, nonce: ByteArray): String {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, nonce))
         cipher.updateAAD(id.toByteArray(Charsets.UTF_8))
