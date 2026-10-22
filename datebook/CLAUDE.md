@@ -11,10 +11,10 @@ Four Android apps after the Palm OS 3.5 Date Book, To Do List, Memo Pad and Addr
 The repository has no Gradle wrapper. CI (`.github/workflows/build-apk.yml`) uses Gradle 8.7 on JDK 17:
 
 ```sh
-gradle assembleDebug --stacktrace
+gradle assembleRelease --stacktrace
 ```
 
-Output: `app/build/outputs/apk/debug/app-debug.apk`. CI runs on each push to `main` or `master`, on each push of a `v*` tag, and on manual dispatch. CI uploads the APK unzipped (`upload-artifact` with `archive: false`), so the artifact is the file itself. A workflow step first renames it to `handheld.apk`, or to `handheld-<tag>.apk` for a tag build, which is the artifact name. That mode accepts only one file, so keep the path exact. A tag build also attaches the APK to the GitHub Release of that tag, and creates the release when it does not exist.
+Output: `app/build/outputs/apk/release/app-release.apk`, shrunk by R8 (`-dontobfuscate`, so stack traces keep their names) and signed with `debug.keystore`. CI runs on each push to `main` or `master`, on each push of a `v*` tag, and on manual dispatch. CI uploads the APK unzipped (`upload-artifact` with `archive: false`), so the artifact is the file itself. A workflow step first renames it to `handheld.apk`, or to `handheld-<tag>.apk` for a tag build, which is the artifact name. That mode accepts only one file, so keep the path exact. A tag build also attaches the APK to the GitHub Release of that tag, and creates the release when it does not exist.
 
 JVM unit tests (JUnit 4) are in `app/src/test/`. The tests of the model, iCalendar, vCard and sync logic are in `sync-core/src/test/`. CI runs them after the build:
 

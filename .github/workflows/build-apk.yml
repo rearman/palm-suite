@@ -29,7 +29,7 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build APKs
-        run: gradle assembleDebug testDebugUnitTest :sync-core:test --stacktrace
+        run: gradle assembleRelease testDebugUnitTest :sync-core:test --stacktrace
 
       # A tag build names the APK of its app after the tag, for example handheld-v1.13.apk.
       - name: Rename APKs
@@ -43,8 +43,8 @@ jobs:
             handheld-v*) db="$TAG.apk" ;;
             launcher-v*) pl="palm-$TAG.apk" ;;
           esac
-          mv datebook/app/build/outputs/apk/debug/app-debug.apk "$db"
-          mv palm-launcher/app/build/outputs/apk/debug/app-debug.apk "$pl"
+          mv datebook/app/build/outputs/apk/release/app-release.apk "$db"
+          mv palm-launcher/app/build/outputs/apk/release/app-release.apk "$pl"
           echo "handheld=$db" >> "$GITHUB_OUTPUT"
           echo "launcher=$pl" >> "$GITHUB_OUTPUT"
           case "$TAG" in
