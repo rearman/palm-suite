@@ -327,15 +327,15 @@ jobs:
           cargo build --release
           cp target/release/palm-desktop-spike${{ matrix.exe }} palm-desktop-spike-${{ matrix.name }}${{ matrix.exe }}
 
-      # Draws the window offscreen at three scales under a virtual X server, to judge the Linux rendering.
+      # Shows the window at three scales on a virtual X server and captures the screen, to judge the Linux
+      # rendering. The offscreen --shot capture does not test Cairo's device-pixel drawing.
       - name: Screenshots
         if: runner.os == 'Linux'
         run: |
           mkdir shots
           for s in 1 1.25 1.5; do
-            FLTK_SCALING_FACTOR=$s xvfb-run -a ./palm-desktop-spike-${{ matrix.name }} --shot shots/scale-$s.ppm
-            convert shots/scale-$s.ppm shots/scale-$s.png
-            rm shots/scale-$s.ppm
+            FLTK_SCALING_FACTOR=$s xvfb-run -a -s "-screen 0 1400x900x24" sh -c \
+              "./palm-desktop-spike-${{ matrix.name }} & sleep 3; import -window root shots/scale-$s.png; kill \$!"
           done
 
       # archive: false uploads the file itself and accepts only one file.

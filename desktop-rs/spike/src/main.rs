@@ -2,7 +2,9 @@
 //! and one print, to judge how sharp FLTK draws them at 100%, 125% and 150% display scale.
 //!
 //! View > Scale switches the FLTK scale at run time. `--shot out.ppm` draws the window offscreen at the
-//! current scale (FLTK_SCALING_FACTOR sets it at start), saves it and exits. `--fonts` lists the font names.
+//! current scale (FLTK_SCALING_FACTOR sets it at start), saves it and exits. It tests the device-pixel drawing on
+//! Windows only: Cairo applies that drawing only on the screen, so CI captures the X screen on Linux.
+//! `--fonts` lists the font names.
 
 use fltk::{
 	app, button, draw,
@@ -65,14 +67,19 @@ fn load_fonts() -> Fonts {
 /// a whole number of device pixels wide at every display scale. Positions are logical values times the
 /// scale, rounded; line widths are 1 device pixel below scale 2, then whole multiples.
 struct Dev {
+	/// Device pixels per logical pixel for the coordinates: the display scale, or 1 where the override has no effect.
 	s: f32,
+	/// The scale to restore at the end.
+	saved: f32,
 }
 
 impl Dev {
 	fn begin() -> Dev {
-		Dev {
-			s: draw::override_scale(),
-		}
+		let saved = draw::override_scale();
+		// The Cairo driver (Linux) applies the override only on the screen. On an offscreen or print surface
+		// a second call still returns the scale; then draw in logical pixels and let Cairo scale them.
+		let s = if draw::override_scale() == 1.0 { saved } else { 1.0 };
+		Dev { s, saved }
 	}
 
 	/// A logical coordinate in device pixels.
@@ -141,7 +148,7 @@ impl Dev {
 
 impl Drop for Dev {
 	fn drop(&mut self) {
-		draw::restore_scale(self.s);
+		draw::restore_scale(self.saved);
 	}
 }
 
