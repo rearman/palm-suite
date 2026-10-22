@@ -1,0 +1,64 @@
+{
+ "parseMeta": [
+  {
+   "salt": "s",
+   "text": "{\"salt\":\"s\",\"check\":\"c\"}",
+   "check": "c"
+  },
+  {
+   "salt": "",
+   "text": "{}",
+   "check": ""
+  }
+ ],
+ "parseResult": [
+  {
+   "rev": 10,
+   "changes": [
+    {
+     "rev": 10,
+     "deleted": false,
+     "blob": "xyz",
+     "id": "c"
+    },
+    {
+     "rev": 8,
+     "deleted": true,
+     "blob": "",
+     "id": "d"
+    }
+   ],
+   "accepted": {"a": 9},
+   "conflicts": [
+    "a",
+    "b"
+   ],
+   "text": "{\"rev\":10,\"accepted\":[{\"id\":\"a\",\"rev\":9}],\"conflicts\":[\"b\",\"a\"],\"changes\":[{\"id\":\"c\",\"rev\":10,\"deleted\":false,\"blob\":\"xyz\"},{\"id\":\"d\",\"rev\":8,\"deleted\":true}]}"
+  },
+  {
+   "rev": 0,
+   "changes": [],
+   "accepted": {},
+   "conflicts": [],
+   "text": "{\"rev\":0}"
+  }
+ ],
+ "pushBody": {
+  "text": "{\"push\":[{\"deleted\":false,\"blob\":\"blobA\",\"id\":\"a\",\"baseRev\":3},{\"deleted\":true,\"blob\":\"\",\"id\":\"b\",\"baseRev\":0}],\"since\":42}",
+  "push": [
+   {
+    "deleted": false,
+    "blob": "blobA",
+    "id": "a",
+    "baseRev": 3
+   },
+   {
+    "deleted": true,
+    "blob": "ignored",
+    "id": "b",
+    "baseRev": 0
+   }
+  ],
+  "since": 42
+ }
+}

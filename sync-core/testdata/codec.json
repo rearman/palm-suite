@@ -1,0 +1,491 @@
+{
+ "addresses": [
+  {
+   "uid": "a1",
+   "record": {
+    "zip": "62701",
+    "lastName": "Müller",
+    "country": "USA",
+    "note": "Met at the expo. öööööööööööööööööööööööööööööööööööööööööööööööööö",
+    "private": true,
+    "address": "1 Main St\nSuite 2",
+    "city": "Springfield",
+    "showPhone": 1,
+    "custom": [
+     "Birthday 5/1",
+     "",
+     "",
+     "Ham call W9XYZ"
+    ],
+    "phones": [
+     "555-0100",
+     "555-0101",
+     "jorg@example.com",
+     "555-0103",
+     ""
+    ],
+    "title": "Engineer, Controls",
+    "firstName": "Jörg",
+    "phoneLabels": [
+     0,
+     7,
+     4,
+     5,
+     6
+    ],
+    "uid": "a1",
+    "company": "R717; Inc.",
+    "id": 0,
+    "state": "IL",
+    "category": 3
+   },
+   "categoryUid": "cat-1",
+   "text": "{\"st\":\"IL\",\"ln\":\"Müller\",\"ad\":\"1 Main St\\nSuite 2\",\"c\":\"cat-1\",\"ci\":\"Springfield\",\"fn\":\"Jörg\",\"k\":\"a\",\"cn\":\"USA\",\"co\":\"R717; Inc.\",\"n\":\"Met at the expo. öööööööööööööööööööööööööööööööööööööööööööööööööö\",\"p\":true,\"cu\":[\"Birthday 5/1\",\"\",\"\",\"Ham call W9XYZ\"],\"ti\":\"Engineer, Controls\",\"ph\":[\"555-0100\",\"555-0101\",\"jorg@example.com\",\"555-0103\",\"\"],\"z\":\"62701\",\"pl\":[0,7,4,5,6],\"sp\":1}"
+  },
+  {
+   "uid": "a1",
+   "record": {
+    "zip": "",
+    "lastName": "Only",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 0,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "",
+    "phoneLabels": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "uid": "a1",
+    "company": "",
+    "id": 0,
+    "state": "",
+    "category": 0
+   },
+   "categoryUid": "",
+   "text": "{\"ln\":\"Only\",\"k\":\"a\"}"
+  },
+  {
+   "uid": "a1",
+   "record": {
+    "zip": "",
+    "lastName": "",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 0,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "",
+    "phoneLabels": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "uid": "a1",
+    "company": "Acme",
+    "id": 0,
+    "state": "",
+    "category": 7
+   },
+   "categoryUid": "cat-7",
+   "text": "{\"c\":\"cat-7\",\"k\":\"a\",\"co\":\"Acme\"}"
+  }
+ ],
+ "memos": [
+  {
+   "uid": "m1",
+   "record": {
+    "uid": "m1",
+    "private": true,
+    "pos": 3,
+    "id": 0,
+    "text": "Title\nbody",
+    "category": 3
+   },
+   "categoryUid": "cat-1",
+   "text": "{\"p\":true,\"c\":\"cat-1\",\"t\":\"Title\\nbody\",\"k\":\"m\",\"o\":3}"
+  },
+  {
+   "uid": "m1",
+   "record": {
+    "uid": "m1",
+    "private": false,
+    "pos": 0,
+    "id": 0,
+    "text": "",
+    "category": 0
+   },
+   "categoryUid": "",
+   "text": "{\"k\":\"m\"}"
+  }
+ ],
+ "shortcuts": {
+  "text": "{\"k\":\"s\",\"l\":[{\"t\":\"Breakfast\",\"n\":\"br\"},{\"n\":\"dts\"},{\"t\":\"x\"}]}",
+  "list": [
+   [
+    "br",
+    "Breakfast"
+   ],
+   [
+    "dts",
+    ""
+   ],
+   [
+    "",
+    "x"
+   ]
+  ]
+ },
+ "categoryUids": {
+  "3": "cat-1",
+  "7": "cat-7"
+ },
+ "kinds": [
+  {
+   "kind": "event",
+   "text": "{\"k\":\"e\"}"
+  },
+  {
+   "kind": "shortcuts",
+   "text": "{\"k\":\"s\",\"l\":[]}"
+  },
+  {
+   "kind": "",
+   "text": "{\"k\":\"zz\"}"
+  },
+  {
+   "kind": "memo",
+   "text": "{\"kind\":\"memo\"}"
+  },
+  {
+   "kind": "",
+   "text": "{}"
+  },
+  {
+   "kind": "",
+   "text": "not json"
+  },
+  {
+   "kind": "",
+   "text": ""
+  }
+ ],
+ "todos": [
+  {
+   "uid": "t1",
+   "record": {
+    "note": "later",
+    "uid": "t1",
+    "private": true,
+    "due": 19000,
+    "id": 0,
+    "title": "Call",
+    "priority": 2,
+    "category": 7,
+    "done": true
+   },
+   "categoryUid": "cat-7",
+   "text": "{\"p\":true,\"du\":19000,\"pr\":2,\"c\":\"cat-7\",\"t\":\"Call\",\"dn\":true,\"k\":\"t\",\"n\":\"later\"}"
+  },
+  {
+   "uid": "t1",
+   "record": {
+    "note": "",
+    "uid": "t1",
+    "private": false,
+    "due": -1,
+    "id": 0,
+    "title": "Plain",
+    "priority": 1,
+    "category": 0,
+    "done": false
+   },
+   "categoryUid": "",
+   "text": "{\"t\":\"Plain\",\"k\":\"t\"}"
+  },
+  {
+   "uid": "t1",
+   "record": {
+    "note": "",
+    "uid": "t1",
+    "private": false,
+    "due": -1,
+    "id": 0,
+    "title": "Filed",
+    "priority": 5,
+    "category": 3,
+    "done": false
+   },
+   "categoryUid": "cat-1",
+   "text": "{\"pr\":5,\"c\":\"cat-1\",\"t\":\"Filed\",\"k\":\"t\"}"
+  }
+ ],
+ "categories": [
+  {
+   "uid": "c1",
+   "record": {
+    "app": 0,
+    "uid": "c1",
+    "name": "Business",
+    "id": 3
+   },
+   "id": 3,
+   "text": "{\"k\":\"c\",\"n\":\"Business\"}"
+  },
+  {
+   "uid": "c1",
+   "record": {
+    "app": 1,
+    "uid": "c1",
+    "name": "Ideas",
+    "id": 9
+   },
+   "id": 9,
+   "text": "{\"k\":\"c\",\"n\":\"Ideas\",\"ap\":1}"
+  }
+ ],
+ "v1": [
+  {
+   "kind": "event",
+   "record": {
+    "date": 19000,
+    "note": "",
+    "private": true,
+    "start": 600,
+    "title": "Old",
+    "exceptions": [19007],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "v1",
+    "weekDays": 0,
+    "repeat": 0,
+    "alarm": false,
+    "end": 660,
+    "id": 0,
+    "untimed": false,
+    "every": 1
+   },
+   "text": "{\"kind\":\"event\",\"title\":\"Old\",\"date\":19000,\"start\":600,\"end\":660,\"exceptions\":[19007],\"private\":true}"
+  },
+  {
+   "kind": "todo",
+   "record": {
+    "note": "",
+    "uid": "v1",
+    "private": false,
+    "due": 19001,
+    "id": 0,
+    "title": "Old todo",
+    "priority": 3,
+    "category": 7,
+    "done": true
+   },
+   "text": "{\"kind\":\"todo\",\"title\":\"Old todo\",\"priority\":3,\"due\":19001,\"done\":true,\"category\":\"cat-7\"}"
+  },
+  {
+   "kind": "memo",
+   "record": {
+    "uid": "v1",
+    "private": false,
+    "pos": 2,
+    "id": 0,
+    "text": "Old memo",
+    "category": 3
+   },
+   "text": "{\"kind\":\"memo\",\"text\":\"Old memo\",\"category\":\"cat-1\",\"pos\":2}"
+  },
+  {
+   "kind": "address",
+   "record": {
+    "zip": "",
+    "lastName": "Doe",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 4,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "1",
+     "2",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "",
+    "phoneLabels": [
+     7,
+     7,
+     2,
+     3,
+     4
+    ],
+    "uid": "v1",
+    "company": "",
+    "id": 0,
+    "state": "",
+    "category": 7
+   },
+   "text": "{\"kind\":\"address\",\"lastName\":\"Doe\",\"phones\":[\"1\",\"2\"],\"phoneLabels\":[7,9],\"showPhone\":9,\"category\":\"cat-7\"}"
+  },
+  {
+   "kind": "category",
+   "record": {
+    "app": 1,
+    "uid": "v1",
+    "name": "Business",
+    "id": 4
+   },
+   "text": "{\"kind\":\"category\",\"name\":\"Business\",\"app\":1}"
+  },
+  {
+   "kind": "shortcuts",
+   "text": "{\"kind\":\"shortcuts\",\"list\":[{\"name\":\"br\",\"text\":\"Breakfast\"}]}",
+   "list": [[
+    "br",
+    "Breakfast"
+   ]]
+  }
+ ],
+ "events": [
+  {
+   "uid": "u1",
+   "record": {
+    "date": 19000,
+    "note": "first\nsecond",
+    "private": true,
+    "start": 600,
+    "title": "Dentist \"Dr. Who\"",
+    "exceptions": [
+     19007,
+     19014
+    ],
+    "alarmAdvance": 2,
+    "alarmUnit": 1,
+    "repeatEnd": 19100,
+    "uid": "u1",
+    "weekDays": 42,
+    "repeat": 2,
+    "alarm": true,
+    "end": 660,
+    "id": 0,
+    "untimed": false,
+    "every": 2
+   },
+   "text": "{\"aa\":2,\"a\":true,\"d\":19000,\"e\":660,\"k\":\"e\",\"n\":\"first\\nsecond\",\"p\":true,\"ev\":2,\"r\":2,\"s\":600,\"re\":19100,\"t\":\"Dentist \\\"Dr. Who\\\"\",\"au\":1,\"w\":42,\"x\":[19007,19014]}"
+  },
+  {
+   "uid": "u1",
+   "record": {
+    "date": 0,
+    "note": "",
+    "private": false,
+    "start": 480,
+    "title": "Defaults",
+    "exceptions": [],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "u1",
+    "weekDays": 0,
+    "repeat": 0,
+    "alarm": false,
+    "end": 540,
+    "id": 0,
+    "untimed": false,
+    "every": 1
+   },
+   "text": "{\"t\":\"Defaults\",\"k\":\"e\"}"
+  },
+  {
+   "uid": "u1",
+   "record": {
+    "date": 20000,
+    "note": "",
+    "private": false,
+    "start": 0,
+    "title": "",
+    "exceptions": [],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "u1",
+    "weekDays": 0,
+    "repeat": 5,
+    "alarm": false,
+    "end": 0,
+    "id": 0,
+    "untimed": true,
+    "every": 1
+   },
+   "text": "{\"r\":5,\"s\":0,\"d\":20000,\"u\":true,\"e\":0,\"k\":\"e\"}"
+  },
+  {
+   "uid": "u1",
+   "record": {
+    "date": 20001,
+    "note": "",
+    "private": false,
+    "start": 1439,
+    "title": "Ünïcode ✓ \u2028 tab\there",
+    "exceptions": [],
+    "alarmAdvance": 99,
+    "alarmUnit": 2,
+    "repeatEnd": -1,
+    "uid": "u1",
+    "weekDays": 0,
+    "repeat": 0,
+    "alarm": false,
+    "end": 1439,
+    "id": 0,
+    "untimed": false,
+    "every": 1
+   },
+   "text": "{\"aa\":99,\"s\":1439,\"t\":\"Ünïcode ✓ \\u2028 tab\\there\",\"d\":20001,\"au\":2,\"e\":1439,\"k\":\"e\"}"
+  }
+ ]
+}

@@ -1,0 +1,584 @@
+{
+ "read": [
+  {
+   "calls": [
+    [
+     "Business",
+     0
+    ],
+    [
+     "Empty",
+     0
+    ],
+    [
+     "Friends",
+     0
+    ],
+    [
+     "Personal",
+     1
+    ],
+    [
+     "business",
+     2
+    ],
+    [
+     "Friends",
+     0
+    ],
+    [
+     "Personal",
+     1
+    ],
+    [
+     "Business",
+     2
+    ]
+   ],
+   "name": "write round trip",
+   "text": "{\n \"memoCategories\": [\"Personal\"],\n \"addresses\": [\n  {\n   \"zip\": \"62701\",\n   \"lastName\": \"Müller\",\n   \"country\": \"USA\",\n   \"note\": \"Met at the expo. öööööööööööööööööööööööööööööööööööööööööööööööööö\",\n   \"private\": true,\n   \"address\": \"1 Main St\\nSuite 2\",\n   \"city\": \"Springfield\",\n   \"showPhone\": 1,\n   \"custom\": [\n    \"Birthday 5/1\",\n    \"\",\n    \"\",\n    \"Ham call W9XYZ\"\n   ],\n   \"phones\": [\n    \"555-0100\",\n    \"555-0101\",\n    \"jorg@example.com\",\n    \"555-0103\",\n    \"\"\n   ],\n   \"title\": \"Engineer, Controls\",\n   \"firstName\": \"Jörg\",\n   \"phoneLabels\": [\n    0,\n    7,\n    4,\n    5,\n    6\n   ],\n   \"company\": \"R717; Inc.\",\n   \"state\": \"IL\",\n   \"category\": \"Business\"\n  },\n  {\n   \"zip\": \"\",\n   \"lastName\": \"Only\",\n   \"country\": \"\",\n   \"note\": \"\",\n   \"private\": false,\n   \"address\": \"\",\n   \"city\": \"\",\n   \"showPhone\": 0,\n   \"custom\": [\n    \"\",\n    \"\",\n    \"\",\n    \"\"\n   ],\n   \"phones\": [\n    \"\",\n    \"\",\n    \"\",\n    \"\",\n    \"\"\n   ],\n   \"title\": \"\",\n   \"firstName\": \"\",\n   \"phoneLabels\": [\n    0,\n    1,\n    2,\n    3,\n    4\n   ],\n   \"company\": \"\",\n   \"state\": \"\",\n   \"category\": \"\"\n  }\n ],\n \"addressCategories\": [\"business\"],\n \"memos\": [\n  {\n   \"private\": false,\n   \"text\": \"Title\\nbody\",\n   \"category\": \"Personal\"\n  },\n  {\n   \"private\": false,\n   \"text\": \"Loose\",\n   \"category\": \"\"\n  }\n ],\n \"format\": \"datebook-backup-1\",\n \"categories\": [\n  \"Business\",\n  \"Empty\",\n  \"Friends\"\n ],\n \"todos\": [\n  {\n   \"note\": \"later\",\n   \"private\": true,\n   \"due\": 19000,\n   \"title\": \"Call\",\n   \"priority\": 2,\n   \"category\": \"Friends\",\n   \"done\": true\n  },\n  {\n   \"note\": \"\",\n   \"private\": false,\n   \"due\": -1,\n   \"title\": \"Plain\",\n   \"priority\": 1,\n   \"category\": \"\",\n   \"done\": false\n  }\n ],\n \"events\": [\n  {\n   \"date\": 20745,\n   \"note\": \"line 1\\nline 2\\\\end öööööööööööööööööööööööööööööööööööööööööööööööööööööööööööö\",\n   \"private\": true,\n   \"start\": 540,\n   \"title\": \"Staff, meeting; room 2\",\n   \"exceptions\": [20759],\n   \"alarmAdvance\": 15,\n   \"alarmUnit\": 0,\n   \"repeatEnd\": 20818,\n   \"weekDays\": 10,\n   \"repeat\": 2,\n   \"alarm\": true,\n   \"end\": 630,\n   \"untimed\": false,\n   \"every\": 2\n  },\n  {\n   \"date\": 20882,\n   \"note\": \"\",\n   \"private\": false,\n   \"start\": 480,\n   \"title\": \"Birthday\",\n   \"exceptions\": [],\n   \"alarmAdvance\": 2,\n   \"alarmUnit\": 2,\n   \"repeatEnd\": -1,\n   \"weekDays\": 0,\n   \"repeat\": 5,\n   \"alarm\": true,\n   \"end\": 540,\n   \"untimed\": true,\n   \"every\": 1\n  },\n  {\n   \"date\": 20755,\n   \"note\": \"\",\n   \"private\": false,\n   \"start\": 840,\n   \"title\": \"Review\",\n   \"exceptions\": [],\n   \"alarmAdvance\": 5,\n   \"alarmUnit\": 0,\n   \"repeatEnd\": -1,\n   \"weekDays\": 0,\n   \"repeat\": 3,\n   \"alarm\": false,\n   \"end\": 900,\n   \"untimed\": false,\n   \"every\": 1\n  }\n ]\n}",
+   "content": {
+    "memoCategories": ["Personal"],
+    "addresses": [
+     {
+      "zip": "62701",
+      "lastName": "Müller",
+      "country": "USA",
+      "note": "Met at the expo. öööööööööööööööööööööööööööööööööööööööööööööööööö",
+      "private": true,
+      "address": "1 Main St\nSuite 2",
+      "city": "Springfield",
+      "showPhone": 1,
+      "custom": [
+       "Birthday 5/1",
+       "",
+       "",
+       "Ham call W9XYZ"
+      ],
+      "phones": [
+       "555-0100",
+       "555-0101",
+       "jorg@example.com",
+       "555-0103",
+       ""
+      ],
+      "title": "Engineer, Controls",
+      "firstName": "Jörg",
+      "phoneLabels": [
+       0,
+       7,
+       4,
+       5,
+       6
+      ],
+      "uid": "",
+      "company": "R717; Inc.",
+      "id": 0,
+      "state": "IL",
+      "category": 105
+     },
+     {
+      "zip": "",
+      "lastName": "Only",
+      "country": "",
+      "note": "",
+      "private": false,
+      "address": "",
+      "city": "",
+      "showPhone": 0,
+      "custom": [
+       "",
+       "",
+       "",
+       ""
+      ],
+      "phones": [
+       "",
+       "",
+       "",
+       "",
+       ""
+      ],
+      "title": "",
+      "firstName": "",
+      "phoneLabels": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      "uid": "",
+      "company": "",
+      "id": 0,
+      "state": "",
+      "category": 0
+     }
+    ],
+    "todoCategories": [
+     "Business",
+     "Empty",
+     "Friends"
+    ],
+    "addressCategories": ["business"],
+    "memos": [
+     {
+      "uid": "",
+      "private": false,
+      "pos": 0,
+      "id": 0,
+      "text": "Title\nbody",
+      "category": 103
+     },
+     {
+      "uid": "",
+      "private": false,
+      "pos": 0,
+      "id": 0,
+      "text": "Loose",
+      "category": 0
+     }
+    ],
+    "todos": [
+     {
+      "note": "later",
+      "uid": "",
+      "private": true,
+      "due": 19000,
+      "id": 0,
+      "title": "Call",
+      "priority": 2,
+      "category": 102,
+      "done": true
+     },
+     {
+      "note": "",
+      "uid": "",
+      "private": false,
+      "due": -1,
+      "id": 0,
+      "title": "Plain",
+      "priority": 1,
+      "category": 0,
+      "done": false
+     }
+    ],
+    "events": [
+     {
+      "date": 20745,
+      "note": "line 1\nline 2\\end öööööööööööööööööööööööööööööööööööööööööööööööööööööööööööö",
+      "private": true,
+      "start": 540,
+      "title": "Staff, meeting; room 2",
+      "exceptions": [20759],
+      "alarmAdvance": 15,
+      "alarmUnit": 0,
+      "repeatEnd": 20818,
+      "uid": "",
+      "weekDays": 10,
+      "repeat": 2,
+      "alarm": true,
+      "end": 630,
+      "id": 0,
+      "untimed": false,
+      "every": 2
+     },
+     {
+      "date": 20882,
+      "note": "",
+      "private": false,
+      "start": 480,
+      "title": "Birthday",
+      "exceptions": [],
+      "alarmAdvance": 2,
+      "alarmUnit": 2,
+      "repeatEnd": -1,
+      "uid": "",
+      "weekDays": 0,
+      "repeat": 5,
+      "alarm": true,
+      "end": 540,
+      "id": 0,
+      "untimed": true,
+      "every": 1
+     },
+     {
+      "date": 20755,
+      "note": "",
+      "private": false,
+      "start": 840,
+      "title": "Review",
+      "exceptions": [],
+      "alarmAdvance": 5,
+      "alarmUnit": 0,
+      "repeatEnd": -1,
+      "uid": "",
+      "weekDays": 0,
+      "repeat": 3,
+      "alarm": false,
+      "end": 900,
+      "id": 0,
+      "untimed": false,
+      "every": 1
+     }
+    ]
+   }
+  },
+  {
+   "calls": [
+    [
+     "Business",
+     0
+    ],
+    [
+     "Notes",
+     1
+    ],
+    [
+     "Business",
+     0
+    ],
+    [
+     "Notes",
+     1
+    ]
+   ],
+   "name": "desktop file",
+   "text": "{\"format\":\"datebook-backup-1\",\"categories\":[\"Business\"],\"memoCategories\":[\"Notes\"],\"events\":[{\"title\":\"Min\",\"date\":20000}],\"todos\":[{\"title\":\"T\",\"category\":\"Unfiled\"},{\"title\":\"U\",\"category\":\"\"},{\"title\":\"V\",\"category\":\"Business\"}],\"memos\":[{\"text\":\"M\",\"category\":\"Notes\"},{\"text\":\"N\"}]}",
+   "content": {
+    "memoCategories": ["Notes"],
+    "addresses": [],
+    "todoCategories": ["Business"],
+    "addressCategories": [],
+    "memos": [
+     {
+      "uid": "",
+      "private": false,
+      "pos": 0,
+      "id": 0,
+      "text": "M",
+      "category": 101
+     },
+     {
+      "uid": "",
+      "private": false,
+      "pos": 0,
+      "id": 0,
+      "text": "N",
+      "category": 0
+     }
+    ],
+    "todos": [
+     {
+      "note": "",
+      "uid": "",
+      "private": false,
+      "due": -1,
+      "id": 0,
+      "title": "T",
+      "priority": 1,
+      "category": 0,
+      "done": false
+     },
+     {
+      "note": "",
+      "uid": "",
+      "private": false,
+      "due": -1,
+      "id": 0,
+      "title": "U",
+      "priority": 1,
+      "category": 0,
+      "done": false
+     },
+     {
+      "note": "",
+      "uid": "",
+      "private": false,
+      "due": -1,
+      "id": 0,
+      "title": "V",
+      "priority": 1,
+      "category": 100,
+      "done": false
+     }
+    ],
+    "events": [{
+     "date": 20000,
+     "note": "",
+     "private": false,
+     "start": 480,
+     "title": "Min",
+     "exceptions": [],
+     "alarmAdvance": 5,
+     "alarmUnit": 0,
+     "repeatEnd": -1,
+     "uid": "",
+     "weekDays": 0,
+     "repeat": 0,
+     "alarm": false,
+     "end": 540,
+     "id": 0,
+     "untimed": false,
+     "every": 1
+    }]
+   }
+  },
+  {
+   "calls": [[
+    "Clients",
+    2
+   ]],
+   "name": "short address lists",
+   "text": "{\"format\":\"datebook-backup-1\",\"addresses\":[{\"lastName\":\"L\",\"phoneLabels\":[9,-1],\"phones\":[\"1\"],\"custom\":[\"a\",\"b\",\"c\",\"d\",\"e\"],\"showPhone\":7,\"category\":\"Clients\"}]}",
+   "content": {
+    "memoCategories": [],
+    "addresses": [{
+     "zip": "",
+     "lastName": "L",
+     "country": "",
+     "note": "",
+     "private": false,
+     "address": "",
+     "city": "",
+     "showPhone": 4,
+     "custom": [
+      "a",
+      "b",
+      "c",
+      "d"
+     ],
+     "phones": [
+      "1",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "title": "",
+     "firstName": "",
+     "phoneLabels": [
+      7,
+      0,
+      2,
+      3,
+      4
+     ],
+     "uid": "",
+     "company": "",
+     "id": 0,
+     "state": "",
+     "category": 100
+    }],
+    "todoCategories": [],
+    "addressCategories": [],
+    "memos": [],
+    "todos": [],
+    "events": []
+   }
+  },
+  {
+   "name": "wrong format",
+   "text": "{\"format\":\"something-else\",\"events\":[]}",
+   "error": true
+  },
+  {
+   "name": "not json",
+   "text": "Palm Desktop",
+   "error": true
+  }
+ ],
+ "write": {
+  "categoryNames": {
+   "9": "Personal",
+   "3": "Business",
+   "7": "Friends"
+  },
+  "text": "{\n \"memoCategories\": [\"Personal\"],\n \"addresses\": [\n  {\n   \"zip\": \"62701\",\n   \"lastName\": \"Müller\",\n   \"country\": \"USA\",\n   \"note\": \"Met at the expo. öööööööööööööööööööööööööööööööööööööööööööööööööö\",\n   \"private\": true,\n   \"address\": \"1 Main St\\nSuite 2\",\n   \"city\": \"Springfield\",\n   \"showPhone\": 1,\n   \"custom\": [\n    \"Birthday 5/1\",\n    \"\",\n    \"\",\n    \"Ham call W9XYZ\"\n   ],\n   \"phones\": [\n    \"555-0100\",\n    \"555-0101\",\n    \"jorg@example.com\",\n    \"555-0103\",\n    \"\"\n   ],\n   \"title\": \"Engineer, Controls\",\n   \"firstName\": \"Jörg\",\n   \"phoneLabels\": [\n    0,\n    7,\n    4,\n    5,\n    6\n   ],\n   \"company\": \"R717; Inc.\",\n   \"state\": \"IL\",\n   \"category\": \"Business\"\n  },\n  {\n   \"zip\": \"\",\n   \"lastName\": \"Only\",\n   \"country\": \"\",\n   \"note\": \"\",\n   \"private\": false,\n   \"address\": \"\",\n   \"city\": \"\",\n   \"showPhone\": 0,\n   \"custom\": [\n    \"\",\n    \"\",\n    \"\",\n    \"\"\n   ],\n   \"phones\": [\n    \"\",\n    \"\",\n    \"\",\n    \"\",\n    \"\"\n   ],\n   \"title\": \"\",\n   \"firstName\": \"\",\n   \"phoneLabels\": [\n    0,\n    1,\n    2,\n    3,\n    4\n   ],\n   \"company\": \"\",\n   \"state\": \"\",\n   \"category\": \"\"\n  }\n ],\n \"addressCategories\": [\"business\"],\n \"memos\": [\n  {\n   \"private\": false,\n   \"text\": \"Title\\nbody\",\n   \"category\": \"Personal\"\n  },\n  {\n   \"private\": false,\n   \"text\": \"Loose\",\n   \"category\": \"\"\n  }\n ],\n \"format\": \"datebook-backup-1\",\n \"categories\": [\n  \"Business\",\n  \"Empty\",\n  \"Friends\"\n ],\n \"todos\": [\n  {\n   \"note\": \"later\",\n   \"private\": true,\n   \"due\": 19000,\n   \"title\": \"Call\",\n   \"priority\": 2,\n   \"category\": \"Friends\",\n   \"done\": true\n  },\n  {\n   \"note\": \"\",\n   \"private\": false,\n   \"due\": -1,\n   \"title\": \"Plain\",\n   \"priority\": 1,\n   \"category\": \"\",\n   \"done\": false\n  }\n ],\n \"events\": [\n  {\n   \"date\": 20745,\n   \"note\": \"line 1\\nline 2\\\\end öööööööööööööööööööööööööööööööööööööööööööööööööööööööööööö\",\n   \"private\": true,\n   \"start\": 540,\n   \"title\": \"Staff, meeting; room 2\",\n   \"exceptions\": [20759],\n   \"alarmAdvance\": 15,\n   \"alarmUnit\": 0,\n   \"repeatEnd\": 20818,\n   \"weekDays\": 10,\n   \"repeat\": 2,\n   \"alarm\": true,\n   \"end\": 630,\n   \"untimed\": false,\n   \"every\": 2\n  },\n  {\n   \"date\": 20882,\n   \"note\": \"\",\n   \"private\": false,\n   \"start\": 480,\n   \"title\": \"Birthday\",\n   \"exceptions\": [],\n   \"alarmAdvance\": 2,\n   \"alarmUnit\": 2,\n   \"repeatEnd\": -1,\n   \"weekDays\": 0,\n   \"repeat\": 5,\n   \"alarm\": true,\n   \"end\": 540,\n   \"untimed\": true,\n   \"every\": 1\n  },\n  {\n   \"date\": 20755,\n   \"note\": \"\",\n   \"private\": false,\n   \"start\": 840,\n   \"title\": \"Review\",\n   \"exceptions\": [],\n   \"alarmAdvance\": 5,\n   \"alarmUnit\": 0,\n   \"repeatEnd\": -1,\n   \"weekDays\": 0,\n   \"repeat\": 3,\n   \"alarm\": false,\n   \"end\": 900,\n   \"untimed\": false,\n   \"every\": 1\n  }\n ]\n}",
+  "content": {
+   "memoCategories": [],
+   "addresses": [
+    {
+     "zip": "62701",
+     "lastName": "Müller",
+     "country": "USA",
+     "note": "Met at the expo. öööööööööööööööööööööööööööööööööööööööööööööööööö",
+     "private": true,
+     "address": "1 Main St\nSuite 2",
+     "city": "Springfield",
+     "showPhone": 1,
+     "custom": [
+      "Birthday 5/1",
+      "",
+      "",
+      "Ham call W9XYZ"
+     ],
+     "phones": [
+      "555-0100",
+      "555-0101",
+      "jorg@example.com",
+      "555-0103",
+      ""
+     ],
+     "title": "Engineer, Controls",
+     "firstName": "Jörg",
+     "phoneLabels": [
+      0,
+      7,
+      4,
+      5,
+      6
+     ],
+     "uid": "",
+     "company": "R717; Inc.",
+     "id": 0,
+     "state": "IL",
+     "category": 3
+    },
+    {
+     "zip": "",
+     "lastName": "Only",
+     "country": "",
+     "note": "",
+     "private": false,
+     "address": "",
+     "city": "",
+     "showPhone": 0,
+     "custom": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "phones": [
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "title": "",
+     "firstName": "",
+     "phoneLabels": [
+      0,
+      1,
+      2,
+      3,
+      4
+     ],
+     "uid": "",
+     "company": "",
+     "id": 0,
+     "state": "",
+     "category": 0
+    }
+   ],
+   "todoCategories": [
+    "Business",
+    "Empty"
+   ],
+   "addressCategories": ["business"],
+   "memos": [
+    {
+     "uid": "",
+     "private": false,
+     "pos": 0,
+     "id": 0,
+     "text": "Title\nbody",
+     "category": 9
+    },
+    {
+     "uid": "",
+     "private": false,
+     "pos": 0,
+     "id": 0,
+     "text": "Loose",
+     "category": 0
+    }
+   ],
+   "todos": [
+    {
+     "note": "later",
+     "uid": "",
+     "private": true,
+     "due": 19000,
+     "id": 0,
+     "title": "Call",
+     "priority": 2,
+     "category": 7,
+     "done": true
+    },
+    {
+     "note": "",
+     "uid": "",
+     "private": false,
+     "due": -1,
+     "id": 0,
+     "title": "Plain",
+     "priority": 1,
+     "category": 0,
+     "done": false
+    }
+   ],
+   "events": [
+    {
+     "date": 20745,
+     "note": "line 1\nline 2\\end öööööööööööööööööööööööööööööööööööööööööööööööööööööööööööö",
+     "private": true,
+     "start": 540,
+     "title": "Staff, meeting; room 2",
+     "exceptions": [20759],
+     "alarmAdvance": 15,
+     "alarmUnit": 0,
+     "repeatEnd": 20818,
+     "uid": "",
+     "weekDays": 10,
+     "repeat": 2,
+     "alarm": true,
+     "end": 630,
+     "id": 7,
+     "untimed": false,
+     "every": 2
+    },
+    {
+     "date": 20882,
+     "note": "",
+     "private": false,
+     "start": 480,
+     "title": "Birthday",
+     "exceptions": [],
+     "alarmAdvance": 2,
+     "alarmUnit": 2,
+     "repeatEnd": -1,
+     "uid": "",
+     "weekDays": 0,
+     "repeat": 5,
+     "alarm": true,
+     "end": 540,
+     "id": 8,
+     "untimed": true,
+     "every": 1
+    },
+    {
+     "date": 20755,
+     "note": "",
+     "private": false,
+     "start": 840,
+     "title": "Review",
+     "exceptions": [],
+     "alarmAdvance": 5,
+     "alarmUnit": 0,
+     "repeatEnd": -1,
+     "uid": "",
+     "weekDays": 0,
+     "repeat": 3,
+     "alarm": false,
+     "end": 900,
+     "id": 9,
+     "untimed": false,
+     "every": 1
+    }
+   ]
+  }
+ }
+}

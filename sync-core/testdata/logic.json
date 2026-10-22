@@ -1,0 +1,1142 @@
+{
+ "freeTimes": [
+  {
+   "dayStart": 8,
+   "timed": [],
+   "ends": false,
+   "dayEnd": 18,
+   "free": [
+    480,
+    540,
+    600,
+    660,
+    720,
+    780,
+    840,
+    900,
+    960,
+    1020
+   ]
+  },
+  {
+   "dayStart": 8,
+   "timed": [
+    [
+     540,
+     630
+    ],
+    [
+     780,
+     780
+    ]
+   ],
+   "ends": false,
+   "dayEnd": 18,
+   "free": [
+    480,
+    660,
+    720,
+    840,
+    900,
+    960,
+    1020
+   ]
+  },
+  {
+   "dayStart": 8,
+   "timed": [
+    [
+     540,
+     630
+    ],
+    [
+     780,
+     780
+    ]
+   ],
+   "ends": true,
+   "dayEnd": 18,
+   "free": [
+    480,
+    630,
+    660,
+    720,
+    840,
+    900,
+    960,
+    1020
+   ]
+  },
+  {
+   "dayStart": 8,
+   "timed": [
+    [
+     435,
+     525
+    ],
+    [
+     1010,
+     1439
+    ]
+   ],
+   "ends": true,
+   "dayEnd": 18,
+   "free": [
+    525,
+    540,
+    600,
+    660,
+    720,
+    780,
+    840,
+    900,
+    960,
+    1439
+   ]
+  }
+ ],
+ "addressOrder": {
+  "addresses": [
+   {
+    "zip": "",
+    "lastName": "smith",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 0,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "",
+    "phoneLabels": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "uid": "",
+    "company": "Zeta",
+    "id": 1,
+    "state": "",
+    "category": 0
+   },
+   {
+    "zip": "",
+    "lastName": "Smith",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 0,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "Al",
+    "phoneLabels": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "uid": "",
+    "company": "",
+    "id": 2,
+    "state": "",
+    "category": 0
+   },
+   {
+    "zip": "",
+    "lastName": "",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 0,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "",
+    "phoneLabels": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "uid": "",
+    "company": "Acme",
+    "id": 3,
+    "state": "",
+    "category": 0
+   },
+   {
+    "zip": "",
+    "lastName": "",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 0,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "",
+    "phoneLabels": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "uid": "",
+    "company": "",
+    "id": 4,
+    "state": "",
+    "category": 0
+   }
+  ],
+  "byCompany": [
+   4,
+   3,
+   2,
+   1
+  ],
+  "byName": [
+   4,
+   3,
+   1,
+   2
+  ]
+ },
+ "splitFuture": [
+  {
+   "shortened": {
+    "date": 20731,
+    "note": "",
+    "private": false,
+    "start": 600,
+    "title": "Class",
+    "exceptions": [20738],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": 20744,
+    "uid": "s1",
+    "weekDays": 0,
+    "repeat": 2,
+    "alarm": false,
+    "end": 660,
+    "id": 5,
+    "untimed": false,
+    "every": 1
+   },
+   "orig": {
+    "date": 20731,
+    "note": "",
+    "private": false,
+    "start": 600,
+    "title": "Class",
+    "exceptions": [
+     20738,
+     20752,
+     20766
+    ],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "s1",
+    "weekDays": 0,
+    "repeat": 2,
+    "alarm": false,
+    "end": 660,
+    "id": 5,
+    "untimed": false,
+    "every": 1
+   },
+   "occDay": 20745,
+   "work": {
+    "date": 20746,
+    "note": "",
+    "private": false,
+    "start": 600,
+    "title": "Class moved",
+    "exceptions": [
+     20738,
+     20752,
+     20766
+    ],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "s1",
+    "weekDays": 0,
+    "repeat": 2,
+    "alarm": false,
+    "end": 660,
+    "id": 5,
+    "untimed": false,
+    "every": 1
+   },
+   "series": {
+    "date": 20746,
+    "note": "",
+    "private": false,
+    "start": 600,
+    "title": "Class moved",
+    "exceptions": [
+     20753,
+     20767
+    ],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "s1",
+    "weekDays": 0,
+    "repeat": 2,
+    "alarm": false,
+    "end": 660,
+    "id": 0,
+    "untimed": false,
+    "every": 1
+   }
+  },
+  {
+   "shortened": null,
+   "orig": {
+    "date": 20731,
+    "note": "",
+    "private": false,
+    "start": 600,
+    "title": "Class",
+    "exceptions": [
+     20738,
+     20752,
+     20766
+    ],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "s1",
+    "weekDays": 0,
+    "repeat": 2,
+    "alarm": false,
+    "end": 660,
+    "id": 5,
+    "untimed": false,
+    "every": 1
+   },
+   "occDay": 20731,
+   "work": {
+    "date": 20731,
+    "note": "",
+    "private": false,
+    "start": 600,
+    "title": "Class moved",
+    "exceptions": [
+     20738,
+     20752,
+     20766
+    ],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "s1",
+    "weekDays": 0,
+    "repeat": 2,
+    "alarm": false,
+    "end": 660,
+    "id": 5,
+    "untimed": false,
+    "every": 1
+   },
+   "series": {
+    "date": 20731,
+    "note": "",
+    "private": false,
+    "start": 600,
+    "title": "Class moved",
+    "exceptions": [
+     20738,
+     20752,
+     20766
+    ],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "s1",
+    "weekDays": 0,
+    "repeat": 2,
+    "alarm": false,
+    "end": 660,
+    "id": 0,
+    "untimed": false,
+    "every": 1
+   }
+  }
+ ],
+ "dupKey": [
+  {
+   "event": {
+    "date": 20746,
+    "note": "",
+    "private": false,
+    "start": 100,
+    "title": "U",
+    "exceptions": [20747],
+    "alarmAdvance": 9,
+    "alarmUnit": 1,
+    "repeatEnd": 20755,
+    "uid": "x",
+    "weekDays": 3,
+    "repeat": 0,
+    "alarm": false,
+    "end": 200,
+    "id": 3,
+    "untimed": true,
+    "every": 4
+   },
+   "key": {
+    "date": 20746,
+    "note": "",
+    "private": false,
+    "start": 0,
+    "title": "U",
+    "exceptions": [],
+    "alarmAdvance": 0,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "",
+    "weekDays": 0,
+    "repeat": 0,
+    "alarm": false,
+    "end": 0,
+    "id": 0,
+    "untimed": true,
+    "every": 1
+   }
+  },
+  {
+   "event": {
+    "date": 20747,
+    "note": "",
+    "private": false,
+    "start": 480,
+    "title": "W",
+    "exceptions": [],
+    "alarmAdvance": 9,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "",
+    "weekDays": 2,
+    "repeat": 2,
+    "alarm": true,
+    "end": 540,
+    "id": 0,
+    "untimed": false,
+    "every": 2
+   },
+   "key": {
+    "date": 20759,
+    "note": "",
+    "private": false,
+    "start": 480,
+    "title": "W",
+    "exceptions": [],
+    "alarmAdvance": 9,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "",
+    "weekDays": 2,
+    "repeat": 2,
+    "alarm": true,
+    "end": 540,
+    "id": 0,
+    "untimed": false,
+    "every": 2
+   }
+  },
+  {
+   "event": {
+    "date": 20747,
+    "note": "",
+    "private": false,
+    "start": 480,
+    "title": "W0",
+    "exceptions": [],
+    "alarmAdvance": 5,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "",
+    "weekDays": 0,
+    "repeat": 2,
+    "alarm": false,
+    "end": 540,
+    "id": 0,
+    "untimed": false,
+    "every": 1
+   },
+   "key": {
+    "date": 20747,
+    "note": "",
+    "private": false,
+    "start": 480,
+    "title": "W0",
+    "exceptions": [],
+    "alarmAdvance": 0,
+    "alarmUnit": 0,
+    "repeatEnd": -1,
+    "uid": "",
+    "weekDays": 8,
+    "repeat": 2,
+    "alarm": false,
+    "end": 540,
+    "id": 0,
+    "untimed": false,
+    "every": 1
+   }
+  }
+ ],
+ "decide": [
+  {
+   "remoteDeleted": false,
+   "same": false,
+   "lastWins": false,
+   "action": "APPLY",
+   "local": "NONE"
+  },
+  {
+   "remoteDeleted": false,
+   "same": false,
+   "lastWins": true,
+   "action": "APPLY",
+   "local": "NONE"
+  },
+  {
+   "remoteDeleted": false,
+   "same": true,
+   "lastWins": false,
+   "action": "APPLY",
+   "local": "NONE"
+  },
+  {
+   "remoteDeleted": false,
+   "same": true,
+   "lastWins": true,
+   "action": "APPLY",
+   "local": "NONE"
+  },
+  {
+   "remoteDeleted": true,
+   "same": false,
+   "lastWins": false,
+   "action": "SKIP",
+   "local": "NONE"
+  },
+  {
+   "remoteDeleted": true,
+   "same": false,
+   "lastWins": true,
+   "action": "SKIP",
+   "local": "NONE"
+  },
+  {
+   "remoteDeleted": true,
+   "same": true,
+   "lastWins": false,
+   "action": "SKIP",
+   "local": "NONE"
+  },
+  {
+   "remoteDeleted": true,
+   "same": true,
+   "lastWins": true,
+   "action": "SKIP",
+   "local": "NONE"
+  },
+  {
+   "remoteDeleted": false,
+   "same": false,
+   "lastWins": false,
+   "action": "APPLY",
+   "local": "CLEAN"
+  },
+  {
+   "remoteDeleted": false,
+   "same": false,
+   "lastWins": true,
+   "action": "APPLY",
+   "local": "CLEAN"
+  },
+  {
+   "remoteDeleted": false,
+   "same": true,
+   "lastWins": false,
+   "action": "APPLY",
+   "local": "CLEAN"
+  },
+  {
+   "remoteDeleted": false,
+   "same": true,
+   "lastWins": true,
+   "action": "APPLY",
+   "local": "CLEAN"
+  },
+  {
+   "remoteDeleted": true,
+   "same": false,
+   "lastWins": false,
+   "action": "DROP",
+   "local": "CLEAN"
+  },
+  {
+   "remoteDeleted": true,
+   "same": false,
+   "lastWins": true,
+   "action": "DROP",
+   "local": "CLEAN"
+  },
+  {
+   "remoteDeleted": true,
+   "same": true,
+   "lastWins": false,
+   "action": "DROP",
+   "local": "CLEAN"
+  },
+  {
+   "remoteDeleted": true,
+   "same": true,
+   "lastWins": true,
+   "action": "DROP",
+   "local": "CLEAN"
+  },
+  {
+   "remoteDeleted": false,
+   "same": false,
+   "lastWins": false,
+   "action": "COPY_THEN_APPLY",
+   "local": "DIRTY"
+  },
+  {
+   "remoteDeleted": false,
+   "same": false,
+   "lastWins": true,
+   "action": "REBASE",
+   "local": "DIRTY"
+  },
+  {
+   "remoteDeleted": false,
+   "same": true,
+   "lastWins": false,
+   "action": "APPLY",
+   "local": "DIRTY"
+  },
+  {
+   "remoteDeleted": false,
+   "same": true,
+   "lastWins": true,
+   "action": "REBASE",
+   "local": "DIRTY"
+  },
+  {
+   "remoteDeleted": true,
+   "same": false,
+   "lastWins": false,
+   "action": "COPY_THEN_DROP",
+   "local": "DIRTY"
+  },
+  {
+   "remoteDeleted": true,
+   "same": false,
+   "lastWins": true,
+   "action": "REBASE",
+   "local": "DIRTY"
+  },
+  {
+   "remoteDeleted": true,
+   "same": true,
+   "lastWins": false,
+   "action": "COPY_THEN_DROP",
+   "local": "DIRTY"
+  },
+  {
+   "remoteDeleted": true,
+   "same": true,
+   "lastWins": true,
+   "action": "REBASE",
+   "local": "DIRTY"
+  },
+  {
+   "remoteDeleted": false,
+   "same": false,
+   "lastWins": false,
+   "action": "APPLY",
+   "local": "TOMB"
+  },
+  {
+   "remoteDeleted": false,
+   "same": false,
+   "lastWins": true,
+   "action": "APPLY",
+   "local": "TOMB"
+  },
+  {
+   "remoteDeleted": false,
+   "same": true,
+   "lastWins": false,
+   "action": "APPLY",
+   "local": "TOMB"
+  },
+  {
+   "remoteDeleted": false,
+   "same": true,
+   "lastWins": true,
+   "action": "APPLY",
+   "local": "TOMB"
+  },
+  {
+   "remoteDeleted": true,
+   "same": false,
+   "lastWins": false,
+   "action": "DROP",
+   "local": "TOMB"
+  },
+  {
+   "remoteDeleted": true,
+   "same": false,
+   "lastWins": true,
+   "action": "DROP",
+   "local": "TOMB"
+  },
+  {
+   "remoteDeleted": true,
+   "same": true,
+   "lastWins": false,
+   "action": "DROP",
+   "local": "TOMB"
+  },
+  {
+   "remoteDeleted": true,
+   "same": true,
+   "lastWins": true,
+   "action": "DROP",
+   "local": "TOMB"
+  }
+ ],
+ "addressNames": [
+  {
+   "address": {
+    "zip": "62701",
+    "lastName": "Müller",
+    "country": "USA",
+    "note": "Met at the expo. öööööööööööööööööööööööööööööööööööööööööööööööööö",
+    "private": true,
+    "address": "1 Main St\nSuite 2",
+    "city": "Springfield",
+    "showPhone": 1,
+    "custom": [
+     "Birthday 5/1",
+     "",
+     "",
+     "Ham call W9XYZ"
+    ],
+    "phones": [
+     "555-0100",
+     "555-0101",
+     "jorg@example.com",
+     "555-0103",
+     ""
+    ],
+    "title": "Engineer, Controls",
+    "firstName": "Jörg",
+    "phoneLabels": [
+     0,
+     7,
+     4,
+     5,
+     6
+    ],
+    "uid": "",
+    "company": "R717; Inc.",
+    "id": 0,
+    "state": "IL",
+    "category": 3
+   },
+   "phone": [
+    "555-0101",
+    "M"
+   ],
+   "byCompany": "R717; Inc., Müller",
+   "isEmpty": false,
+   "byName": "Müller, Jörg"
+  },
+  {
+   "address": {
+    "zip": "",
+    "lastName": "",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 0,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "",
+    "phoneLabels": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "uid": "",
+    "company": "",
+    "id": 0,
+    "state": "",
+    "category": 0
+   },
+   "phone": null,
+   "byCompany": "-Unnamed-",
+   "isEmpty": true,
+   "byName": "-Unnamed-"
+  },
+  {
+   "address": {
+    "zip": "",
+    "lastName": "",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 0,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "",
+    "phoneLabels": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "uid": "",
+    "company": "Acme",
+    "id": 0,
+    "state": "",
+    "category": 0
+   },
+   "phone": null,
+   "byCompany": "Acme",
+   "isEmpty": false,
+   "byName": "Acme"
+  },
+  {
+   "address": {
+    "zip": "",
+    "lastName": "",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 0,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "Ann",
+    "phoneLabels": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "uid": "",
+    "company": "Acme",
+    "id": 0,
+    "state": "",
+    "category": 0
+   },
+   "phone": null,
+   "byCompany": "Acme",
+   "isEmpty": false,
+   "byName": "Ann"
+  },
+  {
+   "address": {
+    "zip": "",
+    "lastName": "Lee",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 0,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "",
+     "",
+     "x@y.z",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "",
+    "phoneLabels": [
+     0,
+     1,
+     4,
+     3,
+     2
+    ],
+    "uid": "",
+    "company": "",
+    "id": 0,
+    "state": "",
+    "category": 0
+   },
+   "phone": [
+    "x@y.z",
+    "E"
+   ],
+   "byCompany": "Lee",
+   "isEmpty": false,
+   "byName": "Lee"
+  },
+  {
+   "address": {
+    "zip": "",
+    "lastName": "Kim",
+    "country": "",
+    "note": "",
+    "private": false,
+    "address": "",
+    "city": "",
+    "showPhone": 3,
+    "custom": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "phones": [
+     "1",
+     "",
+     "",
+     "",
+     ""
+    ],
+    "title": "",
+    "firstName": "",
+    "phoneLabels": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "uid": "",
+    "company": "",
+    "id": 0,
+    "state": "",
+    "category": 0
+   },
+   "phone": [
+    "1",
+    "W"
+   ],
+   "byCompany": "Kim",
+   "isEmpty": false,
+   "byName": "Kim"
+  }
+ ],
+ "memoOrder": {
+  "move": {
+   "from": 0,
+   "to": 3,
+   "order": [
+    3,
+    1,
+    4,
+    2
+   ],
+   "changed": [
+    3,
+    1,
+    4,
+    2
+   ]
+  },
+  "alphabetic": [
+   4,
+   2,
+   3,
+   1
+  ],
+  "memos": [
+   {
+    "uid": "",
+    "private": false,
+    "pos": 2,
+    "id": 1,
+    "text": "beta\nx",
+    "category": 0
+   },
+   {
+    "uid": "",
+    "private": false,
+    "pos": 0,
+    "id": 2,
+    "text": "Alpha",
+    "category": 0
+   },
+   {
+    "uid": "",
+    "private": false,
+    "pos": 1,
+    "id": 3,
+    "text": "  alpha  \ny",
+    "category": 0
+   },
+   {
+    "uid": "",
+    "private": false,
+    "pos": 3,
+    "id": 4,
+    "text": "",
+    "category": 0
+   }
+  ],
+  "manual": [
+   2,
+   3,
+   1,
+   4
+  ]
+ },
+ "sortCategories": {
+  "sorted": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "categories": [
+   {
+    "app": 0,
+    "uid": "",
+    "name": "work",
+    "id": 4
+   },
+   {
+    "app": 0,
+    "uid": "",
+    "name": "Personal",
+    "id": 2
+   },
+   {
+    "app": 0,
+    "uid": "",
+    "name": "Work",
+    "id": 3
+   },
+   {
+    "app": 0,
+    "uid": "",
+    "name": "ideas",
+    "id": 1
+   }
+  ]
+ }
+}

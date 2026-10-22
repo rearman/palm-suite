@@ -1,0 +1,272 @@
+{
+ "times": [
+  {
+   "min": 0,
+   "h24": false,
+   "time": "12:00 am",
+   "timeShort": "12:00"
+  },
+  {
+   "min": 59,
+   "h24": false,
+   "time": "12:59 am",
+   "timeShort": "12:59"
+  },
+  {
+   "min": 60,
+   "h24": false,
+   "time": "1:00 am",
+   "timeShort": "1:00"
+  },
+  {
+   "min": 719,
+   "h24": false,
+   "time": "11:59 am",
+   "timeShort": "11:59"
+  },
+  {
+   "min": 720,
+   "h24": false,
+   "time": "12:00 pm",
+   "timeShort": "12:00"
+  },
+  {
+   "min": 779,
+   "h24": false,
+   "time": "12:59 pm",
+   "timeShort": "12:59"
+  },
+  {
+   "min": 1439,
+   "h24": false,
+   "time": "11:59 pm",
+   "timeShort": "11:59"
+  },
+  {
+   "min": 1440,
+   "h24": false,
+   "time": "12:00 am",
+   "timeShort": "12:00"
+  },
+  {
+   "min": 0,
+   "h24": true,
+   "time": "0:00",
+   "timeShort": "0:00"
+  },
+  {
+   "min": 59,
+   "h24": true,
+   "time": "0:59",
+   "timeShort": "0:59"
+  },
+  {
+   "min": 60,
+   "h24": true,
+   "time": "1:00",
+   "timeShort": "1:00"
+  },
+  {
+   "min": 719,
+   "h24": true,
+   "time": "11:59",
+   "timeShort": "11:59"
+  },
+  {
+   "min": 720,
+   "h24": true,
+   "time": "12:00",
+   "timeShort": "12:00"
+  },
+  {
+   "min": 779,
+   "h24": true,
+   "time": "12:59",
+   "timeShort": "12:59"
+  },
+  {
+   "min": 1439,
+   "h24": true,
+   "time": "23:59",
+   "timeShort": "23:59"
+  },
+  {
+   "min": 1440,
+   "h24": true,
+   "time": "0:00",
+   "timeShort": "0:00"
+  }
+ ],
+ "days": [
+  {
+   "dayTitle": "26 Oct 5",
+   "dowDate": "Mon 10/5/26",
+   "day": 20731,
+   "shortDate": "10/5/26"
+  },
+  {
+   "dayTitle": "00 Jan 1",
+   "dowDate": "Sat 1/1/00",
+   "day": 10957,
+   "shortDate": "1/1/00"
+  },
+  {
+   "dayTitle": "99 Dec 31",
+   "dowDate": "Fri 12/31/99",
+   "day": 10956,
+   "shortDate": "12/31/99"
+  },
+  {
+   "dayTitle": "09 Jul 4",
+   "dowDate": "Sat 7/4/09",
+   "day": 14429,
+   "shortDate": "7/4/09"
+  }
+ ],
+ "ordinals": [
+  {
+   "n": 1,
+   "ordinal": "1st"
+  },
+  {
+   "n": 2,
+   "ordinal": "2nd"
+  },
+  {
+   "n": 3,
+   "ordinal": "3rd"
+  },
+  {
+   "n": 4,
+   "ordinal": "4th"
+  },
+  {
+   "n": 5,
+   "ordinal": "5th"
+  },
+  {
+   "n": 6,
+   "ordinal": "6th"
+  },
+  {
+   "n": 7,
+   "ordinal": "7th"
+  },
+  {
+   "n": 8,
+   "ordinal": "8th"
+  },
+  {
+   "n": 9,
+   "ordinal": "9th"
+  },
+  {
+   "n": 10,
+   "ordinal": "10th"
+  },
+  {
+   "n": 11,
+   "ordinal": "11th"
+  },
+  {
+   "n": 12,
+   "ordinal": "12th"
+  },
+  {
+   "n": 13,
+   "ordinal": "13th"
+  },
+  {
+   "n": 14,
+   "ordinal": "14th"
+  },
+  {
+   "n": 15,
+   "ordinal": "15th"
+  },
+  {
+   "n": 16,
+   "ordinal": "16th"
+  },
+  {
+   "n": 17,
+   "ordinal": "17th"
+  },
+  {
+   "n": 18,
+   "ordinal": "18th"
+  },
+  {
+   "n": 19,
+   "ordinal": "19th"
+  },
+  {
+   "n": 20,
+   "ordinal": "20th"
+  },
+  {
+   "n": 21,
+   "ordinal": "21st"
+  },
+  {
+   "n": 22,
+   "ordinal": "22nd"
+  },
+  {
+   "n": 23,
+   "ordinal": "23rd"
+  },
+  {
+   "n": 24,
+   "ordinal": "24th"
+  },
+  {
+   "n": 25,
+   "ordinal": "25th"
+  },
+  {
+   "n": 26,
+   "ordinal": "26th"
+  },
+  {
+   "n": 27,
+   "ordinal": "27th"
+  },
+  {
+   "n": 28,
+   "ordinal": "28th"
+  },
+  {
+   "n": 29,
+   "ordinal": "29th"
+  },
+  {
+   "n": 30,
+   "ordinal": "30th"
+  },
+  {
+   "n": 31,
+   "ordinal": "31st"
+  },
+  {
+   "n": 101,
+   "ordinal": "101st"
+  },
+  {
+   "n": 111,
+   "ordinal": "111st"
+  },
+  {
+   "n": 112,
+   "ordinal": "112nd"
+  },
+  {
+   "n": 113,
+   "ordinal": "113rd"
+  },
+  {
+   "n": 121,
+   "ordinal": "121st"
+  }
+ ]
+}
