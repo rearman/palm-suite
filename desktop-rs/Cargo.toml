@@ -1,6 +1,6 @@
-# Palm Desktop in Rust with fltk-rs: core (the port of sync-core) and the scaling spike.
+# Palm Desktop in Rust with fltk-rs: app (the desktop app), core (the port of sync-core) and the scaling spike.
 [workspace]
-members = ["core", "spike"]
+members = ["app", "core", "spike"]
 resolver = "2"
 
 [workspace.package]

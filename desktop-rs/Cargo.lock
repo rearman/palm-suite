@@ -477,6 +477,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "palm-desktop"
+version = "0.0.0"
+dependencies = [
+ "getrandom 0.4.3",
+ "jiff",
+ "palm-core",
+ "serde_json",
+]
+
+[[package]]
 name = "palm-desktop-spike"
 version = "0.0.0"
 dependencies = [
