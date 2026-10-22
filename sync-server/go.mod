@@ -1,3 +1,3 @@
 module github.com/rearman/palm-suite/sync-server
 
-go 1.22
+go 1.27

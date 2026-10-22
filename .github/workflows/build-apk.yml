@@ -107,7 +107,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: sync-server/go.mod
+          # The newest stable Go on each build. go.mod sets only the minimum version.
+          go-version: stable
+          check-latest: true
           cache-dependency-path: sync-server/go.mod
 
       - name: Check format
