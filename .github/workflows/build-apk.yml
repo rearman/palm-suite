@@ -332,7 +332,34 @@ jobs:
       - name: Check format and lints
         run: |
           cargo fmt --check
-          cargo clippy --release -- -D warnings
+          cargo clippy --workspace --all-targets -- -D warnings
+
+      # The server test of desktop-rs/core needs a running palmsync: build it from sync-server/ and start
+      # it on a fresh data folder. PALMSYNC_REQUIRED makes the test fail if the server is missing.
+      - name: Set up Go
+        if: matrix.name == 'linux-amd64'
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: sync-server/go.mod
+
+      - name: Start palmsync
+        if: matrix.name == 'linux-amd64'
+        run: |
+          (cd ../sync-server && go build -o "$RUNNER_TEMP/palmsync" .)
+          data="$RUNNER_TEMP/palmsync-data"
+          mkdir -p "$data"
+          token=$("$RUNNER_TEMP/palmsync" token add -data "$data" ci | awk '{print $NF}')
+          nohup "$RUNNER_TEMP/palmsync" serve -data "$data" -listen 127.0.0.1:8640 > "$RUNNER_TEMP/palmsync.log" 2>&1 &
+          for i in $(seq 20); do curl -s -o /dev/null http://127.0.0.1:8640/v1/meta && break; sleep 0.5; done
+          echo "PALMSYNC_URL=http://127.0.0.1:8640" >> "$GITHUB_ENV"
+          echo "PALMSYNC_TOKEN=$token" >> "$GITHUB_ENV"
+          echo "PALMSYNC_REQUIRED=1" >> "$GITHUB_ENV"
+
+      # The vectors of sync-core/testdata, the round and session tests, and the server test.
+      - name: Test
+        run: cargo test --workspace
 
       - name: Build
         run: |

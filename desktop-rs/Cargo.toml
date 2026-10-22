@@ -1,6 +1,6 @@
-# Palm Desktop in Rust with fltk-rs. Phase 0: the spike that tests sharp drawing at fractional display scales.
+# Palm Desktop in Rust with fltk-rs: core (the port of sync-core) and the scaling spike.
 [workspace]
-members = ["spike"]
+members = ["core", "spike"]
 resolver = "2"
 
 [workspace.package]
@@ -11,3 +11,7 @@ license = "MIT"
 lto = true
 codegen-units = 1
 strip = true
+
+# Dependencies build optimized in tests too, so the 600,000-round PBKDF2 vector takes well under a second.
+[profile.dev.package."*"]
+opt-level = 3

@@ -1,0 +1,18 @@
+[package]
+name = "palm-core"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+aes-gcm = "0.11.1"
+base64 = "0.23.1"
+getrandom = "0.4.3"
+jiff = "0.2.38"
+miniz_oxide = "0.9.1"
+pbkdf2 = "0.13.0"
+serde = "1.0.229"
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+ureq = "3.5.0"
