@@ -79,6 +79,8 @@ pub struct DesktopStore {
 	pub on_change: Option<Box<dyn FnMut()>>,
 	/// The error of the last failed save, for the app to show. A later good save clears it.
 	pub save_error: Option<String>,
+	/// Counts the writes. The app reads the store again in its views when the count moves.
+	pub version: u64,
 	short_cut_list: ShortCuts,
 	since: i64,
 	sc_rev: i64,
@@ -101,6 +103,7 @@ impl DesktopStore {
 			address_categories: Vec::new(),
 			on_change: None,
 			save_error: None,
+			version: 0,
 			short_cut_list: Vec::new(),
 			since: 0,
 			sc_rev: 0,
@@ -368,6 +371,7 @@ impl DesktopStore {
 	/// Writes the whole store: a temp file, then a move over the old file. A failure keeps the old file
 	/// and goes to [save_error](Self::save_error).
 	pub fn persist(&mut self) {
+		self.version += 1;
 		let result = self.to_json().and_then(|text| {
 			if let Some(dir) = self.file.parent().filter(|d| !d.as_os_str().is_empty()) {
 				std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;

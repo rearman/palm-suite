@@ -1,7 +1,8 @@
 //! The main window, as MainFrame.kt: the menus, the toolbar, the launcher bar on the left, the four views in
 //! the middle and the status bar at the bottom. Every control sends a [Msg]; the main loop does the work.
 
-use crate::msg::{Msg, View};
+use crate::msg::{EditCmd, Msg, View};
+use crate::text_edit::EditState;
 use crate::theme::{self, icon, PANEL, WORKSPACE};
 use fltk::app::Sender;
 use fltk::button::{Button, RadioButton};
@@ -34,6 +35,8 @@ pub struct Ui {
 	private_icon: Frame,
 	view_items: ViewItems,
 	only_in: OnlyIn,
+	/// The toolbar buttons whose state changes: "cut", "copy", "paste", "undo" and "new".
+	tools: Vec<(&'static str, Button)>,
 }
 
 fn ctrl(c: char) -> Shortcut {
@@ -48,7 +51,7 @@ impl Ui {
 		win.set_icon(Some(icon("app48")));
 
 		let (bar, view_items, only_in) = menu_bar(s);
-		let mut private_icon = toolbar(s);
+		let (mut private_icon, tools) = toolbar(s);
 		private_icon.hide();
 
 		let mut launcher = Group::new(0, MENU_H + TOOL_H, LAUNCHER_W, H - MENU_H - TOOL_H - STATUS_H, None);
@@ -89,8 +92,17 @@ impl Ui {
 		win.resizable(&center);
 		win.end();
 		win.handle(move |_, ev| {
-			if ev == fltk::enums::Event::Focus {
-				s.send(Msg::SyncIfStale);
+			use fltk::enums::Event;
+			match ev {
+				Event::Focus => s.send(Msg::SyncIfStale),
+				Event::Push | Event::Released | Event::KeyUp => s.send(Msg::EditState),
+				Event::KeyDown
+					if fltk::app::event_key() == Key::Delete
+						&& fltk::app::event_state().contains(fltk::enums::EventState::Shift) =>
+				{
+					s.send(Msg::Edit(EditCmd::DeleteNoConfirm))
+				}
+				_ => {}
 			}
 			false
 		});
@@ -111,6 +123,7 @@ impl Ui {
 			private_icon,
 			view_items,
 			only_in,
+			tools,
 		}
 	}
 
@@ -145,7 +158,61 @@ impl Ui {
 				}
 			}
 		}
+		// The features that the views of the port have so far.
+		let ported = view == View::Memo;
+		for path in ["&Tools/&Categories...", "&View/&List By..."] {
+			if let Some(mut item) = self.bar.find_item(path) {
+				if ported {
+					item.activate();
+				} else {
+					item.deactivate();
+				}
+			}
+		}
+		self.set_tool("new", ported);
 		self.win.redraw();
+	}
+
+	fn set_tool(&mut self, name: &str, on: bool) {
+		for (n, b) in self.tools.iter_mut() {
+			if *n == name {
+				if on {
+					b.activate();
+				} else {
+					b.deactivate();
+				}
+			}
+		}
+	}
+
+	/// Grays the Edit items and toolbar buttons that do not apply to the focus owner.
+	pub fn set_edit_state(&mut self, s: EditState) {
+		for (path, on) in [
+			("&Edit/&Undo", s.undo),
+			("&Edit/Cu&t", s.cut),
+			("&Edit/&Copy", s.copy),
+			("&Edit/&Paste", s.paste),
+		] {
+			if let Some(mut item) = self.bar.find_item(path) {
+				if on {
+					item.activate();
+				} else {
+					item.deactivate();
+				}
+			}
+		}
+		for (name, on) in [("undo", s.undo), ("cut", s.cut), ("copy", s.copy), ("paste", s.paste)] {
+			self.set_tool(name, on);
+		}
+	}
+
+	/// The group of one view, for the view to build its widgets in.
+	pub fn view_group(&self, view: View) -> Group {
+		self.views
+			.iter()
+			.find(|(v, _)| *v == view)
+			.map(|(_, g)| g.clone())
+			.expect("every view has a group")
 	}
 
 	pub fn set_status(&mut self, text: &str) {
@@ -196,17 +263,23 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	bar.add("&File/&Print...", ctrl('p'), later_div, none);
 	bar.add("&File/E&xit", Shortcut::None, normal, send(|| Msg::Exit));
 
-	bar.add("&Edit/&Undo", ctrl('z'), later_div, none);
-	bar.add("&Edit/Cu&t", ctrl('x'), later, none);
-	bar.add("&Edit/&Copy", ctrl('c'), later, none);
-	bar.add("&Edit/&Paste", ctrl('v'), later, none);
-	bar.add("&Edit/&Delete", Shortcut::from_key(Key::Delete), later_div, none);
-	bar.add("&Edit/Select &All", ctrl('a'), later, none);
+	let edit = move |c: EditCmd| move |_: &mut MenuBar| s.send(Msg::Edit(c));
+	bar.add("&Edit/&Undo", ctrl('z'), later_div, edit(EditCmd::Undo));
+	bar.add("&Edit/Cu&t", ctrl('x'), later, edit(EditCmd::Cut));
+	bar.add("&Edit/&Copy", ctrl('c'), later, edit(EditCmd::Copy));
+	bar.add("&Edit/&Paste", ctrl('v'), later, edit(EditCmd::Paste));
+	bar.add(
+		"&Edit/&Delete",
+		Shortcut::from_key(Key::Delete),
+		divider,
+		edit(EditCmd::Delete),
+	);
+	bar.add("&Edit/Select &All", ctrl('a'), normal, edit(EditCmd::SelectAll));
 	bar.add("&Edit/&New Event...", ctrl('n'), later, none);
 	bar.add("&Edit/&Edit Event...", Shortcut::None, later, none);
 	bar.add("&Edit/De&lete Event", Shortcut::None, later, none);
 	bar.add("&Edit/&New To Do", ctrl('n'), later, none);
-	bar.add("&Edit/&New Memo", ctrl('n'), later, none);
+	bar.add("&Edit/&New Memo", ctrl('n'), normal, edit(EditCmd::New));
 	bar.add("&Edit/&New Address...", ctrl('n'), later_div, none);
 	bar.add("&Edit/&Find...", ctrl('f'), later, none);
 
@@ -240,9 +313,14 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 		move |_| s.send(Msg::SetShowPrivate(false)),
 	);
 	bar.add("&View/Sh&ow...", Shortcut::None, later, none);
-	bar.add("&View/&List By...", Shortcut::None, later, none);
+	bar.add("&View/&List By...", Shortcut::None, later, send(|| Msg::ListBy));
 
-	bar.add("&Tools/&Categories...", Shortcut::None, later_div, none);
+	bar.add(
+		"&Tools/&Categories...",
+		Shortcut::None,
+		later_div,
+		send(|| Msg::Categories),
+	);
 	bar.add("&Tools/Custom &Field Labels...", Shortcut::None, later_div, none);
 	bar.add("&Tools/&Purge...", Shortcut::None, later_div, none);
 	bar.add("&Tools/&Options...", Shortcut::None, later, none);
@@ -273,12 +351,14 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	(bar, view_items, only_in)
 }
 
-/// The toolbar of MainFrame.kt. Returns the private-record mark at its right end.
-fn toolbar(s: Sender<Msg>) -> Frame {
+/// The toolbar of MainFrame.kt. Returns the private-record mark at its right end, and the buttons whose
+/// state changes.
+fn toolbar(s: Sender<Msg>) -> (Frame, Vec<(&'static str, Button)>) {
 	let mut g = Group::new(0, MENU_H, W, TOOL_H, None);
 	g.set_frame(FrameType::FlatBox);
 	let mut x = 2;
-	let mut add = |png: &str, tip: &str, msg: Option<fn() -> Msg>, gap: bool| {
+	let mut tools = Vec::new();
+	let mut add = |png: &'static str, tip: &str, msg: Option<fn() -> Msg>, gap: bool| {
 		let mut b = Button::new(x, MENU_H + 3, 24, 24, None);
 		b.set_frame(FrameType::UpBox);
 		b.set_down_frame(FrameType::DownBox);
@@ -292,22 +372,24 @@ fn toolbar(s: Sender<Msg>) -> Frame {
 			None => b.deactivate(),
 		}
 		x += 24 + if gap { 10 } else { 0 };
+		tools.push((png, b));
 	};
 	add("save", "Save All", Some(|| Msg::SaveAll), false);
 	add("print", "Print", None, true);
-	add("cut", "Cut", None, false);
-	add("copy", "Copy", None, false);
-	add("paste", "Paste", None, false);
-	add("undo", "Undo", None, true);
+	add("cut", "Cut", Some(|| Msg::Edit(EditCmd::Cut)), false);
+	add("copy", "Copy", Some(|| Msg::Edit(EditCmd::Copy)), false);
+	add("paste", "Paste", Some(|| Msg::Edit(EditCmd::Paste)), false);
+	add("undo", "Undo", Some(|| Msg::Edit(EditCmd::Undo)), true);
 	add("find", "Find", None, true);
-	add("new", "New Item", None, false);
+	add("new", "New Item", Some(|| Msg::Edit(EditCmd::New)), false);
 	let spacer = Frame::new(x, MENU_H, W - x - 30, TOOL_H, None);
 	let mut mark = Frame::new(W - 26, MENU_H + 3, 24, 24, None);
 	mark.set_image(Some(icon("private")));
 	mark.set_tooltip("Private records are hidden");
 	g.resizable(&spacer);
 	g.end();
-	mark
+	tools.retain(|(n, _)| ["cut", "copy", "paste", "undo", "new"].contains(n));
+	(mark, tools)
 }
 
 /// A launcher button: the 24 px app icon over its name. It has no Alt key: F2 to F5 from the View menu
@@ -332,15 +414,18 @@ fn view_group(view: View, x: i32, y: i32, w: i32, h: i32) -> Group {
 	let mut g = Group::new(x, y, w, h, None);
 	g.set_frame(FrameType::FlatBox);
 	g.set_color(if view == View::Date { WORKSPACE } else { PANEL });
-	let mut note = Frame::new(x, y, w, h, None);
-	note.set_label(match view {
-		View::Date => "The Date Book comes in phase 8 of the port.",
-		View::Address => "The Address Book comes in phase 6 of the port.",
-		View::Todo => "The To Do List comes in phase 7 of the port.",
-		View::Memo => "The Memo Pad comes in phase 5 of the port.",
-	});
-	note.set_label_color(Color::from_rgb(96, 96, 96));
-	g.resizable(&note);
+	// The Memo Pad builds itself in its group; the other views come in later phases of the port.
+	let later = match view {
+		View::Date => Some("The Date Book comes in phase 8 of the port."),
+		View::Address => Some("The Address Book comes in phase 6 of the port."),
+		View::Todo => Some("The To Do List comes in phase 7 of the port."),
+		View::Memo => None,
+	};
+	if let Some(text) = later {
+		let mut note = Frame::new(x, y, w, h, text);
+		note.set_label_color(Color::from_rgb(96, 96, 96));
+		g.resizable(&note);
+	}
 	g.end();
 	g.hide();
 	g

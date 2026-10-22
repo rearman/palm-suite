@@ -110,6 +110,7 @@ pub fn icon(name: &str) -> PngImage {
 		"find" => icon!("find"),
 		"new" => icon!("new"),
 		"private" => icon!("private"),
+		"note" => icon!("note"),
 		"app48" => icon!("app48"),
 		_ => panic!("no icon {name}"),
 	};

@@ -8,13 +8,17 @@
 use fltk::app::{self, TimeoutHandle};
 use fltk::dialog;
 use fltk::prelude::*;
-use palm_desktop::msg::{Msg, View};
+use palm_desktop::memo::MemoView;
+use palm_desktop::msg::{EditCmd, Msg, View};
+use palm_desktop::records::ListAction;
 use palm_desktop::settings::{self, Settings};
 use palm_desktop::store::{self, DesktopStore};
 use palm_desktop::sync::{DesktopSync, Effect, Report};
 use palm_desktop::sync_dialog::SyncDialog;
+use palm_desktop::text_edit::{self, EditState};
+use palm_desktop::view::Ctx;
 use palm_desktop::window::Ui;
-use palm_desktop::{platform, shot, theme};
+use palm_desktop::{category, platform, shot, theme};
 use std::fs::File;
 
 /// A sync runs this long after the last local change, so one action that writes several records syncs once.
@@ -35,7 +39,17 @@ struct App {
 	sender: app::Sender<Msg>,
 	/// The last save error shown, so one fault gives one alert.
 	shown_save_error: Option<String>,
+	memo: MemoView,
+	/// The store version the views show.
+	shown_version: u64,
 	_lock: File,
+}
+
+/// Where an Edit command goes.
+enum Target {
+	MemoEditor,
+	MemoList,
+	None,
 }
 
 fn today() -> i64 {
@@ -48,9 +62,41 @@ fn fail(text: &str) -> ! {
 	std::process::exit(1);
 }
 
+/// The view context of an App, from its fields alone, so a view field can be borrowed beside it.
+macro_rules! ctx {
+	($a:expr) => {
+		Ctx {
+			store: &mut $a.store,
+			settings: &mut $a.settings,
+			show_private: $a.show_private,
+			no_confirm: false,
+			s: $a.sender,
+		}
+	};
+}
+
 impl App {
 	fn handle(&mut self, msg: Msg) {
 		match msg {
+			Msg::Memo(m) => {
+				let mut ctx = ctx!(self);
+				self.memo.handle(m, &mut ctx);
+			}
+			Msg::Edit(cmd) => self.edit(cmd),
+			Msg::EditState => {}
+			Msg::EditCategories(app_no) => category::edit_categories(&mut self.store, app_no),
+			Msg::Categories => {
+				if self.view == View::Memo {
+					category::edit_categories(&mut self.store, 1);
+				}
+			}
+			Msg::ListBy => {
+				if self.view == View::Memo {
+					let mut ctx = ctx!(self);
+					self.memo.list_by(&mut ctx);
+				}
+			}
+			Msg::SplitMoved { key, width } => self.save_setting(key, &width.to_string()),
 			Msg::ShowView(v) => {
 				self.show_view(v);
 				self.save_setting("view", v.key());
@@ -59,6 +105,7 @@ impl App {
 				self.show_private = on;
 				self.ui.set_private_hidden(!on);
 				self.save_setting("showPrivate", if on { "true" } else { "false" });
+				self.refresh_views();
 			}
 			Msg::SaveAll => {
 				self.store.persist();
@@ -143,6 +190,78 @@ impl App {
 			Msg::Exit => app::quit(),
 		}
 		self.check_save();
+		if self.store.version != self.shown_version {
+			self.refresh_views();
+		}
+		self.update_edit_state();
+	}
+
+	/// Reads the store again in every view.
+	fn refresh_views(&mut self) {
+		self.shown_version = self.store.version;
+		let mut ctx = ctx!(self);
+		self.memo.refresh(&mut ctx);
+		self.shown_version = self.store.version;
+		self.update_position();
+	}
+
+	fn target(&self) -> Target {
+		let Some(f) = app::focus() else { return Target::None };
+		let p = f.as_widget_ptr();
+		if p == self.memo.editor().as_widget_ptr() {
+			Target::MemoEditor
+		} else if p == self.memo.table().as_widget_ptr() {
+			Target::MemoList
+		} else {
+			Target::None
+		}
+	}
+
+	fn update_edit_state(&mut self) {
+		let s = match self.target() {
+			Target::MemoEditor => text_edit::state(self.memo.editor()),
+			Target::MemoList => self.memo.list_edit_state(),
+			Target::None => EditState::default(),
+		};
+		self.ui.set_edit_state(s);
+		self.update_position();
+	}
+
+	/// The Edit menu and toolbar: the focused text field takes the text commands; the view takes the rest.
+	fn edit(&mut self, cmd: EditCmd) {
+		let target = self.target();
+		if let Target::MemoEditor = target {
+			let e = self.memo.editor_mut();
+			match cmd {
+				EditCmd::Undo => return text_edit::undo(e),
+				EditCmd::Cut => return text_edit::cut(e),
+				EditCmd::Copy => return text_edit::copy(e),
+				EditCmd::Paste => return text_edit::paste(e),
+				EditCmd::Delete => return text_edit::delete(e),
+				EditCmd::SelectAll => return text_edit::select_all(e),
+				// Shift+Delete in a text field keeps its own delete.
+				EditCmd::DeleteNoConfirm => return,
+				EditCmd::New => {}
+			}
+		}
+		if self.view != View::Memo {
+			return;
+		}
+		let list = matches!(target, Target::MemoList);
+		let mut ctx = ctx!(self);
+		match cmd {
+			EditCmd::New => self.memo.new_record(&mut ctx),
+			EditCmd::Delete => self.memo.delete_selected(&mut ctx),
+			EditCmd::DeleteNoConfirm => {
+				ctx.no_confirm = true;
+				self.memo.delete_selected(&mut ctx);
+			}
+			EditCmd::SelectAll => self.memo.list_action(ListAction::SelectAll, &mut ctx),
+			EditCmd::Cut if list => self.memo.list_action(ListAction::Cut, &mut ctx),
+			EditCmd::Copy if list => self.memo.list_action(ListAction::Copy, &mut ctx),
+			EditCmd::Paste if list => self.memo.list_action(ListAction::Paste, &mut ctx),
+			_ => {}
+		}
 	}
 
 	fn apply(&mut self, effects: Vec<Effect>) {
@@ -200,16 +319,21 @@ impl App {
 	fn show_view(&mut self, v: View) {
 		self.view = v;
 		self.ui.show_view(v);
+		if v == View::Memo {
+			self.memo.focus();
+		}
 		self.update_position();
 	}
 
-	/// The selected date in the Date Book; the position in the other views comes with them.
+	/// The selected date in the Date Book, and the position in the Memo Pad; the other views come later.
 	fn update_position(&mut self) {
-		let text = if self.view == View::Date {
-			let d = palm_core::days::ymd(self.day);
-			format!("{}/{}/{}", d.month, d.day, d.year)
-		} else {
-			String::new()
+		let text = match self.view {
+			View::Date => {
+				let d = palm_core::days::ymd(self.day);
+				format!("{}/{}/{}", d.month, d.day, d.year)
+			}
+			View::Memo => self.memo.position(),
+			_ => String::new(),
 		};
 		self.ui.set_position(&text);
 	}
@@ -235,6 +359,11 @@ fn main() {
 	let h24 = platform::uses_24_hours();
 
 	let mut ui = Ui::build(sender);
+	let g = ui.view_group(View::Memo);
+	g.begin();
+	let memo = MemoView::new(g.x() + 6, g.y() + 6, g.w() - 12, g.h() - 12, sender, &settings);
+	g.resizable(&memo.root);
+	g.end();
 	let show_private = settings.get_bool("showPrivate", false);
 	ui.set_private_hidden(!show_private);
 	let mut a = App {
@@ -248,6 +377,8 @@ fn main() {
 		change_timer: None,
 		sender,
 		shown_save_error: None,
+		memo,
+		shown_version: u64::MAX,
 		settings,
 		_lock: lock,
 	};
@@ -255,6 +386,7 @@ fn main() {
 	let start = Some(a.settings.get("startView", ""))
 		.filter(|s| !s.is_empty())
 		.unwrap_or_else(|| a.settings.get("view", "date"));
+	a.refresh_views();
 	a.show_view(View::from_key(&start).unwrap_or(View::Date));
 	a.ui.win.show();
 	let shot_at = args.iter().position(|x| x == "--shot");

@@ -30,7 +30,50 @@ impl View {
 	}
 }
 
+/// The Edit menu and toolbar commands. They go to the focused text field, or to the current view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditCmd {
+	Undo,
+	Cut,
+	Copy,
+	Paste,
+	Delete,
+	/// Shift+Delete: delete with no question.
+	DeleteNoConfirm,
+	SelectAll,
+	New,
+}
+
+/// The events of the Memo Pad.
+pub enum MemoMsg {
+	/// The selection of the list moved.
+	Picked,
+	/// A printable key in the list: a new memo that holds it.
+	TypeNew(char),
+	New,
+	Apply,
+	Filter,
+	/// A right click on the list.
+	ListMenu,
+	/// The clipboard text of a Paste into the list.
+	PasteText(String),
+}
+
 pub enum Msg {
+	Memo(MemoMsg),
+	Edit(EditCmd),
+	/// The focus or a selection moved: gray the Edit items that do not apply.
+	EditState,
+	/// Edit Categories of an app: 0 To Do, 1 Memo Pad, 2 Address Book.
+	EditCategories(i32),
+	/// Tools > Categories in the current view.
+	Categories,
+	ListBy,
+	/// A divider was released: save the width of its detail pane.
+	SplitMoved {
+		key: &'static str,
+		width: i32,
+	},
 	ShowView(View),
 	SetShowPrivate(bool),
 	SaveAll,
