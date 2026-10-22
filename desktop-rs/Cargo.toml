@@ -1,0 +1,13 @@
+# Palm Desktop in Rust with fltk-rs. Phase 0: the spike that tests sharp drawing at fractional display scales.
+[workspace]
+members = ["spike"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

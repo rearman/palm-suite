@@ -277,3 +277,77 @@ jobs:
           prefix="${GITHUB_REF_NAME%-v*}"
           gh release list --limit 1000 --json tagName -q '.[].tagName' | grep "^$prefix-v" | sort -V | head -n -2 |
             while read -r tag; do gh release delete "$tag" --yes; done
+
+  # The Rust port of the desktop app (desktop-rs/), phase 0: the fltk-rs spike that tests sharp drawing at
+  # fractional display scales. Windows amd64, Linux amd64 and arm64. Nothing is released yet.
+  desktop-rs:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, name: windows-amd64, exe: .exe }
+          - { os: ubuntu-22.04, name: linux-amd64, exe: '' }
+          - { os: ubuntu-22.04-arm, name: linux-arm64, exe: '' }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop-rs
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # FLTK draws with Cairo and Pango on Linux and opens a Wayland window, else an X11 one.
+      - name: Install FLTK build libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libx11-dev libxext-dev libxft-dev libxinerama-dev \
+            libxcursor-dev libxrender-dev libxfixes-dev libpango1.0-dev libcairo2-dev libgl1-mesa-dev \
+            libglu1-mesa-dev libegl1-mesa-dev libwayland-dev wayland-protocols libxkbcommon-dev libdbus-1-dev \
+            xvfb imagemagick
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-rs
+
+      - name: Check format and lints
+        run: |
+          cargo fmt --check
+          cargo clippy --release -- -D warnings
+
+      - name: Build
+        run: |
+          cargo build --release
+          cp target/release/palm-desktop-spike${{ matrix.exe }} palm-desktop-spike-${{ matrix.name }}${{ matrix.exe }}
+
+      # Draws the window offscreen at three scales under a virtual X server, to judge the Linux rendering.
+      - name: Screenshots
+        if: runner.os == 'Linux'
+        run: |
+          mkdir shots
+          for s in 1 1.25 1.5; do
+            FLTK_SCALING_FACTOR=$s xvfb-run -a ./palm-desktop-spike-${{ matrix.name }} --shot shots/scale-$s.ppm
+            convert shots/scale-$s.ppm shots/scale-$s.png
+            rm shots/scale-$s.ppm
+          done
+
+      # archive: false uploads the file itself and accepts only one file.
+      - name: Upload spike
+        uses: actions/upload-artifact@v7
+        with:
+          path: desktop-rs/palm-desktop-spike-${{ matrix.name }}${{ matrix.exe }}
+          archive: false
+
+      - name: Upload screenshots
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: spike-shots-${{ matrix.name }}
+          path: desktop-rs/shots
