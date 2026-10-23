@@ -18,6 +18,9 @@ pub fn step_index(current: i32, step: i32, len: i32) -> i32 {
 pub fn drop_below(c: &mut Choice) {
 	// Set after a keyboard pick, so the Enter that picked the item does not also press the default button of the dialog.
 	let mut swallow_enter = false;
+	// fltk-rs runs FLTK's own handler first, which would open the list over the field; this handler must see
+	// the events first, and leaves the ones it does not use to FLTK.
+	c.super_handle_first(false);
 	c.handle(move |c, ev| {
 		let key = app::event_key();
 		let is_enter = key == Key::Enter || key == Key::KPEnter;
@@ -51,15 +54,19 @@ pub fn drop_below(c: &mut Choice) {
 	});
 }
 
-/// Opens the list of `c` below the field, with the current item highlighted and the list as wide as the field. A
-/// pick selects its item. Returns true when the pick was made from the keyboard.
+/// Opens the list of `c` below the field, as wide as the field. A pick selects its item. Returns true when the
+/// pick was made from the keyboard.
 fn open_list(c: &mut Choice) -> bool {
-	let highlight = if c.value() >= 0 { c.at(c.value()) } else { None };
 	let Some(menu) = c.menu() else {
 		return false;
 	};
-	// The list starts at the bottom edge of the field, so the field is passed with height 0.
-	let Some(picked) = menu.pulldown(c.x(), c.y() + c.h(), c.w(), 0, highlight, Some(&*c)) else {
+	// FLTK puts the top of the list at Y + (H - item height) / 2 - border - index * item height, where index
+	// is the starting item (the choice's current item when none is given). The first item is given, H is
+	// one item high and Y is one border below the field, so the list starts at the bottom edge of the field.
+	let first = c.at(0);
+	let border = 1;
+	let y = c.y() + c.h() + border;
+	let Some(picked) = menu.pulldown(c.x(), y, c.w(), crate::theme::MENU_ITEM_H, first, Some(&*c)) else {
 		return false;
 	};
 	let keyboard = matches!(app::event(), Event::KeyDown | Event::KeyUp | Event::Shortcut);

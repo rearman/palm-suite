@@ -18,7 +18,7 @@ pub const SHADOW: Color = Color::from_rgb(160, 160, 160);
 pub const WORKSPACE: Color = Color::from_rgb(171, 171, 171);
 pub const SELECT: Color = Color::from_rgb(0, 120, 215);
 /// The height of a menu item in device-independent pixels, as a Windows 11 menu item.
-const MENU_ITEM_H: i32 = 22;
+pub(crate) const MENU_ITEM_H: i32 = 22;
 
 /// The Palm Desktop fonts by role. Font::Helvetica is Microsoft Sans Serif, the dialog font, so every
 /// widget without its own font uses it.
