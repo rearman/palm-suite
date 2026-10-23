@@ -303,8 +303,11 @@ impl TodoView {
 		apply.set_callback(move |_| s.send(Msg::Todo(TodoMsg::Apply)));
 		label("Co&mplete:", 23, Some(complete_box.as_base_widget()), y);
 		y += 23 + 6;
-		// The fields widen with the pane; the buttons at the right keep their size.
-		let grow = Frame::new(fx + 134, y, (fw - 134 - 80).max(1), (ry + rh - y).max(1), None);
+		// The fields widen with the pane; the buttons at the right move and keep their size. FLTK widens a
+		// widget whose span holds the resizable's left edge, moves one right of it and keeps one left of it,
+		// so a 1 px resizable inside the day name box widens the day name, the To Do text, the priorities,
+		// the category and the note, keeps the Due box and the check boxes, and moves the buttons.
+		let grow = Frame::new(fx + DUE_W + 14, y, 1, (ry + rh - y).max(1), None);
 		sp.right.resizable(&grow);
 		sp.right.end();
 
