@@ -5,6 +5,11 @@ use crate::settings::Settings;
 use crate::store::DesktopStore;
 use fltk::app::Sender;
 
+/// The left and right mouse buttons as app::event_button() numbers them. app::event_mouse_button() panics
+/// when the last event was a key (FLTK then reports a key code as the button), so code reads the number.
+pub const LEFT: i32 = 1;
+pub const RIGHT: i32 = 3;
+
 pub struct Ctx<'a> {
 	pub store: &'a mut DesktopStore,
 	pub settings: &'a mut Settings,

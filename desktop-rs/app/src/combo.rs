@@ -1,6 +1,7 @@
 //! A Choice that drops its list below the field, as the combo boxes of Palm Desktop 3.1.1 on Windows do.
 
-use fltk::app::{self, MouseButton};
+use crate::view::LEFT;
+use fltk::app;
 use fltk::enums::{Event, EventState, Key};
 use fltk::menu::Choice;
 use fltk::prelude::*;
@@ -33,7 +34,7 @@ pub fn drop_below(c: &mut Choice) {
 		}
 		let alt = app::event_state().contains(EventState::Alt);
 		match ev {
-			Event::Push if app::event_mouse_button() == MouseButton::Left => {
+			Event::Push if app::event_button() == LEFT => {
 				swallow_enter = open_list(c);
 				true
 			}

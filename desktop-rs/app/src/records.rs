@@ -9,7 +9,8 @@
 use crate::draw;
 use crate::msg::Msg;
 use crate::text_edit::{clipboard_has_text, EditState};
-use fltk::app::{self, MouseButton, Sender};
+use crate::view::{LEFT, RIGHT};
+use fltk::app::{self, Sender};
 use fltk::enums::{Event, EventState, Key};
 use fltk::menu::{MenuButton, MenuButtonType, MenuFlag};
 use fltk::prelude::*;
@@ -149,7 +150,7 @@ pub fn list_event(t: &mut TableRow, ev: Event, lead: &Rc<Cell<i32>>, s: Sender<M
 				.cursor2rowcol()
 				.map(|(_, r, _, _)| r)
 				.filter(|r| *r >= 0 && *r < t.rows());
-			if app::event_mouse_button() == MouseButton::Right {
+			if app::event_button() == RIGHT {
 				if let Some(r) = row {
 					if !t.row_selected(r) {
 						t.select_all_rows(TableRowSelectFlag::Deselect);
@@ -173,12 +174,12 @@ pub fn list_event(t: &mut TableRow, ev: Event, lead: &Rc<Cell<i32>>, s: Sender<M
 				let hit = t
 					.cursor2rowcol()
 					.filter(|(_, r, c, _)| *r >= 0 && *r < t.rows() && *c >= 0);
-				if let (Some((_, r, c, _)), MouseButton::Left) = (hit, app::event_mouse_button()) {
+				if let (Some((_, r, c, _)), true) = (hit, app::event_button() == LEFT) {
 					s.send(cell(r, c, app::event_clicks()));
 				}
 			}
 			if let Some(open) = m.open {
-				if app::event_clicks() && app::event_mouse_button() == MouseButton::Left && lead.get() >= 0 {
+				if app::event_clicks() && app::event_button() == LEFT && lead.get() >= 0 {
 					s.send(open());
 				}
 			}

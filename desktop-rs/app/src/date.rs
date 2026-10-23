@@ -21,8 +21,9 @@ use crate::text_edit::Field;
 use crate::theme::{self, icon, PANEL, SELECT, SHADOW, WORKSPACE};
 use crate::todo::{due_label, is_overdue, mark_done, todo_order, todo_shown, DUE_NAMES};
 use crate::view::Ctx;
+use crate::view::{LEFT, RIGHT};
 use crate::week::WeekView;
-use fltk::app::{self, MouseButton, MouseWheel, Sender};
+use fltk::app::{self, MouseWheel, Sender};
 use fltk::button::Button;
 use fltk::draw;
 use fltk::enums::{Align, CallbackTrigger, Color, Cursor, Event, EventState, FrameType, Key};
@@ -77,7 +78,7 @@ pub fn mouse_of(ev: Event) -> Option<Mouse> {
 		kind,
 		x: app::event_x(),
 		y: app::event_y(),
-		right: app::event_mouse_button() == MouseButton::Right,
+		right: app::event_button() == RIGHT,
 		double: app::event_clicks(),
 	})
 }
@@ -254,7 +255,7 @@ impl TypeField {
 				s.send(Msg::Date(DateMsg::Field(FieldEv::Lost)));
 				false
 			}
-			Event::Push if app::event_mouse_button() == MouseButton::Right => {
+			Event::Push if app::event_button() == RIGHT => {
 				Field::Input(i.clone()).popup();
 				true
 			}
@@ -621,7 +622,7 @@ impl DateView {
 			});
 		}
 		switch.handle(move |f, ev| {
-			if ev == Event::Push && app::event_mouse_button() == MouseButton::Left {
+			if ev == Event::Push && app::event_button() == LEFT {
 				s.send(Msg::Date(DateMsg::Pane(app::event_x() < f.x() + f.w() / 2)));
 				return true;
 			}
@@ -725,7 +726,7 @@ impl DateView {
 			tabs.draw(move |f| draw_tabs(f, m.get()));
 		}
 		tabs.handle(move |f, ev| match ev {
-			Event::Push if app::event_mouse_button() == MouseButton::Left => {
+			Event::Push if app::event_button() == LEFT => {
 				let y = app::event_y() - f.y();
 				let mut top = 2;
 				for mode in [DateMode::Day, DateMode::Week, DateMode::Month] {

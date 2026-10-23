@@ -2,7 +2,8 @@
 //! Windows edit menu of Palm Desktop, TextMenu.kt) and the enabled state of the Edit items. A field is a
 //! multi-line TextEditor or a one-line Input.
 
-use fltk::app::{self, ClipboardContent, MouseButton};
+use crate::view::RIGHT;
+use fltk::app::{self, ClipboardContent};
 use fltk::enums::Event;
 use fltk::input::Input;
 use fltk::menu::{MenuButton, MenuButtonType, MenuFlag};
@@ -143,7 +144,7 @@ impl Field {
 	/// Gives the field its right-click menu.
 	pub fn attach_menu(&self) {
 		fn on_push(mut f: Field) -> bool {
-			if app::event_mouse_button() != MouseButton::Right {
+			if app::event_button() != RIGHT {
 				return false;
 			}
 			f.popup();
