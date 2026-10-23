@@ -481,4 +481,5 @@ const LIST_MSGS: ListMsgs = ListMsgs {
 	paste: |t| Msg::Memo(MemoMsg::PasteText(t)),
 	typed: Some(|c| Msg::Memo(MemoMsg::TypeNew(c))),
 	open: None,
+	cell: None,
 };

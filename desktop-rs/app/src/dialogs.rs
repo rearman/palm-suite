@@ -37,6 +37,18 @@ pub fn prompt(label: &str, initial: &str) -> Option<String> {
 		.filter(|s| !s.is_empty())
 }
 
+/// A field label at (x, y, w, h), aligned by `align`, with `&` before the letter of its Alt key. FLTK
+/// underlines that letter on a button only, so the label is a button without edges that takes no focus.
+pub fn key_label(text: &str, x: i32, y: i32, w: i32, h: i32, align: Align) -> Button {
+	let mut b = Button::new(x, y, w, h, None);
+	b.set_label(text);
+	b.set_frame(FrameType::NoBox);
+	b.set_down_frame(FrameType::NoBox);
+	b.set_align(align | Align::Inside);
+	b.clear_visible_focus();
+	b
+}
+
 /// Runs a modal window until it closes.
 pub fn run_modal(win: &mut Window) {
 	win.make_modal(true);

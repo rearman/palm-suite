@@ -1,7 +1,7 @@
 //! The main window, as MainFrame.kt: the menus, the toolbar, the launcher bar on the left, the four views in
 //! the middle and the status bar at the bottom. Every control sends a [Msg]; the main loop does the work.
 
-use crate::msg::{EditCmd, Msg, View};
+use crate::msg::{EditCmd, Msg, TodoMsg, View};
 use crate::text_edit::EditState;
 use crate::theme::{self, icon, PANEL, WORKSPACE};
 use fltk::app::Sender;
@@ -159,7 +159,7 @@ impl Ui {
 			}
 		}
 		// The features that the views of the port have so far.
-		let ported = matches!(view, View::Memo | View::Address);
+		let ported = view != View::Date;
 		for path in ["&Tools/&Categories...", "&View/&List By..."] {
 			if let Some(mut item) = self.bar.find_item(path) {
 				if ported {
@@ -278,7 +278,7 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	bar.add("&Edit/&New Event...", ctrl('n'), later, none);
 	bar.add("&Edit/&Edit Event...", Shortcut::None, later, none);
 	bar.add("&Edit/De&lete Event", Shortcut::None, later, none);
-	bar.add("&Edit/&New To Do", ctrl('n'), later, none);
+	bar.add("&Edit/&New To Do", ctrl('n'), normal, edit(EditCmd::New));
 	bar.add("&Edit/&New Memo", ctrl('n'), normal, edit(EditCmd::New));
 	bar.add("&Edit/&New Address...", ctrl('n'), divider, edit(EditCmd::New));
 	bar.add("&Edit/&Find...", ctrl('f'), later, none);
@@ -312,7 +312,12 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 		MenuFlag::Radio | MenuFlag::MenuDivider,
 		move |_| s.send(Msg::SetShowPrivate(false)),
 	);
-	bar.add("&View/Sh&ow...", Shortcut::None, later, none);
+	bar.add(
+		"&View/Sh&ow...",
+		Shortcut::None,
+		normal,
+		send(|| Msg::Todo(TodoMsg::Show)),
+	);
 	bar.add("&View/&List By...", Shortcut::None, later, send(|| Msg::ListBy));
 
 	bar.add(
@@ -327,7 +332,14 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 		divider,
 		send(|| Msg::CustomLabels),
 	);
-	bar.add("&Tools/&Purge...", Shortcut::None, later_div, none);
+	// Purge names what it deletes: the events of the Date Book, the completed items of the To Do List.
+	bar.add("&Tools/&Purge Events...", Shortcut::None, later_div, none);
+	bar.add(
+		"&Tools/&Purge Completed To Do's...",
+		Shortcut::None,
+		divider,
+		send(|| Msg::Purge),
+	);
 	bar.add("&Tools/&Options...", Shortcut::None, later, none);
 
 	bar.add("&Sync/&Options...", Shortcut::None, normal, send(|| Msg::SyncOptions));
@@ -351,7 +363,8 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 		("&View/Sh&ow...", &[View::Todo]),
 		("&View/&List By...", &[View::Memo, View::Address]),
 		("&Tools/Custom &Field Labels...", &[View::Address]),
-		("&Tools/&Purge...", &[View::Date, View::Todo]),
+		("&Tools/&Purge Events...", &[View::Date]),
+		("&Tools/&Purge Completed To Do's...", &[View::Todo]),
 	];
 	(bar, view_items, only_in)
 }
@@ -419,12 +432,11 @@ fn view_group(view: View, x: i32, y: i32, w: i32, h: i32) -> Group {
 	let mut g = Group::new(x, y, w, h, None);
 	g.set_frame(FrameType::FlatBox);
 	g.set_color(if view == View::Date { WORKSPACE } else { PANEL });
-	// The Address Book and the Memo Pad build themselves in their groups; the other views come in later
-	// phases of the port.
+	// The Address Book, the To Do List and the Memo Pad build themselves in their groups; the Date Book comes
+	// in phase 8 of the port.
 	let later = match view {
 		View::Date => Some("The Date Book comes in phase 8 of the port."),
-		View::Todo => Some("The To Do List comes in phase 7 of the port."),
-		View::Address | View::Memo => None,
+		View::Address | View::Todo | View::Memo => None,
 	};
 	if let Some(text) = later {
 		let mut note = Frame::new(x, y, w, h, text);

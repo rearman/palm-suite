@@ -1,4 +1,10 @@
-//! Facts of the system that the app reads once.
+//! Facts of the system that the app reads once, and today's date.
+
+/// Today as an epoch day, in the time zone of the system.
+pub fn today() -> i64 {
+	let d = jiff::Zoned::now().date();
+	palm_core::days::epoch_day(d.year() as i64, d.month() as u32, d.day() as u32)
+}
 
 /// True when the system shows the time in 24-hour form. On Windows the short time format comes from the
 /// Regional settings in the registry, as Main.kt reads it.

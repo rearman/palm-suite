@@ -17,6 +17,7 @@ use palm_desktop::store::{self, DesktopStore};
 use palm_desktop::sync::{DesktopSync, Effect, Report};
 use palm_desktop::sync_dialog::SyncDialog;
 use palm_desktop::text_edit::{EditState, Field, TextAction};
+use palm_desktop::todo::TodoView;
 use palm_desktop::view::Ctx;
 use palm_desktop::window::Ui;
 use palm_desktop::{address_dialog, category, platform, shot, theme};
@@ -42,6 +43,7 @@ struct App {
 	shown_save_error: Option<String>,
 	memo: MemoView,
 	address: AddressView,
+	todo: TodoView,
 	/// The store version the views show.
 	shown_version: u64,
 	_lock: File,
@@ -52,12 +54,8 @@ enum Target {
 	Text(Field),
 	MemoList,
 	AddressList,
+	TodoList,
 	None,
-}
-
-fn today() -> i64 {
-	let d = jiff::Zoned::now().date();
-	palm_core::days::epoch_day(d.year() as i64, d.month() as u32, d.day() as u32)
 }
 
 fn fail(text: &str) -> ! {
@@ -89,13 +87,26 @@ impl App {
 				let mut ctx = ctx!(self);
 				self.address.handle(m, &mut ctx);
 			}
+			Msg::Todo(m) => {
+				let mut ctx = ctx!(self);
+				self.todo.handle(m, &mut ctx);
+			}
+			Msg::Purge => {
+				if self.view == View::Todo
+					&& dialog::choice2_default("Delete all completed To Do items?", "OK", "Cancel", "") == Some(0)
+				{
+					let n = self.store.purge_todos();
+					dialog::message_default(&format!("{n} To Do items purged."));
+				}
+			}
 			Msg::Edit(cmd) => self.edit(cmd),
 			Msg::EditState => {}
 			Msg::EditCategories(app_no) => category::edit_categories(&mut self.store, app_no),
 			Msg::Categories => match self.view {
 				View::Memo => category::edit_categories(&mut self.store, 1),
 				View::Address => category::edit_categories(&mut self.store, 2),
-				_ => {}
+				View::Todo => category::edit_categories(&mut self.store, 0),
+				View::Date => {}
 			},
 			Msg::ListBy => {
 				let mut ctx = ctx!(self);
@@ -217,6 +228,7 @@ impl App {
 		let mut ctx = ctx!(self);
 		self.memo.refresh(&mut ctx);
 		self.address.refresh(&mut ctx);
+		self.todo.refresh(&mut ctx);
 		self.shown_version = self.store.version;
 		self.update_position();
 	}
@@ -226,12 +238,16 @@ impl App {
 		let p = f.as_widget_ptr();
 		if p == self.memo.editor().as_widget_ptr() {
 			Target::Text(Field::Editor(self.memo.editor().clone()))
+		} else if p == self.todo.editor().as_widget_ptr() {
+			Target::Text(Field::Editor(self.todo.editor().clone()))
 		} else if p == self.address.look().as_widget_ptr() {
 			Target::Text(Field::Input(self.address.look().clone()))
 		} else if p == self.memo.table().as_widget_ptr() {
 			Target::MemoList
 		} else if p == self.address.table().as_widget_ptr() {
 			Target::AddressList
+		} else if p == self.todo.table().as_widget_ptr() {
+			Target::TodoList
 		} else {
 			Target::None
 		}
@@ -242,6 +258,7 @@ impl App {
 			Target::Text(f) => f.state(),
 			Target::MemoList => self.memo.list_edit_state(),
 			Target::AddressList => self.address.list_edit_state(),
+			Target::TodoList => self.todo.list_edit_state(),
 			Target::None => EditState::default(),
 		};
 		self.ui.set_edit_state(s);
@@ -265,7 +282,7 @@ impl App {
 			};
 			return f.run(a);
 		}
-		let list = matches!(target, Target::MemoList | Target::AddressList);
+		let list = matches!(target, Target::MemoList | Target::AddressList | Target::TodoList);
 		let action = match cmd {
 			EditCmd::New => return self.new_record(),
 			EditCmd::SelectAll => ListAction::SelectAll,
@@ -280,7 +297,8 @@ impl App {
 		match self.view {
 			View::Memo => self.memo.list_action(action, &mut ctx),
 			View::Address => self.address.list_action(action, &mut ctx),
-			_ => {}
+			View::Todo => self.todo.list_action(action, &mut ctx),
+			View::Date => {}
 		}
 	}
 
@@ -290,7 +308,8 @@ impl App {
 		match self.view {
 			View::Memo => self.memo.new_record(&mut ctx),
 			View::Address => self.address.new_record(&mut ctx),
-			_ => {}
+			View::Todo => self.todo.new_record(&mut ctx),
+			View::Date => {}
 		}
 	}
 
@@ -352,13 +371,13 @@ impl App {
 		match v {
 			View::Memo => self.memo.focus(),
 			View::Address => self.address.focus(),
-			_ => {}
+			View::Todo => self.todo.focus(),
+			View::Date => {}
 		}
 		self.update_position();
 	}
 
-	/// The selected date in the Date Book, and the position in the Address Book and the Memo Pad; the To Do
-	/// List comes later.
+	/// The selected date in the Date Book, and the position in the other views.
 	fn update_position(&mut self) {
 		let text = match self.view {
 			View::Date => {
@@ -367,7 +386,7 @@ impl App {
 			}
 			View::Memo => self.memo.position(),
 			View::Address => self.address.position(),
-			View::Todo => String::new(),
+			View::Todo => self.todo.position(),
 		};
 		self.ui.set_position(&text);
 	}
@@ -403,6 +422,11 @@ fn main() {
 	let address = AddressView::new(g.x() + 6, g.y() + 6, g.w() - 12, g.h() - 12, sender, &settings);
 	g.resizable(&address.root);
 	g.end();
+	let g = ui.view_group(View::Todo);
+	g.begin();
+	let todo = TodoView::new(g.x() + 6, g.y() + 6, g.w() - 12, g.h() - 12, sender, &settings);
+	g.resizable(&todo.root);
+	g.end();
 	let show_private = settings.get_bool("showPrivate", false);
 	ui.set_private_hidden(!show_private);
 	let mut a = App {
@@ -410,7 +434,7 @@ fn main() {
 		sync: DesktopSync::new(sender, h24),
 		ui,
 		view: View::Date,
-		day: today(),
+		day: platform::today(),
 		show_private,
 		dialog: None,
 		change_timer: None,
@@ -418,6 +442,7 @@ fn main() {
 		shown_save_error: None,
 		memo,
 		address,
+		todo,
 		shown_version: u64::MAX,
 		settings,
 		_lock: lock,

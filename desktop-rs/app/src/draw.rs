@@ -49,6 +49,27 @@ impl Drop for Dev {
 	}
 }
 
+/// The width of `s` in the current font, in whole pixels.
+pub fn text_w(s: &str) -> i32 {
+	draw::width(s).ceil() as i32
+}
+
+/// `text` cut to `w` px with "..." at its end, as Palm Desktop cuts a list column.
+pub fn fit(text: &str, w: i32, measure: &dyn Fn(&str) -> i32) -> String {
+	if measure(text) <= w {
+		return text.to_string();
+	}
+	let chars: Vec<char> = text.chars().collect();
+	let mut n = chars.len();
+	loop {
+		let cut = chars[..n].iter().collect::<String>() + "...";
+		if n == 0 || measure(&cut) <= w {
+			return cut;
+		}
+		n -= 1;
+	}
+}
+
 /// The Windows system colors that Swing's classic look reads on Windows 10 and 11.
 pub const HIGHLIGHT: Color = Color::from_rgb(255, 255, 255);
 pub const LIGHT: Color = Color::from_rgb(227, 227, 227);
@@ -123,4 +144,16 @@ pub fn install_classic_boxes() {
 	app::set_frame_type_cb(FrameType::ThinUpBox, thin_up_box, 1, 1, 2, 2);
 	app::set_frame_type_cb(FrameType::ThinDownBox, thin_down_box, 1, 1, 2, 2);
 	app::set_frame_type_cb(FrameType::EngravedBox, engraved_box, 2, 2, 4, 4);
+}
+
+#[cfg(test)]
+mod tests {
+	#[test]
+	fn fit_cuts_with_dots() {
+		// One pixel per character.
+		let m = |s: &str| s.chars().count() as i32;
+		assert_eq!(super::fit("Hello", 5, &m), "Hello");
+		assert_eq!(super::fit("Hello", 4, &m), "H...");
+		assert_eq!(super::fit("Hello", 2, &m), "...");
+	}
 }

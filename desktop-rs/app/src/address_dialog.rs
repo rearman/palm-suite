@@ -2,6 +2,7 @@
 //! Custom Field Labels dialog of Dialogs.kt.
 
 use crate::category::IdChoice;
+use crate::dialogs::key_label;
 use crate::settings::Settings;
 use crate::text_edit::Field;
 use crate::view::Ctx;
@@ -80,16 +81,9 @@ fn handle_keys(win: &mut Window, tabs: Option<Tabs>, keys: Keys, ok: Button) {
 	});
 }
 
-/// A field label at (x, y, w, h): left-aligned, with `&` before the letter of its Alt key. FLTK underlines
-/// that letter on a button only, so the label is a button without edges that takes no focus.
+/// A left-aligned field label.
 fn label(text: &str, x: i32, y: i32, w: i32, h: i32) -> Button {
-	let mut b = Button::new(x, y, w, h, None);
-	b.set_label(text);
-	b.set_frame(FrameType::NoBox);
-	b.set_down_frame(FrameType::NoBox);
-	b.set_align(Align::Left | Align::Inside);
-	b.clear_visible_focus();
-	b
+	key_label(text, x, y, w, h, Align::Left)
 }
 
 fn field(x: i32, y: i32, w: i32, h: i32) -> Input {

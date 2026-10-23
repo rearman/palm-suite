@@ -117,6 +117,8 @@ pub struct ListMsgs {
 	pub typed: Option<fn(char) -> Msg>,
 	/// A double click on a row, when the view opens one.
 	pub open: Option<fn() -> Msg>,
+	/// A left click on a cell: its row, its column, and true for the second click of a double click.
+	pub cell: Option<fn(i32, i32, bool) -> Msg>,
 }
 
 /// Fits the one column of a record list to the width inside its edge and its scroll bar. Call it at the
@@ -159,6 +161,14 @@ pub fn list_event(t: &mut TableRow, ev: Event, lead: &Rc<Cell<i32>>, s: Sender<M
 		}
 		Event::Released => {
 			s.send((m.picked)());
+			if let Some(cell) = m.cell {
+				let hit = t
+					.cursor2rowcol()
+					.filter(|(_, r, c, _)| *r >= 0 && *r < t.rows() && *c >= 0);
+				if let (Some((_, r, c, _)), MouseButton::Left) = (hit, app::event_mouse_button()) {
+					s.send(cell(r, c, app::event_clicks()));
+				}
+			}
 			if let Some(open) = m.open {
 				if app::event_clicks() && app::event_mouse_button() == MouseButton::Left && lead.get() >= 0 {
 					s.send(open());

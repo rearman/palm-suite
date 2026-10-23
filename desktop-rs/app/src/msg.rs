@@ -75,9 +75,33 @@ pub enum AddressMsg {
 	PasteText(String),
 }
 
+/// The events of the To Do List.
+pub enum TodoMsg {
+	/// The selection of the table moved.
+	Picked,
+	Filter,
+	/// A printable key in the table: a new item that holds it.
+	TypeNew(char),
+	New,
+	Apply,
+	/// The Show Options dialog.
+	Show,
+	/// A pick in the Due box of the details.
+	DuePick,
+	/// The note button of the details.
+	Note,
+	/// A left click on a cell: row, column, and true for the second click of a double click.
+	Cell(i32, i32, bool),
+	/// A right click on the table.
+	ListMenu,
+	/// The clipboard text of a Paste into the table.
+	PasteText(String),
+}
+
 pub enum Msg {
 	Memo(MemoMsg),
 	Address(AddressMsg),
+	Todo(TodoMsg),
 	Edit(EditCmd),
 	/// The focus or a selection moved: gray the Edit items that do not apply.
 	EditState,
@@ -88,6 +112,8 @@ pub enum Msg {
 	ListBy,
 	/// Tools > Custom Field Labels of the Address Book.
 	CustomLabels,
+	/// Tools > Purge in the current view.
+	Purge,
 	/// A divider was released: save the width of its detail pane.
 	SplitMoved {
 		key: &'static str,

@@ -4,6 +4,7 @@
 use crate::address_dialog::{self, custom_labels};
 use crate::category::{menu_label, IdChoice, ALL, UNFILED};
 use crate::dialogs::{confirm_delete, delete_question, list_by, run_modal};
+use crate::draw::{fit, text_w};
 use crate::msg::{AddressMsg, Msg};
 use crate::records::{self, list_state, ListAction, ListMsgs};
 use crate::settings::Settings;
@@ -437,6 +438,7 @@ const LIST_MSGS: ListMsgs = ListMsgs {
 	paste: |t| Msg::Address(AddressMsg::PasteText(t)),
 	typed: None,
 	open: Some(|| Msg::Address(AddressMsg::Edit)),
+	cell: None,
 };
 
 /// True when the Address List sorts by company (the setting "addressListBy" 1).
@@ -554,26 +556,6 @@ fn dial_address(a: &Address) {
 /// The digits and the plus sign of a phone number, for a tel: link.
 fn tel_digits(number: &str) -> String {
 	number.chars().filter(|c| c.is_ascii_digit() || *c == '+').collect()
-}
-
-fn text_w(s: &str) -> i32 {
-	draw::width(s).ceil() as i32
-}
-
-/// `text` cut to `w` px with "..." at its end, as Palm Desktop cuts a list column.
-fn fit(text: &str, w: i32, measure: &dyn Fn(&str) -> i32) -> String {
-	if measure(text) <= w {
-		return text.to_string();
-	}
-	let chars: Vec<char> = text.chars().collect();
-	let mut n = chars.len();
-	loop {
-		let cut = chars[..n].iter().collect::<String>() + "...";
-		if n == 0 || measure(&cut) <= w {
-			return cut;
-		}
-		n -= 1;
-	}
 }
 
 /// The list name cut to `w` px. "Last, First" is cut part by part, so both parts keep their start.
@@ -711,12 +693,9 @@ mod tests {
 	}
 
 	#[test]
-	fn fit_cuts_with_dots_and_cuts_a_list_name_part_by_part() {
+	fn fit_name_cuts_a_list_name_part_by_part() {
 		// One pixel per character.
 		let m = |s: &str| s.chars().count() as i32;
-		assert_eq!(fit("Hello", 5, &m), "Hello");
-		assert_eq!(fit("Hello", 4, &m), "H...");
-		assert_eq!(fit("Hello", 2, &m), "...");
 		assert_eq!(fit_name("Fitzgerald, Alexandra", 21, &m), "Fitzgerald, Alexandra");
 		assert_eq!(fit_name("Fitzgerald, Alexandra", 20, &m), "Fitzge..., Alexandra");
 		assert_eq!(fit_name("Fitzgerald, Alexandra", 16, &m), "Fitz..., Alex...");
