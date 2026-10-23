@@ -6,7 +6,7 @@ use crate::date_picker::week_start_of;
 use crate::date_shared::{
 	apply_alarm_preset, change_occurrence, delete_occurrence, dow_index, draw_box, draw_diamond, draw_hour_label,
 	draw_outline, edit_alarm, edit_note, event_menu, marker_at, on_handle, on_resize_bar, paint_event, raised_cell,
-	title_x, visible_events, week_begins, week_of_year, work_day, BoxAction, Fill, Marker, Occ, Rect, BAR_W,
+	title_top, title_x, visible_events, week_begins, week_of_year, work_day, BoxAction, Fill, Marker, Occ, Rect, BAR_W,
 	CHANGE_TEXT, HOUR_LINE, MONTH_LONG, SEL_H,
 };
 use crate::event_dialog;
@@ -351,9 +351,11 @@ impl WeekView {
 		}
 		if let (Some(t), Some(r)) = (self.typing.as_mut(), typing) {
 			let top = self.grid.y() + row_shift(untimed_h, self.scroller.offset(), r.y);
-			t.field
-				.input
-				.resize(self.grid.x() + r.x + 3, top + r.y + 1, r.w - BAR_W - 4, 17);
+			t.field.place(
+				self.grid.x() + r.x + 3,
+				top + title_top(r, r.y < untimed_h),
+				r.w - BAR_W - 4,
+			);
 		}
 		self.header.redraw();
 		self.grid.redraw();
@@ -647,7 +649,7 @@ impl WeekView {
 		let mut field = TypeField::open(
 			&self.root,
 			self.grid.x() + x,
-			top + r.y + 1,
+			top + title_top(r, occ.event.untimed),
 			r.x + r.w - BAR_W - x,
 			&occ.event.title,
 			self.s,

@@ -232,16 +232,15 @@ pub fn paint_event(r: Rect, e: &Event, selected: bool, centered: bool) {
 	}
 	// The title is Helvetica 11 (MS Sans Serif 8), word-wrapped to the box left of the bar: the first line
 	// starts after the marker icons, the others at the left edge. Lines past the bottom are cut by the clip.
-	draw::set_font(Font::Helvetica, 11);
+	let lh = title_line_h();
 	draw::set_draw_color(Color::Black);
 	let asc = draw::height() - draw::descent();
-	let lh = draw::height();
 	let right = r.x + r.w - BAR_W - 2;
 	let lines = wrap_words(&e.title, right - x, right - (r.x + 3), &crate::draw::text_w);
 	let top = if centered {
 		r.y + (r.h - lines.len() as i32 * lh) / 2
 	} else {
-		r.y + 1
+		title_top(r, false)
 	};
 	for (i, line) in lines.iter().enumerate() {
 		let lx = if i == 0 { x } else { r.x + 3 };
@@ -600,6 +599,22 @@ pub fn event_menu() -> Option<BoxAction> {
 		2 => BoxAction::Alarm,
 		_ => BoxAction::Edit,
 	})
+}
+
+/// The line height of a box title, in Helvetica 11 (MS Sans Serif 8); the font is left set.
+pub fn title_line_h() -> i32 {
+	draw::set_font(Font::Helvetica, 11);
+	draw::height()
+}
+
+/// The top of the first title line of a one-line box `r`, as paint_event draws it: centered in a centered row
+/// (the untimed rows), 1 px below the top of an hour box. The in-place field puts its text there.
+pub fn title_top(r: Rect, centered: bool) -> i32 {
+	if centered {
+		r.y + (r.h - title_line_h()) / 2
+	} else {
+		r.y + 1
+	}
 }
 
 /// Draws `s` centered in the box (x, y, w, h).

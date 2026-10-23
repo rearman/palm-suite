@@ -8,8 +8,8 @@ use crate::date_picker::{self, add_months, Mode};
 use crate::date_shared::{
 	apply_alarm_preset, change_occurrence, date_title, delete_occurrence, draw_box, draw_diamond, draw_hour_label,
 	draw_outline, edit_alarm, edit_note, event_menu, marker_at, on_handle, on_resize_bar, paint_event, raised_cell,
-	title_x, visible_events, week_begins, work_day, BoxAction, Fill, Marker, Occ, Rect, BAR_W, CHANGE_TEXT, HOUR_LINE,
-	SEL_H,
+	title_line_h, title_top, title_x, visible_events, week_begins, work_day, BoxAction, Fill, Marker, Occ, Rect, BAR_W,
+	CHANGE_TEXT, HOUR_LINE, SEL_H,
 };
 use crate::draw::{fit, text_w, Clip, Dev, HIGHLIGHT};
 use crate::event_dialog;
@@ -240,7 +240,7 @@ impl TypeField {
 	/// a child of that group, drawn inside the view with no title bar.
 	pub fn open(g: &Group, x: i32, y: i32, w: i32, text: &str, s: Sender<Msg>) -> TypeField {
 		g.begin();
-		let mut input = Input::new(x, y, w.max(20), 17, None);
+		let mut input = Input::new(0, 0, 20, 17, None);
 		g.end();
 		Group::set_current(None::<&Group>);
 		input.set_frame(FrameType::FlatBox);
@@ -271,8 +271,17 @@ impl TypeField {
 			_ => false,
 		});
 		let _ = input.take_focus();
-		input.redraw();
-		TypeField { input }
+		let mut field = TypeField { input };
+		field.place(x, y, w);
+		field
+	}
+
+	/// Puts the field so its text lies where the box draws its title: (x, y) is the left end and the top of
+	/// the title's first line, in window coordinates. FLTK draws an input's text 1 px in from its left edge and
+	/// centers it in its height, so the field starts 1 px to the left and is one title line high.
+	pub fn place(&mut self, x: i32, y: i32, w: i32) {
+		self.input.resize(x - 1, y, w.max(20) + 1, title_line_h());
+		self.input.redraw();
 	}
 
 	pub fn text(&self) -> String {
@@ -1049,7 +1058,7 @@ impl DateView {
 			} else {
 				(self.grid.x(), self.grid.y() - self.scroller.offset())
 			};
-			t.field.input.resize(wx + r.x + 3, wy + r.y + 1, r.w - BAR_W - 4, 17);
+			t.field.place(wx + r.x + 3, wy + title_top(r, untimed), r.w - BAR_W - 4);
 		}
 	}
 
@@ -1336,7 +1345,7 @@ impl DateView {
 			(self.grid.x(), self.grid.y() - self.scroller.offset())
 		};
 		let x = title_x(r, &occ.event);
-		let y = if header { r.y + (r.h - 17) / 2 } else { r.y + 1 };
+		let y = title_top(r, header);
 		let mut field = TypeField::open(
 			&self.day_group,
 			wx + x,
