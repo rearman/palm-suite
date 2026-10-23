@@ -158,6 +158,8 @@ from its default. The JSON has no spaces.
 | x   | exceptions (sorted longs) | []      |
 | p   | private                   | false   |
 
+`weekDays` holds the days of a weekly repeat in bits 0 (Sunday) to 6 (Saturday). A monthly repeat by day (`repeat` 3) uses bit 7 (0x80) alone: set, the event falls on the last week of the month. The bit counts only when the first date lies in both the 4th and the last week of its month.
+
 #### To Do
 
 | Key | Field        | Default |

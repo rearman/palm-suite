@@ -355,7 +355,8 @@ class RepeatDialog(
             ev.repeat = when (g.selected) {
                 1 -> Repeat.DAY; 2 -> Repeat.WEEK; 3 -> Repeat.MONTH_DATE; 4 -> Repeat.YEAR; else -> Repeat.NONE
             }
-            if (ev.repeat == Repeat.WEEK && ev.weekDays == 0) ev.weekDays = 1 shl Recur.dow(LocalDate.ofEpochDay(ev.date))
+            // Bit 7 is the Repeat.LAST_WEEK flag of a monthly repeat by day, and no week day.
+            if (ev.repeat == Repeat.WEEK && (ev.weekDays and 0x7F) == 0) ev.weekDays = 1 shl Recur.dow(LocalDate.ofEpochDay(ev.date))
             buildArea()
         }
         page.clipChildren = false

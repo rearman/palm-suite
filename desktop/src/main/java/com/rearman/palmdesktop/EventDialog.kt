@@ -284,7 +284,8 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 	private var changed = false
 	private var kind = e.repeat
 	private var monthBy = if (e.repeat == Repeat.MONTH_DAY) Repeat.MONTH_DAY else Repeat.MONTH_DATE
-	private var weekMask = if (e.weekDays == 0) 1 shl Recur.dow(LocalDate.ofEpochDay(e.date)) else e.weekDays
+	// Bits 0 to 6 are the week days; a monthly repeat by day keeps its Repeat.LAST_WEEK flag in bit 7.
+	private var weekMask = (e.weekDays and 0x7F).let { if (it == 0) 1 shl Recur.dow(LocalDate.ofEpochDay(e.date)) else it }
 	private var end = e.repeatEnd
 
 	private val noneRadio = JRadioButton("None").themed()
@@ -441,7 +442,11 @@ private class RepeatForm(private val owner: Component, private val e: Event) {
 		w.repeat = kind
 		w.every = everySpin.value as Int
 		w.repeatEnd = if (on) end else -1
-		w.weekDays = if (on) (if (weekMask == 0) 1 shl Recur.dow(LocalDate.ofEpochDay(e.date)) else weekMask) else 0
+		w.weekDays = when {
+			!on -> 0
+			kind == Repeat.MONTH_DAY -> e.weekDays and Repeat.LAST_WEEK
+			else -> if (weekMask == 0) 1 shl Recur.dow(LocalDate.ofEpochDay(e.date)) else weekMask
+		}
 		return w
 	}
 

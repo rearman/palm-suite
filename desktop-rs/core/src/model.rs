@@ -14,6 +14,10 @@ pub mod repeat {
 	/// e.g. "the 12th of every month"
 	pub const MONTH_DATE: i32 = 4;
 	pub const YEAR: i32 = 5;
+	/// A flag in `week_days` of a MONTH_DAY repeat, which uses no week days: the event falls on the last week
+	/// of the month. It counts only for a first date in both the 4th and the last week, where the date alone
+	/// cannot tell; a first date in the 5th week is the last week anyway.
+	pub const LAST_WEEK: i32 = 0x80;
 }
 
 /// One Date Book record. A repeating record holds all of its occurrences.
@@ -456,6 +460,16 @@ pub fn is_last_week(day: i64) -> bool {
 	ymd(day + 7).month != ymd(day).month
 }
 
+/// The week of the month of a MONTH_DAY repeat, 1 to 4, or 5 for the last week.
+pub fn month_week(e: &Event) -> u32 {
+	let w = week_index(e.date);
+	if w == 4 && is_last_week(e.date) && e.week_days & repeat::LAST_WEEK != 0 {
+		5
+	} else {
+		w
+	}
+}
+
 fn months_between(a: i64, b: i64) -> i64 {
 	let (a, b) = (ymd(a), ymd(b));
 	(b.year - a.year) * 12 + (b.month as i64 - a.month as i64)
@@ -509,7 +523,7 @@ pub fn occurs_on(e: &Event, day: i64) -> bool {
 		repeat::MONTH_DAY => {
 			if dow(day) != dow(e.date) || months_between(e.date, day) % n != 0 {
 				false
-			} else if week_index(e.date) == 5 {
+			} else if month_week(e) == 5 {
 				is_last_week(day)
 			} else {
 				week_index(day) == week_index(e.date)
@@ -569,7 +583,7 @@ pub fn describe(e: &Event) -> String {
 		}
 		repeat::MONTH_DAY => format!(
 			"The {} {} of {}",
-			ORDINAL_WEEK[week_index(e.date) as usize],
+			ORDINAL_WEEK[month_week(e) as usize],
 			DOW_LONG[dow(e.date) as usize],
 			if n == 1 {
 				"every month".to_string()

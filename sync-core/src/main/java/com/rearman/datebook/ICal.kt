@@ -64,9 +64,9 @@ object ICal {
     }
 
     /** BYDAY of a "Nth weekday of the month" repeat: "3MO", or "-1MO" for the last one. */
-    private fun weekCode(s: LocalDate): String {
-        val w = Recur.weekIndex(s)
-        return (if (w == 5) "-1" else "$w") + dayCodes[Recur.dow(s)]
+    private fun weekCode(e: Event): String {
+        val w = Recur.monthWeek(e)
+        return (if (w == 5) "-1" else "$w") + dayCodes[Recur.dow(LocalDate.ofEpochDay(e.date))]
     }
 
     /** The RRULE value of [e], or null for a one-time event. */
@@ -80,7 +80,7 @@ object ICal {
                 val days = (0..6).filter { (mask and (1 shl it)) != 0 }.joinToString(",") { dayCodes[it] }
                 r.append("WEEKLY;WKST=SU;BYDAY=$days")
             }
-            Repeat.MONTH_DAY -> r.append("MONTHLY;BYDAY=${weekCode(s)}")
+            Repeat.MONTH_DAY -> r.append("MONTHLY;BYDAY=${weekCode(e)}")
             Repeat.MONTH_DATE -> r.append("MONTHLY;BYMONTHDAY=${s.dayOfMonth}")
             Repeat.YEAR -> r.append("YEARLY")
             else -> return null
@@ -261,7 +261,11 @@ object ICal {
             }
             "MONTHLY" -> when {
                 days == null -> Repeat.MONTH_DATE
-                monthDay == null && days.size == 1 && days[0] == weekCode(s) -> Repeat.MONTH_DAY
+                monthDay == null && days.size == 1 && days[0] == weekCode(e.copy(weekDays = 0)) -> Repeat.MONTH_DAY
+                // "-1SU" from a first date in both the 4th and the last week: the last week.
+                monthDay == null && days.size == 1 && days[0] == weekCode(e.copy(weekDays = Repeat.LAST_WEEK)) -> {
+                    weekDays = Repeat.LAST_WEEK; Repeat.MONTH_DAY
+                }
                 else -> return false
             }
             "YEARLY" -> if (days == null) Repeat.YEAR else return false

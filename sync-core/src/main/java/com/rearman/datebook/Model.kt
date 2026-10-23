@@ -12,6 +12,13 @@ object Repeat {
     const val MONTH_DAY = 3   // e.g. "3rd Monday of every month"
     const val MONTH_DATE = 4  // e.g. "the 12th of every month"
     const val YEAR = 5
+
+    /**
+     * A flag in [Event.weekDays] of a [MONTH_DAY] repeat, which uses no week days: the event falls on
+     * the last week of the month. It counts only for a first date in both the 4th and the last week,
+     * where the date alone cannot tell; a first date in the 5th week is the last week anyway.
+     */
+    const val LAST_WEEK = 0x80
 }
 
 /** One Date Book record. A repeating record holds all of its occurrences. */
@@ -227,6 +234,13 @@ object Recur {
 
     fun isLastWeek(d: LocalDate): Boolean = d.plusDays(7).monthValue != d.monthValue
 
+    /** The week of the month of a [Repeat.MONTH_DAY] repeat, 1..4, or 5 for the last week. */
+    fun monthWeek(e: Event): Int {
+        val s = LocalDate.ofEpochDay(e.date)
+        val w = weekIndex(s)
+        return if (w == 4 && isLastWeek(s) && (e.weekDays and Repeat.LAST_WEEK) != 0) 5 else w
+    }
+
     private fun monthsBetween(a: LocalDate, b: LocalDate): Long =
         ((b.year - a.year) * 12 + (b.monthValue - a.monthValue)).toLong()
 
@@ -265,7 +279,7 @@ object Recur {
             Repeat.MONTH_DAY -> {
                 if (dow(d) != dow(s)) false
                 else if (monthsBetween(s, d) % n != 0L) false
-                else if (weekIndex(s) == 5) isLastWeek(d)
+                else if (monthWeek(e) == 5) isLastWeek(d)
                 else weekIndex(d) == weekIndex(s)
             }
             Repeat.YEAR ->
@@ -302,7 +316,7 @@ object Recur {
                 (if (n == 1) "Every week on " else "Every $n weeks on ") + names
             }
             Repeat.MONTH_DAY -> {
-                val w = ordinal[weekIndex(s)]
+                val w = ordinal[monthWeek(e)]
                 "The $w ${Fmt.dowLong[dow(s)]} of " +
                     (if (n == 1) "every month" else "every $n months")
             }

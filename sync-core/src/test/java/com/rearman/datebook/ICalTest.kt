@@ -35,6 +35,21 @@ class ICalTest {
         assertEquals(listOf(bday.dupKey(), last.dupKey()), keys(text))
     }
 
+    @Test fun lastWeekFlagPicksTheLastWeekFromA4thWeekDate() {
+        // October 25, 2026 is both the 4th and the last Sunday of October.
+        val fourth = Event(title = "Club", date = day(2026, 10, 25), untimed = true, repeat = Repeat.MONTH_DAY)
+        val last = fourth.copy(weekDays = Repeat.LAST_WEEK)
+        // November 2026 has five Sundays: the 4th is the 22nd, the last the 29th.
+        assertTrue(Recur.occursOn(fourth, day(2026, 11, 22)))
+        assertTrue(!Recur.occursOn(fourth, day(2026, 11, 29)))
+        assertTrue(Recur.occursOn(last, day(2026, 11, 29)))
+        assertTrue(!Recur.occursOn(last, day(2026, 11, 22)))
+        assertEquals("The last Sunday of every month", Recur.describe(last))
+        val text = ICal.export(listOf(last))
+        assertTrue(text.contains("RRULE:FREQ=MONTHLY;BYDAY=-1SU\r\n"))
+        assertEquals(listOf(last.dupKey()), keys(text))
+    }
+
     @Test fun weeklyStartMovesToFirstOccurrence() {
         val e = Event(title = "Gym", date = day(2026, 10, 21), start = 8 * 60, repeat = Repeat.WEEK, every = 2, weekDays = 1 shl 1)
         assertEquals(day(2026, 11, 2), Recur.firstDay(e))

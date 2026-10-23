@@ -2,7 +2,7 @@
 //! writes floating local times, and import changes UTC and TZID times to the given time zone.
 
 use crate::days::{dow, epoch_day, month_length, ymd};
-use crate::model::{first_day, occurs_on, repeat, week_index, Event};
+use crate::model::{first_day, month_week, occurs_on, repeat, Event};
 use jiff::civil::DateTime;
 use jiff::tz::TimeZone;
 use jiff::Timestamp;
@@ -179,12 +179,12 @@ pub fn export(events: &[Event], now: Timestamp) -> String {
 }
 
 /// BYDAY of a "Nth weekday of the month" repeat: "3MO", or "-1MO" for the last one.
-fn week_code(day: i64) -> String {
-	let w = week_index(day);
+fn week_code(e: &Event) -> String {
+	let w = month_week(e);
 	format!(
 		"{}{}",
 		if w == 5 { "-1".to_string() } else { w.to_string() },
-		DAY_CODES[dow(day) as usize]
+		DAY_CODES[dow(e.date) as usize]
 	)
 }
 
@@ -206,7 +206,7 @@ fn rule(e: &Event) -> Option<String> {
 				.join(",");
 			r.push_str(&format!("WEEKLY;WKST=SU;BYDAY={days}"));
 		}
-		repeat::MONTH_DAY => r.push_str(&format!("MONTHLY;BYDAY={}", week_code(e.date))),
+		repeat::MONTH_DAY => r.push_str(&format!("MONTHLY;BYDAY={}", week_code(e))),
 		repeat::MONTH_DATE => r.push_str(&format!("MONTHLY;BYMONTHDAY={}", ymd(e.date).day)),
 		repeat::YEAR => r.push_str("YEARLY"),
 		_ => return None,
@@ -530,31 +530,53 @@ fn set_rule(e: &mut Event, value: &str, zone: &TimeZone) -> bool {
 		}
 	}
 	let mut week_days = 0;
-	let rep = match freq {
-		Some("DAILY") => match mask {
-			None => repeat::DAY,
-			Some(m) if m < 0x100 && every == 1 => {
-				week_days = m;
-				repeat::WEEK
-			}
+	let rep =
+		match freq {
+			Some("DAILY") => match mask {
+				None => repeat::DAY,
+				Some(m) if m < 0x100 && every == 1 => {
+					week_days = m;
+					repeat::WEEK
+				}
+				_ => return false,
+			},
+			Some("WEEKLY") => match mask {
+				None => repeat::WEEK,
+				Some(m) if m < 0x100 => {
+					week_days = m;
+					repeat::WEEK
+				}
+				_ => return false,
+			},
+			Some("MONTHLY") => match &days {
+				None => repeat::MONTH_DATE,
+				Some(ds)
+					if month_day.is_none()
+						&& ds.len() == 1 && ds[0]
+						== week_code(&Event {
+							week_days: 0,
+							..e.clone()
+						}) =>
+				{
+					repeat::MONTH_DAY
+				}
+				// "-1SU" from a first date in both the 4th and the last week: the last week.
+				Some(ds)
+					if month_day.is_none()
+						&& ds.len() == 1 && ds[0]
+						== week_code(&Event {
+							week_days: repeat::LAST_WEEK,
+							..e.clone()
+						}) =>
+				{
+					week_days = repeat::LAST_WEEK;
+					repeat::MONTH_DAY
+				}
+				_ => return false,
+			},
+			Some("YEARLY") if days.is_none() => repeat::YEAR,
 			_ => return false,
-		},
-		Some("WEEKLY") => match mask {
-			None => repeat::WEEK,
-			Some(m) if m < 0x100 => {
-				week_days = m;
-				repeat::WEEK
-			}
-			_ => return false,
-		},
-		Some("MONTHLY") => match &days {
-			None => repeat::MONTH_DATE,
-			Some(ds) if month_day.is_none() && ds.len() == 1 && ds[0] == week_code(e.date) => repeat::MONTH_DAY,
-			_ => return false,
-		},
-		Some("YEARLY") if days.is_none() => repeat::YEAR,
-		_ => return false,
-	};
+		};
 	let mut t = Event {
 		repeat: rep,
 		every,
@@ -759,4 +781,39 @@ fn prop(line: &str) -> Option<Prop> {
 		params,
 		value: line[colon + 1..].to_string(),
 	})
+}
+
+#[cfg(test)]
+mod last_week_tests {
+	use super::*;
+	use crate::days::epoch_day;
+	use crate::model::describe;
+
+	#[test]
+	fn the_last_week_flag_picks_the_last_week_from_a_4th_week_date() {
+		// October 25, 2026 is both the 4th and the last Sunday of October.
+		let fourth = Event {
+			title: "Club".into(),
+			date: epoch_day(2026, 10, 25),
+			untimed: true,
+			repeat: repeat::MONTH_DAY,
+			..Default::default()
+		};
+		let last = Event {
+			week_days: repeat::LAST_WEEK,
+			..fourth.clone()
+		};
+		// November 2026 has five Sundays: the 4th is the 22nd, the last the 29th.
+		assert!(occurs_on(&fourth, epoch_day(2026, 11, 22)));
+		assert!(!occurs_on(&fourth, epoch_day(2026, 11, 29)));
+		assert!(occurs_on(&last, epoch_day(2026, 11, 29)));
+		assert!(!occurs_on(&last, epoch_day(2026, 11, 22)));
+		assert_eq!(describe(&last), "The last Sunday of every month");
+		let text = export(std::slice::from_ref(&last), Timestamp::UNIX_EPOCH);
+		assert!(text.contains("RRULE:FREQ=MONTHLY;BYDAY=-1SU\r\n"));
+		let back = parse(&text, &TimeZone::UTC);
+		assert_eq!(back.events.len(), 1);
+		assert_eq!(back.events[0].repeat, repeat::MONTH_DAY);
+		assert_eq!(back.events[0].week_days, repeat::LAST_WEEK);
+	}
 }

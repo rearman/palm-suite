@@ -44,7 +44,7 @@ internal fun describeDesktop(e: Event): String {
 			}
 		}
 		Repeat.MONTH_DAY -> {
-			val w = Recur.weekIndex(s)
+			val w = Recur.monthWeek(e)
 			val weekWord = if (w == 5) "last" else Fmt.ordinal(w)
 			"The $weekWord ${Fmt.dowLong[Recur.dow(s)]} of " + words("every", freq, "month")
 		}
