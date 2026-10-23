@@ -8,6 +8,40 @@ use fltk::app;
 use fltk::draw;
 use fltk::enums::{Color, FrameType};
 
+thread_local! {
+	/// The logical clips of the open [Clip] guards, innermost last.
+	static CLIPS: std::cell::RefCell<Vec<(i32, i32, i32, i32)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// A clip in logical pixels for as long as the guard lives. FLTK keeps its clips in logical pixels and
+/// selects them at the scale of the moment of a push or a pop, so under the override of a [Dev] they come
+/// out at scale 1. A Dev therefore clips to the innermost Clip in device pixels of its own.
+pub struct Clip;
+
+impl Clip {
+	pub fn push(x: i32, y: i32, w: i32, h: i32) -> Clip {
+		draw::push_clip(x, y, w, h);
+		CLIPS.with(|c| c.borrow_mut().push((x, y, w, h)));
+		Clip
+	}
+
+	/// A clip of a table cell (x, y, w, h), cut to the inside of the edge of its table `t`: the table clips
+	/// its cells, and a Dev does not see that clip.
+	pub fn cell<T: fltk::prelude::WidgetExt>(t: &T, x: i32, y: i32, w: i32, h: i32) -> Clip {
+		let (tx, ty, tr, tb) = (t.x() + 2, t.y() + 2, t.x() + t.w() - 2, t.y() + t.h() - 2);
+		let (x0, y0) = (x.max(tx), y.max(ty));
+		let (x1, y1) = ((x + w).min(tr), (y + h).min(tb));
+		Clip::push(x0, y0, (x1 - x0).max(0), (y1 - y0).max(0))
+	}
+}
+
+impl Drop for Clip {
+	fn drop(&mut self) {
+		CLIPS.with(|c| c.borrow_mut().pop());
+		draw::pop_clip();
+	}
+}
+
 /// Device-pixel drawing for custom views and edges.
 pub struct Dev {
 	/// Device pixels per logical pixel for the coordinates: the display scale, or 1 where the override
@@ -15,6 +49,8 @@ pub struct Dev {
 	pub s: f32,
 	/// The scale to restore at the end.
 	saved: f32,
+	/// The clips the Dev pushed in device pixels, to pop at the end.
+	pushed: u8,
 }
 
 impl Dev {
@@ -23,7 +59,19 @@ impl Dev {
 		// The Cairo driver (Linux) applies the override only on the screen. On an offscreen or print
 		// surface a second call still returns the scale; then draw in logical pixels and let Cairo scale.
 		let s = if draw::override_scale() == 1.0 { saved } else { 1.0 };
-		Dev { s, saved }
+		let mut d = Dev { s, saved, pushed: 0 };
+		if s != 1.0 {
+			// No clip in logical pixels may stay on top while the scale is 1: a push or a pop inside would
+			// select it at the wrong size.
+			draw::push_no_clip();
+			d.pushed = 1;
+			if let Some((x, y, w, h)) = CLIPS.with(|c| c.borrow().last().copied()) {
+				let (dx, dy, dw, dh) = d.rect(x, y, w, h);
+				draw::push_clip(dx, dy, dw, dh);
+				d.pushed = 2;
+			}
+		}
+		d
 	}
 
 	/// A logical coordinate in device pixels.
@@ -45,7 +93,14 @@ impl Dev {
 
 impl Drop for Dev {
 	fn drop(&mut self) {
+		for _ in 0..self.pushed {
+			draw::pop_clip();
+		}
 		draw::restore_scale(self.saved);
+		// The pops selected the logical clip at scale 1; select it again at the scale.
+		if self.pushed > 0 {
+			draw::restore_clip();
+		}
 	}
 }
 

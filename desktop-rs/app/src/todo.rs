@@ -173,9 +173,8 @@ impl TodoView {
 				let (Some(line), Some(kind)) = (rows.get(row as usize), c.borrow().get(col as usize).copied()) else {
 					return;
 				};
-				draw::push_clip(cx, cy, cw, ch);
+				let _clip = crate::draw::Clip::cell(t, cx, cy, cw, ch);
 				draw_cell(line, kind, t.row_selected(row), (cx, cy, cw, ch), (&note, &key));
-				draw::pop_clip();
 			}
 			_ => {}
 		});
@@ -499,6 +498,18 @@ impl TodoView {
 		}
 	}
 
+	/// Shows the item `id` in the table, changing the filters when it is hidden, and selects it.
+	pub fn select(&mut self, ctx: &mut Ctx, id: i64) {
+		let Some(t) = ctx.store.todos.iter().find(|t| t.id == id).cloned() else {
+			return;
+		};
+		reveal(&t, ctx.settings, today());
+		self.selected_id = Some(id);
+		self.loaded_id = None;
+		self.refresh(ctx);
+		let _ = self.table.take_focus();
+	}
+
 	pub fn new_record(&mut self, ctx: &mut Ctx) {
 		let mut t = Self::new_todo(ctx.settings, "");
 		ctx.store.save_todo(&mut t);
@@ -786,7 +797,7 @@ fn draw_cell(r: &Row, kind: Col, selected: bool, (x, y, w, h): (i32, i32, i32, i
 
 /// The plain black To Do check box of Palm Desktop, 13 px, at (x, y): a white square in a black edge, and
 /// the check mark when `done`. Drawn in device pixels.
-fn draw_check(x: i32, y: i32, done: bool) {
+pub(crate) fn draw_check(x: i32, y: i32, done: bool) {
 	let d = Dev::begin();
 	let (bx, by, bw, bh) = d.rect(x + 1, y + 1, 11, 11);
 	draw::draw_rect_fill(bx, by, bw, bh, Color::White);

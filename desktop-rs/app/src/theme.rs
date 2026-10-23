@@ -112,6 +112,10 @@ pub fn icon(name: &str) -> PngImage {
 		"private" => icon!("private"),
 		"note" => icon!("note"),
 		"app48" => icon!("app48"),
+		"repeat" => icon!("repeat"),
+		"alarm" => icon!("alarm"),
+		"clock" => icon!("clock"),
+		"calendar" => icon!("calendar"),
 		_ => panic!("no icon {name}"),
 	};
 	PngImage::from_data(bytes).expect("the icons are valid PNG files")

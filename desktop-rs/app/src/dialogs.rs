@@ -30,6 +30,34 @@ pub fn confirm_delete(settings: &Settings, no_confirm: bool, question: &str) -> 
 	dialog::choice2_default(question, "Yes", "No", "") == Some(0)
 }
 
+/// Asks `text` with one button for each of `buttons`, Enter pressing `default`. The index of the button
+/// pressed, or None when the dialog is closed.
+pub fn ask(title: &str, text: &str, buttons: &[&str], default: usize) -> Option<usize> {
+	let n = buttons.len() as i32;
+	let w = (24 + 78 * n).max(300);
+	let mut win = Window::default().with_size(w, 100).with_label(title);
+	let mut q = fltk::frame::Frame::new(12, 10, w - 24, 48, None);
+	q.set_label(&text.replace('@', "@@").replace('&', "&&"));
+	q.set_align(Align::Left | Align::Inside | Align::Wrap);
+	let answer = Rc::new(Cell::new(None));
+	let x0 = (w - 78 * n + 6) / 2;
+	for (i, label) in buttons.iter().enumerate() {
+		let mut b = Button::new(x0 + 78 * i as i32, 66, 72, 23, None);
+		b.set_label(label);
+		if i == default {
+			b.set_shortcut(fltk::enums::Shortcut::None | Key::Enter);
+		}
+		let (answer, mut win) = (answer.clone(), win.clone());
+		b.set_callback(move |_| {
+			answer.set(Some(i));
+			win.hide();
+		});
+	}
+	win.end();
+	run_modal(&mut win);
+	answer.get()
+}
+
 /// Asks for a name. None on Cancel or a blank name; else the name, trimmed.
 pub fn prompt(label: &str, initial: &str) -> Option<String> {
 	dialog::input_default(label, initial)

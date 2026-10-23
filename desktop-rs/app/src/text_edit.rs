@@ -129,19 +129,24 @@ impl Field {
 		}
 	}
 
+	/// Shows the right-click menu of the field at the pointer and runs the chosen item.
+	pub fn popup(&mut self) {
+		let _ = match self {
+			Field::Editor(e) => e.take_focus(),
+			Field::Input(i) => i.take_focus(),
+		};
+		if let Some(a) = menu(self.state()) {
+			self.run(a);
+		}
+	}
+
 	/// Gives the field its right-click menu.
 	pub fn attach_menu(&self) {
 		fn on_push(mut f: Field) -> bool {
 			if app::event_mouse_button() != MouseButton::Right {
 				return false;
 			}
-			let _ = match &mut f {
-				Field::Editor(e) => e.take_focus(),
-				Field::Input(i) => i.take_focus(),
-			};
-			if let Some(a) = menu(f.state()) {
-				f.run(a);
-			}
+			f.popup();
 			true
 		}
 		match self.clone() {

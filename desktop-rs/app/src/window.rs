@@ -1,7 +1,7 @@
 //! The main window, as MainFrame.kt: the menus, the toolbar, the launcher bar on the left, the four views in
 //! the middle and the status bar at the bottom. Every control sends a [Msg]; the main loop does the work.
 
-use crate::msg::{EditCmd, Msg, TodoMsg, View};
+use crate::msg::{DateMsg, EditCmd, Msg, TodoMsg, View};
 use crate::text_edit::EditState;
 use crate::theme::{self, icon, PANEL, WORKSPACE};
 use fltk::app::Sender;
@@ -158,18 +158,6 @@ impl Ui {
 				}
 			}
 		}
-		// The features that the views of the port have so far.
-		let ported = view != View::Date;
-		for path in ["&Tools/&Categories...", "&View/&List By..."] {
-			if let Some(mut item) = self.bar.find_item(path) {
-				if ported {
-					item.activate();
-				} else {
-					item.deactivate();
-				}
-			}
-		}
-		self.set_tool("new", ported);
 		self.win.redraw();
 	}
 
@@ -275,9 +263,14 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 		edit(EditCmd::Delete),
 	);
 	bar.add("&Edit/Select &All", ctrl('a'), normal, edit(EditCmd::SelectAll));
-	bar.add("&Edit/&New Event...", ctrl('n'), later, none);
-	bar.add("&Edit/&Edit Event...", Shortcut::None, later, none);
-	bar.add("&Edit/De&lete Event", Shortcut::None, later, none);
+	bar.add("&Edit/&New Event...", ctrl('n'), normal, edit(EditCmd::New));
+	bar.add(
+		"&Edit/&Edit Event...",
+		Shortcut::None,
+		normal,
+		send(|| Msg::Date(DateMsg::Edit)),
+	);
+	bar.add("&Edit/De&lete Event", Shortcut::None, normal, edit(EditCmd::Delete));
 	bar.add("&Edit/&New To Do", ctrl('n'), normal, edit(EditCmd::New));
 	bar.add("&Edit/&New Memo", ctrl('n'), normal, edit(EditCmd::New));
 	bar.add("&Edit/&New Address...", ctrl('n'), divider, edit(EditCmd::New));
@@ -318,12 +311,12 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 		normal,
 		send(|| Msg::Todo(TodoMsg::Show)),
 	);
-	bar.add("&View/&List By...", Shortcut::None, later, send(|| Msg::ListBy));
+	bar.add("&View/&List By...", Shortcut::None, normal, send(|| Msg::ListBy));
 
 	bar.add(
 		"&Tools/&Categories...",
 		Shortcut::None,
-		later_div,
+		divider,
 		send(|| Msg::Categories),
 	);
 	bar.add(
@@ -333,7 +326,7 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 		send(|| Msg::CustomLabels),
 	);
 	// Purge names what it deletes: the events of the Date Book, the completed items of the To Do List.
-	bar.add("&Tools/&Purge Events...", Shortcut::None, later_div, none);
+	bar.add("&Tools/&Purge Events...", Shortcut::None, divider, send(|| Msg::Purge));
 	bar.add(
 		"&Tools/&Purge Completed To Do's...",
 		Shortcut::None,
@@ -427,22 +420,11 @@ fn launcher_button(y: i32, label: &str, png: &str, s: Sender<Msg>, view: View) -
 	b
 }
 
-/// The area of one view. The views themselves come in later phases of the port.
+/// The area of one view; each view builds itself in its group.
 fn view_group(view: View, x: i32, y: i32, w: i32, h: i32) -> Group {
 	let mut g = Group::new(x, y, w, h, None);
 	g.set_frame(FrameType::FlatBox);
 	g.set_color(if view == View::Date { WORKSPACE } else { PANEL });
-	// The Address Book, the To Do List and the Memo Pad build themselves in their groups; the Date Book comes
-	// in phase 8 of the port.
-	let later = match view {
-		View::Date => Some("The Date Book comes in phase 8 of the port."),
-		View::Address | View::Todo | View::Memo => None,
-	};
-	if let Some(text) = later {
-		let mut note = Frame::new(x, y, w, h, text);
-		note.set_label_color(Color::from_rgb(96, 96, 96));
-		g.resizable(&note);
-	}
 	g.end();
 	g.hide();
 	g

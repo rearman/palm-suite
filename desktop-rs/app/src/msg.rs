@@ -98,8 +98,98 @@ pub enum TodoMsg {
 	PasteText(String),
 }
 
+/// The Day, Week and Month views of the Date Book.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DateMode {
+	Day,
+	Week,
+	Month,
+}
+
+impl DateMode {
+	/// The name in the setting "dateMode".
+	pub fn key(self) -> &'static str {
+		match self {
+			DateMode::Day => "day",
+			DateMode::Week => "week",
+			DateMode::Month => "month",
+		}
+	}
+}
+
+/// What a mouse event of a Date Book view was.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MouseKind {
+	Press,
+	Drag,
+	Release,
+	Move,
+	/// The wheel turned by this many lines.
+	Wheel(i32),
+}
+
+/// A mouse event on a Date Book view, in window coordinates.
+#[derive(Clone, Copy, Debug)]
+pub struct Mouse {
+	pub kind: MouseKind,
+	pub x: i32,
+	pub y: i32,
+	pub right: bool,
+	/// The second click of a double click.
+	pub double: bool,
+}
+
+/// An event of the field that types a new event or a title into a box.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldEv {
+	Enter,
+	Escape,
+	/// The field lost the focus.
+	Lost,
+	Double,
+}
+
+/// The events of the Date Book.
+pub enum DateMsg {
+	Mode(DateMode),
+	/// Today, or a double click on a tab.
+	Today,
+	New,
+	/// The Edit button, or Edit Event of the Edit menu.
+	Edit,
+	/// A double click on the Day title: pick a day.
+	TitleDouble,
+	/// The year arrows of the right pane.
+	Year(i32),
+	/// A month button of the right pane, 1 to 12.
+	Month(u32),
+	/// A click on the calendar of the right pane.
+	Calendar(Mouse),
+	/// The Address (true) or To Do segment of the right pane.
+	Pane(bool),
+	Category,
+	Look,
+	/// The mouse on the list of the right pane.
+	PaneList(Mouse),
+	/// The mouse on the untimed rows (true) or the hours of the Day view.
+	Day(bool, Mouse),
+	Scrolled,
+	Field(FieldEv),
+	/// The arrows of the Week and Month views: back (-1) or forward (1).
+	Step(i32),
+	GoTo,
+	WeekHeader(Mouse),
+	WeekGrid(Mouse),
+	MonthGrid(Mouse),
+	/// A printable key in the Month view: a new event that holds it.
+	MonthKey(char),
+}
+
 pub enum Msg {
 	Memo(MemoMsg),
+	Date(DateMsg),
+	/// Shows an item in the To Do List: a double click on the To Do pane of the Day view.
+	ShowTodo(i64),
 	Address(AddressMsg),
 	Todo(TodoMsg),
 	Edit(EditCmd),

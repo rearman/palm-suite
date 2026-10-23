@@ -35,11 +35,12 @@ const RIGHT: i32 = 36;
 /// The most of a narrow row that the number column takes.
 const MAX_SHARE: f64 = 0.55;
 
-/// One row of the Address List: the list name, and the number and its letter.
-struct Row {
-	name: String,
-	number: String,
-	letter: String,
+/// One row of the Address List: the list name, and the number and its letter. The address pane of the
+/// Day view draws the same rows.
+pub(crate) struct Row {
+	pub(crate) name: String,
+	pub(crate) number: String,
+	pub(crate) letter: String,
 }
 
 /// What the card draws.
@@ -109,15 +110,7 @@ impl AddressView {
 		table.draw_cell(move |t, ctx, row, _col, cx, cy, cw, ch| match ctx {
 			TableContext::StartPage => {
 				records::fit_column(t, ROW_H);
-				draw::set_font(fonts.sans, 11);
-				let w = r
-					.borrow()
-					.iter()
-					.filter(|x| !x.number.is_empty())
-					.map(|x| text_w(&format!("{} {}", x.number, x.letter)))
-					.max()
-					.unwrap_or(0);
-				widest.set(w);
+				widest.set(widest_number(&r.borrow()));
 			}
 			TableContext::Cell => {
 				let rows = r.borrow();
@@ -253,20 +246,7 @@ impl AddressView {
 	fn rebuild_list(&mut self, ctx: &Ctx) {
 		let by_company = by_company(ctx.settings);
 		self.shown = visible(ctx);
-		*self.rows.borrow_mut() = self
-			.shown
-			.iter()
-			.map(|a| {
-				let (number, letter) = a
-					.list_phone()
-					.map_or((String::new(), String::new()), |(n, l)| (n, l.to_string()));
-				Row {
-					name: a.list_name(by_company),
-					number,
-					letter,
-				}
-			})
-			.collect();
+		*self.rows.borrow_mut() = self.shown.iter().map(|a| row_of(a, by_company)).collect();
 		self.table.set_rows(self.shown.len() as i32);
 		// New rows take FLTK's default height.
 		self.table.set_row_height_all(ROW_H);
@@ -441,8 +421,30 @@ const LIST_MSGS: ListMsgs = ListMsgs {
 	cell: None,
 };
 
+/// The row of `a` in an address list.
+pub(crate) fn row_of(a: &Address, by_company: bool) -> Row {
+	let (number, letter) = a
+		.list_phone()
+		.map_or((String::new(), String::new()), |(n, l)| (n, l.to_string()));
+	Row {
+		name: a.list_name(by_company),
+		number,
+		letter,
+	}
+}
+
+/// The width of the widest "number L" of `rows`, which sets the number column.
+pub(crate) fn widest_number(rows: &[Row]) -> i32 {
+	draw::set_font(theme::fonts().sans, 11);
+	rows.iter()
+		.filter(|x| !x.number.is_empty())
+		.map(|x| text_w(&format!("{} {}", x.number, x.letter)))
+		.max()
+		.unwrap_or(0)
+}
+
 /// True when the Address List sorts by company (the setting "addressListBy" 1).
-fn by_company(settings: &Settings) -> bool {
+pub(crate) fn by_company(settings: &Settings) -> bool {
 	settings.get_int("addressListBy", 0) == 1
 }
 
@@ -575,7 +577,7 @@ fn fit_name(name: &str, w: i32, measure: &dyn Fn(&str) -> i32) -> String {
 /// is too narrow, the number column takes at most MAX_SHARE of the room and both columns end in "...". The
 /// letter after the number always shows. A selected row is filled from the left edge to the end of the
 /// number.
-fn draw_row(r: &Row, selected: bool, (x, y, w, h): (i32, i32, i32, i32), widest: i32) {
+pub(crate) fn draw_row(r: &Row, selected: bool, (x, y, w, h): (i32, i32, i32, i32), widest: i32) {
 	draw::set_font(theme::fonts().sans, 11);
 	let room = (w - RIGHT).max(0);
 	let number_w = widest.min((room as f64 * MAX_SHARE) as i32);

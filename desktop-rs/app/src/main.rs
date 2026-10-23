@@ -9,6 +9,7 @@ use fltk::app::{self, TimeoutHandle};
 use fltk::dialog;
 use fltk::prelude::*;
 use palm_desktop::address::AddressView;
+use palm_desktop::date::DateView;
 use palm_desktop::memo::MemoView;
 use palm_desktop::msg::{EditCmd, Msg, View};
 use palm_desktop::records::ListAction;
@@ -20,7 +21,7 @@ use palm_desktop::text_edit::{EditState, Field, TextAction};
 use palm_desktop::todo::TodoView;
 use palm_desktop::view::Ctx;
 use palm_desktop::window::Ui;
-use palm_desktop::{address_dialog, category, platform, shot, theme};
+use palm_desktop::{address_dialog, category, event_dialog, platform, shot, theme};
 use std::fs::File;
 
 /// A sync runs this long after the last local change, so one action that writes several records syncs once.
@@ -35,6 +36,9 @@ struct App {
 	view: View,
 	/// The selected day of the Date views, as an epoch day. Starts on today.
 	day: i64,
+	/// The day the views show.
+	shown_day: i64,
+	h24: bool,
 	show_private: bool,
 	dialog: Option<SyncDialog>,
 	change_timer: Option<TimeoutHandle>,
@@ -44,6 +48,7 @@ struct App {
 	memo: MemoView,
 	address: AddressView,
 	todo: TodoView,
+	date: DateView,
 	/// The store version the views show.
 	shown_version: u64,
 	_lock: File,
@@ -71,6 +76,8 @@ macro_rules! ctx {
 			settings: &mut $a.settings,
 			show_private: $a.show_private,
 			no_confirm: false,
+			day: &mut $a.day,
+			h24: $a.h24,
 			s: $a.sender,
 		}
 	};
@@ -91,22 +98,36 @@ impl App {
 				let mut ctx = ctx!(self);
 				self.todo.handle(m, &mut ctx);
 			}
-			Msg::Purge => {
-				if self.view == View::Todo
-					&& dialog::choice2_default("Delete all completed To Do items?", "OK", "Cancel", "") == Some(0)
-				{
-					let n = self.store.purge_todos();
-					dialog::message_default(&format!("{n} To Do items purged."));
-				}
+			Msg::Date(m) => {
+				let mut ctx = ctx!(self);
+				self.date.handle(m, &mut ctx);
 			}
+			Msg::ShowTodo(id) => {
+				self.show_view(View::Todo);
+				self.save_setting("view", View::Todo.key());
+				let mut ctx = ctx!(self);
+				self.todo.select(&mut ctx, id);
+			}
+			Msg::Purge => match self.view {
+				View::Todo => {
+					if dialog::choice2_default("Delete all completed To Do items?", "OK", "Cancel", "") == Some(0) {
+						let n = self.store.purge_todos();
+						dialog::message_default(&format!("{n} To Do items purged."));
+					}
+				}
+				View::Date => {
+					let mut ctx = ctx!(self);
+					event_dialog::purge_events(&mut ctx);
+				}
+				_ => {}
+			},
 			Msg::Edit(cmd) => self.edit(cmd),
 			Msg::EditState => {}
 			Msg::EditCategories(app_no) => category::edit_categories(&mut self.store, app_no),
 			Msg::Categories => match self.view {
 				View::Memo => category::edit_categories(&mut self.store, 1),
 				View::Address => category::edit_categories(&mut self.store, 2),
-				View::Todo => category::edit_categories(&mut self.store, 0),
-				View::Date => {}
+				View::Todo | View::Date => category::edit_categories(&mut self.store, 0),
 			},
 			Msg::ListBy => {
 				let mut ctx = ctx!(self);
@@ -216,7 +237,7 @@ impl App {
 			Msg::Exit => app::quit(),
 		}
 		self.check_save();
-		if self.store.version != self.shown_version {
+		if self.store.version != self.shown_version || self.day != self.shown_day {
 			self.refresh_views();
 		}
 		self.update_edit_state();
@@ -229,6 +250,8 @@ impl App {
 		self.memo.refresh(&mut ctx);
 		self.address.refresh(&mut ctx);
 		self.todo.refresh(&mut ctx);
+		self.date.refresh(&mut ctx);
+		self.shown_day = self.day;
 		self.shown_version = self.store.version;
 		self.update_position();
 	}
@@ -240,6 +263,10 @@ impl App {
 			Target::Text(Field::Editor(self.memo.editor().clone()))
 		} else if p == self.todo.editor().as_widget_ptr() {
 			Target::Text(Field::Editor(self.todo.editor().clone()))
+		} else if let Some(f) = self.date.field_widget().filter(|f| f.as_widget_ptr() == p) {
+			Target::Text(Field::Input(f))
+		} else if p == self.date.look().as_widget_ptr() {
+			Target::Text(Field::Input(self.date.look().clone()))
 		} else if p == self.address.look().as_widget_ptr() {
 			Target::Text(Field::Input(self.address.look().clone()))
 		} else if p == self.memo.table().as_widget_ptr() {
@@ -298,6 +325,8 @@ impl App {
 			View::Memo => self.memo.list_action(action, &mut ctx),
 			View::Address => self.address.list_action(action, &mut ctx),
 			View::Todo => self.todo.list_action(action, &mut ctx),
+			// The Date Book deletes the selected event; it has no record clipboard.
+			View::Date if action == ListAction::Delete => self.date.delete_selected(&mut ctx),
 			View::Date => {}
 		}
 	}
@@ -309,7 +338,7 @@ impl App {
 			View::Memo => self.memo.new_record(&mut ctx),
 			View::Address => self.address.new_record(&mut ctx),
 			View::Todo => self.todo.new_record(&mut ctx),
-			View::Date => {}
+			View::Date => self.date.new_record(&mut ctx),
 		}
 	}
 
@@ -372,7 +401,7 @@ impl App {
 			View::Memo => self.memo.focus(),
 			View::Address => self.address.focus(),
 			View::Todo => self.todo.focus(),
-			View::Date => {}
+			View::Date => self.date.focus(),
 		}
 		self.update_position();
 	}
@@ -427,6 +456,11 @@ fn main() {
 	let todo = TodoView::new(g.x() + 6, g.y() + 6, g.w() - 12, g.h() - 12, sender, &settings);
 	g.resizable(&todo.root);
 	g.end();
+	let g = ui.view_group(View::Date);
+	g.begin();
+	let date = DateView::new(g.x(), g.y(), g.w(), g.h(), sender, &settings);
+	g.resizable(&date.root);
+	g.end();
 	let show_private = settings.get_bool("showPrivate", false);
 	ui.set_private_hidden(!show_private);
 	let mut a = App {
@@ -435,6 +469,8 @@ fn main() {
 		ui,
 		view: View::Date,
 		day: platform::today(),
+		shown_day: i64::MIN,
+		h24,
 		show_private,
 		dialog: None,
 		change_timer: None,
@@ -443,6 +479,7 @@ fn main() {
 		memo,
 		address,
 		todo,
+		date,
 		shown_version: u64::MAX,
 		settings,
 		_lock: lock,

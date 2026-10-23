@@ -11,6 +11,10 @@ pub struct Ctx<'a> {
 	pub show_private: bool,
 	/// Set while Shift+Delete runs, so a delete does not ask.
 	pub no_confirm: bool,
+	/// The selected day of the Date Book, as an epoch day. The views move it.
+	pub day: &'a mut i64,
+	/// True when the system shows the time in 24-hour form.
+	pub h24: bool,
 	pub s: Sender<Msg>,
 }
 
