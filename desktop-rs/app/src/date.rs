@@ -235,9 +235,14 @@ pub struct TypeField {
 }
 
 impl TypeField {
-	/// Opens a field at (x, y, w) in window coordinates, holding `text`, in the current group.
-	pub fn open(x: i32, y: i32, w: i32, text: &str, s: Sender<Msg>) -> TypeField {
+	/// Opens a field at (x, y, w) in window coordinates, holding `text`, in the group `g`. No group is current
+	/// afterwards: FLTK's end() makes the parent of `g` current, and a dialog window built later would become
+	/// a child of that group, drawn inside the view with no title bar.
+	pub fn open(g: &Group, x: i32, y: i32, w: i32, text: &str, s: Sender<Msg>) -> TypeField {
+		g.begin();
 		let mut input = Input::new(x, y, w.max(20), 17, None);
+		g.end();
+		Group::set_current(None::<&Group>);
 		input.set_frame(FrameType::FlatBox);
 		input.set_color(Color::White);
 		// The font of the box titles, so the text keeps its size while it is edited.
@@ -1313,10 +1318,7 @@ impl DateView {
 		self.end_typing_ctx(ctx, true);
 		self.selected_id = None;
 		self.edit_b.deactivate();
-		let g = self.day_group.clone();
-		g.begin();
-		let field = TypeField::open(0, 0, 50, "", self.s);
-		g.end();
+		let field = TypeField::open(&self.day_group, 0, 0, 50, "", self.s);
 		self.typing = Some(Typing {
 			field,
 			day: *ctx.day,
@@ -1335,16 +1337,14 @@ impl DateView {
 		};
 		let x = title_x(r, &occ.event);
 		let y = if header { r.y + (r.h - 17) / 2 } else { r.y + 1 };
-		let g = self.day_group.clone();
-		g.begin();
 		let mut field = TypeField::open(
+			&self.day_group,
 			wx + x,
 			wy + y,
 			(r.x + r.w - BAR_W - x).max(20),
 			&occ.event.title,
 			self.s,
 		);
-		g.end();
 		let n = field.input.value().len() as i32;
 		let _ = field.input.set_position(n);
 		let _ = field.input.set_mark(0);

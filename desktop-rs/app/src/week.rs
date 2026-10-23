@@ -605,10 +605,7 @@ impl WeekView {
 			let mut m = self.model.borrow_mut();
 			m.untimed_h = m.untimed_h.max((line + 1) * UNTIMED_LINE + 4);
 		}
-		let g = self.root.clone();
-		g.begin();
-		let field = TypeField::open(0, 0, 50, "", self.s);
-		g.end();
+		let field = TypeField::open(&self.root, 0, 0, 50, "", self.s);
 		self.typing = Some(Typing {
 			field,
 			day: start + col as i64,
@@ -647,16 +644,14 @@ impl WeekView {
 		let x = title_x(r, &occ.event);
 		let shift = row_shift(self.model.borrow().untimed_h, self.scroller.offset(), r.y);
 		let top = self.grid.y() + shift;
-		let g = self.root.clone();
-		g.begin();
 		let mut field = TypeField::open(
+			&self.root,
 			self.grid.x() + x,
 			top + r.y + 1,
 			r.x + r.w - BAR_W - x,
 			&occ.event.title,
 			self.s,
 		);
-		g.end();
 		let n = field.input.value().len() as i32;
 		let _ = field.input.set_position(n);
 		let _ = field.input.set_mark(0);
