@@ -15,14 +15,15 @@ The port moves the desktop app in `desktop/` (Kotlin and Swing) to Rust and fltk
 | 6     | The Address Book: list, card, Look up, Edit Address, Custom Field Labels, Dial                      | 69ee55c          |
 | 7     | The To Do List: table, details, Show Options, Purge; the date dialog and the Note Editor            | 7fe0117          |
 | 8     | The Date Book: Day, Week and Month views, right pane, tabs, Edit Event, Change Repeat, Select Time  | 4fa7165          |
+| 9     | Find, Import and Export (iCalendar, vCard, the backup file), Print and Options                      | 07e9a93          |
 
 ## Still to do
 
-| Phase | Work                                                                                                                                                                                                    | Kotlin source                                                                                                      | Size (Rust lines) |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------- |
-| 9     | Cross-cutting: Find, Import and Export (iCalendar, vCard, the backup file), Print and Page Setup, Tools > Options, Help > About, `tel:` links; then packaging, a beta period and the cutover            | `Dialogs.kt`, `Transfer.kt`, `Printing.kt`, `MainFrame.kt`                                                         | c. 1,000          |
+| Phase | Work                                                                                                                                                              | Kotlin source | Size (Rust lines)       |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------- |
+| 10    | Packaging (the MSI, the Linux tar.gz files, the Gentoo ebuild), a beta period and the cutover; Page Setup has no FLTK dialog, and the print dialog sets the paper | none          | c. 200 (WiX source, CI) |
 
-Each view phase follows the Memo Pad: build the view in its group of the main window, send every widget event as a `Msg`, reuse `split.rs`, `category.rs`, `records.rs`, `text_edit.rs` and `dialogs.rs`, and draw custom views through `draw::Dev`. Check each view against a Swing screenshot taken on the fixture store, at 100%, 125% and 150%.
+The view phases followed the Memo Pad: build the view in its group of the main window, send every widget event as a `Msg`, reuse `split.rs`, `category.rs`, `records.rs`, `text_edit.rs` and `dialogs.rs`, draw custom views through `draw::Dev`, and check each view at 100%, 125% and 150%.
 
 ## Packaging and the cutover
 
