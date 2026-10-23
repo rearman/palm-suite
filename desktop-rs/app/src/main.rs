@@ -8,6 +8,7 @@
 use fltk::app::{self, TimeoutHandle};
 use fltk::dialog;
 use fltk::prelude::*;
+use palm_core::runner::Record;
 use palm_desktop::address::AddressView;
 use palm_desktop::date::DateView;
 use palm_desktop::memo::MemoView;
@@ -21,7 +22,7 @@ use palm_desktop::text_edit::{EditState, Field, TextAction};
 use palm_desktop::todo::TodoView;
 use palm_desktop::view::Ctx;
 use palm_desktop::window::Ui;
-use palm_desktop::{address_dialog, category, event_dialog, platform, shot, theme};
+use palm_desktop::{address_dialog, category, event_dialog, find, options, platform, printing, shot, theme, transfer};
 use std::fs::File;
 
 /// A sync runs this long after the last local change, so one action that writes several records syncs once.
@@ -101,6 +102,38 @@ impl App {
 			Msg::Date(m) => {
 				let mut ctx = ctx!(self);
 				self.date.handle(m, &mut ctx);
+			}
+			Msg::Import => {
+				let mut ctx = ctx!(self);
+				transfer::import(&mut ctx);
+			}
+			Msg::Export => {
+				let addresses = self.view == View::Address;
+				let mut ctx = ctx!(self);
+				if let Some(status) = transfer::export(&mut ctx, addresses) {
+					self.ui.set_status(&status);
+				}
+			}
+			Msg::Print => {
+				let ctx = ctx!(self);
+				let (title, lines) = match self.view {
+					View::Date => self.date.print_lines(&ctx),
+					View::Address => self.address.print_lines(&ctx),
+					View::Todo => self.todo.print_lines(&ctx),
+					View::Memo => self.memo.print_lines(),
+				};
+				printing::print(&title, &lines);
+			}
+			Msg::Find => {
+				let ctx = ctx!(self);
+				if let Some(r) = find::show(&ctx) {
+					self.go_to(r);
+				}
+			}
+			Msg::Options => {
+				if options::show(&mut self.settings, self.h24) {
+					self.refresh_views();
+				}
 			}
 			Msg::ShowTodo(id) => {
 				self.show_view(View::Todo);
@@ -328,6 +361,27 @@ impl App {
 			// The Date Book deletes the selected event; it has no record clipboard.
 			View::Date if action == ListAction::Delete => self.date.delete_selected(&mut ctx),
 			View::Date => {}
+		}
+	}
+
+	/// Shows a record that Find found in its view, selected.
+	fn go_to(&mut self, r: Record) {
+		let view = match &r {
+			Record::Event(_) => View::Date,
+			Record::Todo(_) => View::Todo,
+			Record::Memo(_) => View::Memo,
+			Record::Address(_) => View::Address,
+			Record::Category(_) => return,
+		};
+		self.show_view(view);
+		self.save_setting("view", view.key());
+		let mut ctx = ctx!(self);
+		match r {
+			Record::Event(e) => self.date.select(&mut ctx, &e),
+			Record::Todo(t) => self.todo.select(&mut ctx, t.id),
+			Record::Memo(m) => self.memo.select(&mut ctx, m.id),
+			Record::Address(a) => self.address.select(&mut ctx, a.id),
+			Record::Category(_) => {}
 		}
 	}
 

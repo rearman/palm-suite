@@ -245,10 +245,10 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	let none = |_: &mut MenuBar| {};
 
 	bar.add("&File/&Save All", ctrl('s'), divider, send(|| Msg::SaveAll));
-	bar.add("&File/&Import...", Shortcut::None, later, none);
-	bar.add("&File/&Export...", Shortcut::None, later_div, none);
+	bar.add("&File/&Import...", Shortcut::None, normal, send(|| Msg::Import));
+	bar.add("&File/&Export...", Shortcut::None, divider, send(|| Msg::Export));
 	bar.add("&File/Page Set&up...", Shortcut::None, later, none);
-	bar.add("&File/&Print...", ctrl('p'), later_div, none);
+	bar.add("&File/&Print...", ctrl('p'), divider, send(|| Msg::Print));
 	bar.add("&File/E&xit", Shortcut::None, normal, send(|| Msg::Exit));
 
 	let edit = move |c: EditCmd| move |_: &mut MenuBar| s.send(Msg::Edit(c));
@@ -274,7 +274,7 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	bar.add("&Edit/&New To Do", ctrl('n'), normal, edit(EditCmd::New));
 	bar.add("&Edit/&New Memo", ctrl('n'), normal, edit(EditCmd::New));
 	bar.add("&Edit/&New Address...", ctrl('n'), divider, edit(EditCmd::New));
-	bar.add("&Edit/&Find...", ctrl('f'), later, none);
+	bar.add("&Edit/&Find...", ctrl('f'), normal, send(|| Msg::Find));
 
 	let views: [(View, &'static str, Key); 4] = [
 		(View::Date, "&View/&Date Book", Key::F2),
@@ -333,7 +333,7 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 		divider,
 		send(|| Msg::Purge),
 	);
-	bar.add("&Tools/&Options...", Shortcut::None, later, none);
+	bar.add("&Tools/&Options...", Shortcut::None, normal, send(|| Msg::Options));
 
 	bar.add("&Sync/&Options...", Shortcut::None, normal, send(|| Msg::SyncOptions));
 	bar.add("&Sync/Sync &Now", Shortcut::None, normal, send(|| Msg::SyncNow));
@@ -386,12 +386,12 @@ fn toolbar(s: Sender<Msg>) -> (Frame, Vec<(&'static str, Button)>) {
 		tools.push((png, b));
 	};
 	add("save", "Save All", Some(|| Msg::SaveAll), false);
-	add("print", "Print", None, true);
+	add("print", "Print", Some(|| Msg::Print), true);
 	add("cut", "Cut", Some(|| Msg::Edit(EditCmd::Cut)), false);
 	add("copy", "Copy", Some(|| Msg::Edit(EditCmd::Copy)), false);
 	add("paste", "Paste", Some(|| Msg::Edit(EditCmd::Paste)), false);
 	add("undo", "Undo", Some(|| Msg::Edit(EditCmd::Undo)), true);
-	add("find", "Find", None, true);
+	add("find", "Find", Some(|| Msg::Find), true);
 	add("new", "New Item", Some(|| Msg::Edit(EditCmd::New)), false);
 	let spacer = Frame::new(x, MENU_H, W - x - 30, TOOL_H, None);
 	let mut mark = Frame::new(W - 26, MENU_H + 3, 24, 24, None);

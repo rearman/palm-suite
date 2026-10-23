@@ -303,6 +303,34 @@ impl AddressView {
 	}
 
 	/// The Address Book List By form: 0 last name first, 1 company first.
+	/// Shows the address `id`, with the filter on All when it hides the address, and selects it.
+	pub fn select(&mut self, ctx: &mut Ctx, id: i64) {
+		let Some(a) = ctx.store.addresses.iter().find(|a| a.id == id).cloned() else {
+			return;
+		};
+		let cat = ctx.settings.get_int("addressCategory", ALL);
+		if cat != ALL && a.category != cat {
+			ctx.set("addressCategory", &ALL.to_string());
+		}
+		self.selected_id = Some(a.id);
+		self.refresh(ctx);
+		let _ = self.table.take_focus();
+	}
+
+	/// The title and the lines that Print prints: each row of the list, its name and its number.
+	pub fn print_lines(&self, ctx: &Ctx) -> (String, Vec<String>) {
+		let by = by_company(ctx.settings);
+		let lines = self
+			.shown
+			.iter()
+			.map(|a| match a.list_phone() {
+				Some((n, l)) => format!("{}  {n} {l}", a.list_name(by)),
+				None => a.list_name(by),
+			})
+			.collect();
+		("Address List".to_string(), lines)
+	}
+
 	pub fn list_by(&mut self, ctx: &mut Ctx) {
 		let now = if by_company(ctx.settings) { 1 } else { 0 };
 		let choices = ["&Last name, first name", "&Company, last name"];

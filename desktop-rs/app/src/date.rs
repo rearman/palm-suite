@@ -939,6 +939,31 @@ impl DateView {
 		}
 	}
 
+	/// Shows the event `e` in the Day view on its date, selected.
+	pub fn select(&mut self, ctx: &mut Ctx, e: &Ev) {
+		*ctx.day = e.date;
+		self.selected_id = Some(e.id);
+		self.switch_mode(ctx, DateMode::Day);
+	}
+
+	/// The title and the lines that Print prints: the date and the events of the day, with their times.
+	pub fn print_lines(&self, ctx: &Ctx) -> (String, Vec<String>) {
+		let lines = self
+			.occs
+			.iter()
+			.map(|o| {
+				let e = &o.event;
+				let time = if e.untimed {
+					"Untimed".to_string()
+				} else {
+					palm_core::model::time(e.start, ctx.h24)
+				};
+				format!("{time}  {}", e.title)
+			})
+			.collect();
+		(date_title(*ctx.day), lines)
+	}
+
 	pub fn new_record(&mut self, ctx: &mut Ctx) {
 		let day = *ctx.day;
 		event_dialog::edit(ctx, None, day, None, "");

@@ -204,6 +204,11 @@ pub enum Msg {
 	CustomLabels,
 	/// Tools > Purge in the current view.
 	Purge,
+	Import,
+	Export,
+	Print,
+	Find,
+	Options,
 	/// A divider was released: save the width of its detail pane.
 	SplitMoved {
 		key: &'static str,

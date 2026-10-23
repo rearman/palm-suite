@@ -383,6 +383,37 @@ impl MemoView {
 		}
 	}
 
+	/// Shows the memo `id`, with the filter on All when it hides the memo, and selects it.
+	pub fn select(&mut self, ctx: &mut Ctx, id: i64) {
+		let Some(m) = ctx.store.memos.iter().find(|m| m.id == id).cloned() else {
+			return;
+		};
+		self.save_if_changed(ctx);
+		if self.filter_id != ALL && m.category != self.filter_id {
+			self.filter_id = ALL;
+			ctx.set("memoCategory", &ALL.to_string());
+		}
+		self.load_editor(Some(m.clone()));
+		self.reflow(ctx, Some(m.clone()), false);
+		self.pick(Some(m.id));
+	}
+
+	/// The title and the lines that Print prints: the memo in the editor, else the titles of the list.
+	pub fn print_lines(&self) -> (String, Vec<String>) {
+		if self.current.is_none() {
+			let titles = self
+				.shown
+				.iter()
+				.enumerate()
+				.map(|(i, m)| format!("{}. {}", i + 1, m.title()))
+				.collect();
+			return ("Memo Pad".to_string(), titles);
+		}
+		let body = self.buf.text();
+		let title = body.lines().next().unwrap_or("").trim().to_string();
+		(title, body.lines().map(str::to_string).collect())
+	}
+
 	pub fn list_by(&mut self, ctx: &mut Ctx) {
 		let now = if ctx.settings.get("memoSort", "0") == "1" { 1 } else { 0 };
 		if let Some(order) = list_by("Record Order", &["&Order on handheld", "&Alphabetical"], now) {

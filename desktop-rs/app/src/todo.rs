@@ -510,6 +510,29 @@ impl TodoView {
 		let _ = self.table.take_focus();
 	}
 
+	/// The title and the lines that Print prints: each row of the table.
+	pub fn print_lines(&self, ctx: &Ctx) -> (String, Vec<String>) {
+		let lines = self
+			.shown
+			.iter()
+			.map(|t| {
+				let due = if t.due < 0 {
+					"-".to_string()
+				} else {
+					palm_core::model::short_date(t.due)
+				};
+				format!(
+					"{} {} {} {due} {}",
+					if t.done { "[x]" } else { "[ ]" },
+					t.priority,
+					t.title.replace('\n', " "),
+					ctx.store.category_name(t.category)
+				)
+			})
+			.collect();
+		("To Do List".to_string(), lines)
+	}
+
 	pub fn new_record(&mut self, ctx: &mut Ctx) {
 		let mut t = Self::new_todo(ctx.settings, "");
 		ctx.store.save_todo(&mut t);
