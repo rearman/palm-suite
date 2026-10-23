@@ -239,8 +239,9 @@ impl TypeField {
 		let mut input = Input::new(x, y, w.max(20), 17, None);
 		input.set_frame(FrameType::FlatBox);
 		input.set_color(Color::White);
-		input.set_text_font(theme::fonts().arial);
-		input.set_text_size(13);
+		// The font of the box titles, so the text keeps its size while it is edited.
+		input.set_text_font(theme::fonts().sans);
+		input.set_text_size(11);
 		input.set_value(text);
 		input.set_trigger(CallbackTrigger::EnterKeyAlways);
 		input.set_callback(move |_| s.send(Msg::Date(DateMsg::Field(FieldEv::Enter))));
@@ -1503,13 +1504,13 @@ impl DateView {
 				let marker = marker_at(r, &occ.event, lx, ly, header);
 				if double && on_handle(r, lx, ly) {
 					event_dialog::edit(ctx, Some(occ.event), occ.day, None, "");
+				} else if double {
+					// A single click selects the box; a double click on the title edits it in place.
+					self.edit_title(occ, r, header);
 				} else if marker == Some(Marker::Alarm) {
 					edit_alarm(ctx.store, &occ);
 				} else if marker == Some(Marker::Note) {
 					edit_note(ctx.store, &occ);
-				} else if !double && !on_handle(r, lx, ly) {
-					// A click on the title starts the in-place edit at once, as in Palm Desktop 3.1.1.
-					self.edit_title(occ, r, header);
 				}
 			}
 			None if !double => {
