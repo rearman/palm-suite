@@ -1,16 +1,21 @@
-//! Cut, Copy and Paste of the records of a list, as RecordTransfer.kt, and the right-click menu of a record
-//! list (Cut, Copy, Paste, Delete; Select All).
+//! Cut, Copy and Paste of the records of a list, as RecordTransfer.kt, the right-click menu of a record
+//! list (Cut, Copy, Paste, Delete; Select All; then the items of the view), and the events of a record list.
 //!
 //! Cut and Copy keep the records here and put their text on the system clipboard, for other programs. Paste
 //! asks FLTK for the clipboard text; when it is the text of the kept records, the records are pasted as
 //! copies, else the text makes new records. FLTK cannot read the clipboard at once, so the text arrives as
 //! a paste event on the list, which sends it on.
 
+use crate::msg::Msg;
 use crate::text_edit::{clipboard_has_text, EditState};
-use fltk::app;
+use fltk::app::{self, MouseButton, Sender};
+use fltk::enums::{Event, EventState, Key};
 use fltk::menu::{MenuFlag, MenuItem};
+use fltk::prelude::*;
+use fltk::table::{TableRow, TableRowSelectFlag};
 use palm_core::runner::Record;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 struct Clip {
 	kind: &'static str,
@@ -56,7 +61,7 @@ pub fn list_state(selected: bool, rows: bool) -> EditState {
 	}
 }
 
-/// The item that the user picked in a list menu.
+/// The item that the user picked in a list menu. Extra(i) is the i-th item the view added.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ListAction {
 	Cut,
@@ -64,29 +69,156 @@ pub enum ListAction {
 	Paste,
 	Delete,
 	SelectAll,
+	Extra(usize),
 }
 
-/// Shows the right-click menu of a record list at the pointer.
-pub fn list_menu(s: EditState) -> Option<ListAction> {
-	let menu = MenuItem::new(&["Cu&t", "&Copy", "&Paste", "&Delete", "Select &All"]);
-	for (i, on) in [s.cut, s.copy, s.paste, s.delete, s.select_all].iter().enumerate() {
+/// Shows the right-click menu of a record list at the pointer. `extra` holds the label and the enabled
+/// state of each item the view adds below Select All.
+pub fn list_menu(s: EditState, extra: &[(&'static str, bool)]) -> Option<ListAction> {
+	let mut labels = vec!["Cu&t", "&Copy", "&Paste", "&Delete", "Select &All"];
+	labels.extend(extra.iter().map(|(l, _)| *l));
+	let menu = MenuItem::new(&labels);
+	let on: Vec<bool> = [s.cut, s.copy, s.paste, s.delete, s.select_all]
+		.into_iter()
+		.chain(extra.iter().map(|(_, on)| *on))
+		.collect();
+	for (i, on) in on.iter().enumerate() {
 		if let Some(mut item) = menu.at(i as i32) {
 			if !on {
 				item.deactivate();
 			}
-			if i == 3 {
+			if i == 3 || (i == 4 && !extra.is_empty()) {
 				item.set_flag(MenuFlag::MenuDivider);
 			}
 		}
 	}
 	let item = menu.popup(app::event_x(), app::event_y())?;
-	Some(match item.label().unwrap_or_default().as_str() {
+	let label = item.label().unwrap_or_default();
+	Some(match label.as_str() {
 		"Cu&t" => ListAction::Cut,
 		"&Copy" => ListAction::Copy,
 		"&Paste" => ListAction::Paste,
 		"&Delete" => ListAction::Delete,
-		_ => ListAction::SelectAll,
+		"Select &All" => ListAction::SelectAll,
+		_ => ListAction::Extra(extra.iter().position(|(l, _)| *l == label)?),
 	})
+}
+
+/// The messages a record list sends to its view.
+#[derive(Clone, Copy)]
+pub struct ListMsgs {
+	/// The selection moved.
+	pub picked: fn() -> Msg,
+	/// A right click: the list menu.
+	pub menu: fn() -> Msg,
+	/// The clipboard text of a Paste into the list.
+	pub paste: fn(String) -> Msg,
+	/// A printable key, when the view takes one.
+	pub typed: Option<fn(char) -> Msg>,
+	/// A double click on a row, when the view opens one.
+	pub open: Option<fn() -> Msg>,
+}
+
+/// Fits the one column of a record list to the width inside its edge and its scroll bar. Call it at the
+/// start of each page draw; `row_h` is the row height.
+pub fn fit_column(t: &mut TableRow, row_h: i32) {
+	let width = t.w() - 4 - if t.rows() * row_h > t.h() - 4 { 17 } else { 0 };
+	if t.col_width(0) != width {
+		t.set_col_width(0, width);
+	}
+}
+
+/// The events of a record list: a right click selects the row under the pointer and opens the list menu,
+/// a click or an arrow key moves the lead row, a double click opens the row, a printable key goes to the
+/// view, and a paste event brings the clipboard text of Paste.
+pub fn list_event(t: &mut TableRow, ev: Event, lead: &Rc<Cell<i32>>, s: Sender<Msg>, m: ListMsgs) -> bool {
+	match ev {
+		Event::Push => {
+			let _ = t.take_focus();
+			let row = t
+				.cursor2rowcol()
+				.map(|(_, r, _, _)| r)
+				.filter(|r| *r >= 0 && *r < t.rows());
+			if app::event_mouse_button() == MouseButton::Right {
+				if let Some(r) = row {
+					if !t.row_selected(r) {
+						t.select_all_rows(TableRowSelectFlag::Deselect);
+						let _ = t.select_row(r, TableRowSelectFlag::Select);
+						lead.set(r);
+						t.redraw();
+					}
+				}
+				s.send((m.picked)());
+				s.send((m.menu)());
+				return true;
+			}
+			if let Some(r) = row {
+				lead.set(r);
+			}
+			false
+		}
+		Event::Released => {
+			s.send((m.picked)());
+			if let Some(open) = m.open {
+				if app::event_clicks() && app::event_mouse_button() == MouseButton::Left && lead.get() >= 0 {
+					s.send(open());
+				}
+			}
+			false
+		}
+		Event::KeyDown => {
+			let key = app::event_key();
+			if key == Key::Up || key == Key::Down {
+				let n = t.rows();
+				if n == 0 {
+					return true;
+				}
+				let next = (lead.get() + if key == Key::Up { -1 } else { 1 }).clamp(0, n - 1);
+				t.select_all_rows(TableRowSelectFlag::Deselect);
+				let _ = t.select_row(next, TableRowSelectFlag::Select);
+				t.set_row_position(next);
+				lead.set(next);
+				t.redraw();
+				s.send((m.picked)());
+				return true;
+			}
+			let Some(typed) = m.typed else { return false };
+			let state = app::event_state();
+			let text = app::event_text();
+			let mut chars = text.chars();
+			if let (Some(c), None) = (chars.next(), chars.next()) {
+				let ctrl = state.contains(EventState::Ctrl) || state.contains(EventState::Alt);
+				if !ctrl && !c.is_control() {
+					s.send(typed(c));
+					return true;
+				}
+			}
+			false
+		}
+		Event::Paste => {
+			s.send((m.paste)(app::event_text()));
+			true
+		}
+		Event::Focus | Event::Unfocus => true,
+		_ => false,
+	}
+}
+
+/// The selected rows of a list of `n` rows.
+pub fn selected_rows(t: &TableRow, n: usize) -> Vec<usize> {
+	let mut t = t.clone();
+	(0..n).filter(|i| t.row_selected(*i as i32)).collect()
+}
+
+/// Selects row `row` alone, or nothing, and makes it the lead row.
+pub fn pick_row(t: &mut TableRow, lead: &Cell<i32>, row: Option<usize>) {
+	t.select_all_rows(TableRowSelectFlag::Deselect);
+	if let Some(r) = row {
+		let _ = t.select_row(r as i32, TableRowSelectFlag::Select);
+		t.set_row_position(r as i32);
+	}
+	lead.set(row.map_or(-1, |r| r as i32));
+	t.redraw();
 }
 
 #[cfg(test)]

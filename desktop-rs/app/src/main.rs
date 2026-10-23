@@ -8,6 +8,7 @@
 use fltk::app::{self, TimeoutHandle};
 use fltk::dialog;
 use fltk::prelude::*;
+use palm_desktop::address::AddressView;
 use palm_desktop::memo::MemoView;
 use palm_desktop::msg::{EditCmd, Msg, View};
 use palm_desktop::records::ListAction;
@@ -15,10 +16,10 @@ use palm_desktop::settings::{self, Settings};
 use palm_desktop::store::{self, DesktopStore};
 use palm_desktop::sync::{DesktopSync, Effect, Report};
 use palm_desktop::sync_dialog::SyncDialog;
-use palm_desktop::text_edit::{self, EditState};
+use palm_desktop::text_edit::{EditState, Field, TextAction};
 use palm_desktop::view::Ctx;
 use palm_desktop::window::Ui;
-use palm_desktop::{category, platform, shot, theme};
+use palm_desktop::{address_dialog, category, platform, shot, theme};
 use std::fs::File;
 
 /// A sync runs this long after the last local change, so one action that writes several records syncs once.
@@ -40,6 +41,7 @@ struct App {
 	/// The last save error shown, so one fault gives one alert.
 	shown_save_error: Option<String>,
 	memo: MemoView,
+	address: AddressView,
 	/// The store version the views show.
 	shown_version: u64,
 	_lock: File,
@@ -47,8 +49,9 @@ struct App {
 
 /// Where an Edit command goes.
 enum Target {
-	MemoEditor,
+	Text(Field),
 	MemoList,
+	AddressList,
 	None,
 }
 
@@ -82,18 +85,30 @@ impl App {
 				let mut ctx = ctx!(self);
 				self.memo.handle(m, &mut ctx);
 			}
+			Msg::Address(m) => {
+				let mut ctx = ctx!(self);
+				self.address.handle(m, &mut ctx);
+			}
 			Msg::Edit(cmd) => self.edit(cmd),
 			Msg::EditState => {}
 			Msg::EditCategories(app_no) => category::edit_categories(&mut self.store, app_no),
-			Msg::Categories => {
-				if self.view == View::Memo {
-					category::edit_categories(&mut self.store, 1);
+			Msg::Categories => match self.view {
+				View::Memo => category::edit_categories(&mut self.store, 1),
+				View::Address => category::edit_categories(&mut self.store, 2),
+				_ => {}
+			},
+			Msg::ListBy => {
+				let mut ctx = ctx!(self);
+				match self.view {
+					View::Memo => self.memo.list_by(&mut ctx),
+					View::Address => self.address.list_by(&mut ctx),
+					_ => {}
 				}
 			}
-			Msg::ListBy => {
-				if self.view == View::Memo {
-					let mut ctx = ctx!(self);
-					self.memo.list_by(&mut ctx);
+			Msg::CustomLabels => {
+				let mut ctx = ctx!(self);
+				if address_dialog::custom_field_labels(&mut ctx) {
+					self.refresh_views();
 				}
 			}
 			Msg::SplitMoved { key, width } => self.save_setting(key, &width.to_string()),
@@ -201,6 +216,7 @@ impl App {
 		self.shown_version = self.store.version;
 		let mut ctx = ctx!(self);
 		self.memo.refresh(&mut ctx);
+		self.address.refresh(&mut ctx);
 		self.shown_version = self.store.version;
 		self.update_position();
 	}
@@ -209,9 +225,13 @@ impl App {
 		let Some(f) = app::focus() else { return Target::None };
 		let p = f.as_widget_ptr();
 		if p == self.memo.editor().as_widget_ptr() {
-			Target::MemoEditor
+			Target::Text(Field::Editor(self.memo.editor().clone()))
+		} else if p == self.address.look().as_widget_ptr() {
+			Target::Text(Field::Input(self.address.look().clone()))
 		} else if p == self.memo.table().as_widget_ptr() {
 			Target::MemoList
+		} else if p == self.address.table().as_widget_ptr() {
+			Target::AddressList
 		} else {
 			Target::None
 		}
@@ -219,8 +239,9 @@ impl App {
 
 	fn update_edit_state(&mut self) {
 		let s = match self.target() {
-			Target::MemoEditor => text_edit::state(self.memo.editor()),
+			Target::Text(f) => f.state(),
 			Target::MemoList => self.memo.list_edit_state(),
+			Target::AddressList => self.address.list_edit_state(),
 			Target::None => EditState::default(),
 		};
 		self.ui.set_edit_state(s);
@@ -230,36 +251,45 @@ impl App {
 	/// The Edit menu and toolbar: the focused text field takes the text commands; the view takes the rest.
 	fn edit(&mut self, cmd: EditCmd) {
 		let target = self.target();
-		if let Target::MemoEditor = target {
-			let e = self.memo.editor_mut();
-			match cmd {
-				EditCmd::Undo => return text_edit::undo(e),
-				EditCmd::Cut => return text_edit::cut(e),
-				EditCmd::Copy => return text_edit::copy(e),
-				EditCmd::Paste => return text_edit::paste(e),
-				EditCmd::Delete => return text_edit::delete(e),
-				EditCmd::SelectAll => return text_edit::select_all(e),
+		if let Target::Text(mut f) = target {
+			let a = match cmd {
+				EditCmd::Undo => TextAction::Undo,
+				EditCmd::Cut => TextAction::Cut,
+				EditCmd::Copy => TextAction::Copy,
+				EditCmd::Paste => TextAction::Paste,
+				EditCmd::Delete => TextAction::Delete,
+				EditCmd::SelectAll => TextAction::SelectAll,
 				// Shift+Delete in a text field keeps its own delete.
 				EditCmd::DeleteNoConfirm => return,
-				EditCmd::New => {}
-			}
+				EditCmd::New => return self.new_record(),
+			};
+			return f.run(a);
 		}
-		if self.view != View::Memo {
-			return;
-		}
-		let list = matches!(target, Target::MemoList);
+		let list = matches!(target, Target::MemoList | Target::AddressList);
+		let action = match cmd {
+			EditCmd::New => return self.new_record(),
+			EditCmd::SelectAll => ListAction::SelectAll,
+			EditCmd::Delete | EditCmd::DeleteNoConfirm => ListAction::Delete,
+			EditCmd::Cut if list => ListAction::Cut,
+			EditCmd::Copy if list => ListAction::Copy,
+			EditCmd::Paste if list => ListAction::Paste,
+			_ => return,
+		};
 		let mut ctx = ctx!(self);
-		match cmd {
-			EditCmd::New => self.memo.new_record(&mut ctx),
-			EditCmd::Delete => self.memo.delete_selected(&mut ctx),
-			EditCmd::DeleteNoConfirm => {
-				ctx.no_confirm = true;
-				self.memo.delete_selected(&mut ctx);
-			}
-			EditCmd::SelectAll => self.memo.list_action(ListAction::SelectAll, &mut ctx),
-			EditCmd::Cut if list => self.memo.list_action(ListAction::Cut, &mut ctx),
-			EditCmd::Copy if list => self.memo.list_action(ListAction::Copy, &mut ctx),
-			EditCmd::Paste if list => self.memo.list_action(ListAction::Paste, &mut ctx),
+		ctx.no_confirm = cmd == EditCmd::DeleteNoConfirm;
+		match self.view {
+			View::Memo => self.memo.list_action(action, &mut ctx),
+			View::Address => self.address.list_action(action, &mut ctx),
+			_ => {}
+		}
+	}
+
+	/// Edit > New and the New toolbar button in the current view.
+	fn new_record(&mut self) {
+		let mut ctx = ctx!(self);
+		match self.view {
+			View::Memo => self.memo.new_record(&mut ctx),
+			View::Address => self.address.new_record(&mut ctx),
 			_ => {}
 		}
 	}
@@ -319,13 +349,16 @@ impl App {
 	fn show_view(&mut self, v: View) {
 		self.view = v;
 		self.ui.show_view(v);
-		if v == View::Memo {
-			self.memo.focus();
+		match v {
+			View::Memo => self.memo.focus(),
+			View::Address => self.address.focus(),
+			_ => {}
 		}
 		self.update_position();
 	}
 
-	/// The selected date in the Date Book, and the position in the Memo Pad; the other views come later.
+	/// The selected date in the Date Book, and the position in the Address Book and the Memo Pad; the To Do
+	/// List comes later.
 	fn update_position(&mut self) {
 		let text = match self.view {
 			View::Date => {
@@ -333,7 +366,8 @@ impl App {
 				format!("{}/{}/{}", d.month, d.day, d.year)
 			}
 			View::Memo => self.memo.position(),
-			_ => String::new(),
+			View::Address => self.address.position(),
+			View::Todo => String::new(),
 		};
 		self.ui.set_position(&text);
 	}
@@ -364,6 +398,11 @@ fn main() {
 	let memo = MemoView::new(g.x() + 6, g.y() + 6, g.w() - 12, g.h() - 12, sender, &settings);
 	g.resizable(&memo.root);
 	g.end();
+	let g = ui.view_group(View::Address);
+	g.begin();
+	let address = AddressView::new(g.x() + 6, g.y() + 6, g.w() - 12, g.h() - 12, sender, &settings);
+	g.resizable(&address.root);
+	g.end();
 	let show_private = settings.get_bool("showPrivate", false);
 	ui.set_private_hidden(!show_private);
 	let mut a = App {
@@ -378,6 +417,7 @@ fn main() {
 		sender,
 		shown_save_error: None,
 		memo,
+		address,
 		shown_version: u64::MAX,
 		settings,
 		_lock: lock,

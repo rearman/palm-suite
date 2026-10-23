@@ -159,7 +159,7 @@ impl Ui {
 			}
 		}
 		// The features that the views of the port have so far.
-		let ported = view == View::Memo;
+		let ported = matches!(view, View::Memo | View::Address);
 		for path in ["&Tools/&Categories...", "&View/&List By..."] {
 			if let Some(mut item) = self.bar.find_item(path) {
 				if ported {
@@ -280,7 +280,7 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	bar.add("&Edit/De&lete Event", Shortcut::None, later, none);
 	bar.add("&Edit/&New To Do", ctrl('n'), later, none);
 	bar.add("&Edit/&New Memo", ctrl('n'), normal, edit(EditCmd::New));
-	bar.add("&Edit/&New Address...", ctrl('n'), later_div, none);
+	bar.add("&Edit/&New Address...", ctrl('n'), divider, edit(EditCmd::New));
 	bar.add("&Edit/&Find...", ctrl('f'), later, none);
 
 	let views: [(View, &'static str, Key); 4] = [
@@ -321,7 +321,12 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 		later_div,
 		send(|| Msg::Categories),
 	);
-	bar.add("&Tools/Custom &Field Labels...", Shortcut::None, later_div, none);
+	bar.add(
+		"&Tools/Custom &Field Labels...",
+		Shortcut::None,
+		divider,
+		send(|| Msg::CustomLabels),
+	);
 	bar.add("&Tools/&Purge...", Shortcut::None, later_div, none);
 	bar.add("&Tools/&Options...", Shortcut::None, later, none);
 
@@ -414,12 +419,12 @@ fn view_group(view: View, x: i32, y: i32, w: i32, h: i32) -> Group {
 	let mut g = Group::new(x, y, w, h, None);
 	g.set_frame(FrameType::FlatBox);
 	g.set_color(if view == View::Date { WORKSPACE } else { PANEL });
-	// The Memo Pad builds itself in its group; the other views come in later phases of the port.
+	// The Address Book and the Memo Pad build themselves in their groups; the other views come in later
+	// phases of the port.
 	let later = match view {
 		View::Date => Some("The Date Book comes in phase 8 of the port."),
-		View::Address => Some("The Address Book comes in phase 6 of the port."),
 		View::Todo => Some("The To Do List comes in phase 7 of the port."),
-		View::Memo => None,
+		View::Address | View::Memo => None,
 	};
 	if let Some(text) = later {
 		let mut note = Frame::new(x, y, w, h, text);

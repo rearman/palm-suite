@@ -59,8 +59,25 @@ pub enum MemoMsg {
 	PasteText(String),
 }
 
+/// The events of the Address Book.
+pub enum AddressMsg {
+	/// The selection of the list moved.
+	Picked,
+	Filter,
+	/// The text of Look up changed.
+	Look,
+	/// A double click on a row, or the Edit button.
+	Edit,
+	New,
+	/// A right click on the list.
+	ListMenu,
+	/// The clipboard text of a Paste into the list.
+	PasteText(String),
+}
+
 pub enum Msg {
 	Memo(MemoMsg),
+	Address(AddressMsg),
 	Edit(EditCmd),
 	/// The focus or a selection moved: gray the Edit items that do not apply.
 	EditState,
@@ -69,6 +86,8 @@ pub enum Msg {
 	/// Tools > Categories in the current view.
 	Categories,
 	ListBy,
+	/// Tools > Custom Field Labels of the Address Book.
+	CustomLabels,
 	/// A divider was released: save the width of its detail pane.
 	SplitMoved {
 		key: &'static str,

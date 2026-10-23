@@ -4,15 +4,15 @@
 use crate::category::{IdChoice, ALL, UNFILED};
 use crate::dialogs::{confirm_delete, delete_question, list_by};
 use crate::msg::{MemoMsg, Msg};
-use crate::records::{self, list_state, ListAction};
+use crate::records::{self, list_state, ListAction, ListMsgs};
 use crate::split::split;
-use crate::text_edit::{self, EditState};
+use crate::text_edit::{EditState, Field};
 use crate::theme::{self, icon, SELECT};
 use crate::view::Ctx;
-use fltk::app::{self, MouseButton, Sender};
+use fltk::app::{self, Sender};
 use fltk::button::{Button, CheckButton};
 use fltk::draw;
-use fltk::enums::{Align, Color, Event, FrameType, Key};
+use fltk::enums::{Align, Color, FrameType};
 use fltk::frame::Frame;
 use fltk::group::Group;
 use fltk::image::PngImage;
@@ -88,12 +88,7 @@ impl MemoView {
 		let (note, key) = (icon("note"), icon("private"));
 		let r = rows.clone();
 		table.draw_cell(move |t, ctx, row, _col, cx, cy, cw, ch| match ctx {
-			TableContext::StartPage => {
-				let width = t.w() - 4 - if t.rows() * 16 > t.h() - 4 { 17 } else { 0 };
-				if t.col_width(0) != width {
-					t.set_col_width(0, width);
-				}
-			}
+			TableContext::StartPage => records::fit_column(t, 16),
 			TableContext::Cell => {
 				let rows = r.borrow();
 				let Some(line) = rows.get(row as usize) else { return };
@@ -121,7 +116,7 @@ impl MemoView {
 			_ => {}
 		});
 		let l = lead.clone();
-		table.handle(move |t, ev| list_event(t, ev, &l, s));
+		table.handle(move |t, ev| records::list_event(t, ev, &l, s, LIST_MSGS));
 
 		let mut list_by_b = Button::new(lx + lw - 166, ly + lh - 29, 75, 23, "&List by...");
 		list_by_b.set_callback(move |_| s.send(Msg::ListBy));
@@ -142,7 +137,7 @@ impl MemoView {
 		editor.set_text_font(fonts.arial);
 		editor.set_text_size(12);
 		editor.set_scrollbar_align(Align::Right);
-		text_edit::attach_menu(&mut editor);
+		Field::Editor(editor.clone()).attach_menu();
 		let fy = ry + rh - 54;
 		let mut cat_label = Frame::new(rx + 8, fy, 60, 22, "Category:");
 		cat_label.set_align(Align::Right | Align::Inside);
@@ -177,10 +172,6 @@ impl MemoView {
 		&self.editor
 	}
 
-	pub fn editor_mut(&mut self) -> &mut TextEditor {
-		&mut self.editor
-	}
-
 	pub fn table(&self) -> &TableRow {
 		&self.table
 	}
@@ -191,8 +182,7 @@ impl MemoView {
 	}
 
 	fn selected_rows(&self) -> Vec<usize> {
-		let mut t = self.table.clone();
-		(0..self.shown.len()).filter(|i| t.row_selected(*i as i32)).collect()
+		records::selected_rows(&self.table, self.shown.len())
 	}
 
 	fn selected(&self) -> Vec<Memo> {
@@ -290,14 +280,8 @@ impl MemoView {
 
 	/// Selects the memo with `id` alone, or nothing.
 	fn pick(&mut self, id: Option<i64>) {
-		self.table.select_all_rows(TableRowSelectFlag::Deselect);
 		let row = id.and_then(|id| self.shown.iter().position(|m| m.id == id));
-		if let Some(r) = row {
-			let _ = self.table.select_row(r as i32, TableRowSelectFlag::Select);
-			self.table.set_row_position(r as i32);
-		}
-		self.lead.set(row.map_or(-1, |r| r as i32));
-		self.table.redraw();
+		records::pick_row(&mut self.table, &self.lead, row);
 	}
 
 	fn refresh_combos(&mut self, ctx: &Ctx) {
@@ -383,7 +367,7 @@ impl MemoView {
 		let _ = self.editor.take_focus();
 	}
 
-	pub fn delete_selected(&mut self, ctx: &mut Ctx) {
+	fn delete_selected(&mut self, ctx: &mut Ctx) {
 		let ms = self.selected();
 		if ms.is_empty()
 			|| !confirm_delete(
@@ -433,7 +417,7 @@ impl MemoView {
 				self.reflow(ctx, cur, false);
 			}
 			MemoMsg::ListMenu => {
-				if let Some(a) = records::list_menu(self.list_edit_state()) {
+				if let Some(a) = records::list_menu(self.list_edit_state(), &[]) {
 					self.list_action(a, ctx);
 				}
 			}
@@ -464,6 +448,7 @@ impl MemoView {
 				self.table.select_all_rows(TableRowSelectFlag::Select);
 				self.table.redraw();
 			}
+			ListAction::Extra(_) => {}
 		}
 	}
 
@@ -489,73 +474,11 @@ impl MemoView {
 	}
 }
 
-/// The events of the Memo List: a right click selects the row under the pointer and opens the list menu,
-/// a click or an arrow key moves the lead row, a printable key starts a new memo that holds it, and a paste
-/// event brings the clipboard text of Paste.
-fn list_event(t: &mut TableRow, ev: Event, lead: &Rc<Cell<i32>>, s: Sender<Msg>) -> bool {
-	match ev {
-		Event::Push => {
-			let _ = t.take_focus();
-			let row = t
-				.cursor2rowcol()
-				.map(|(_, r, _, _)| r)
-				.filter(|r| *r >= 0 && *r < t.rows());
-			if app::event_mouse_button() == MouseButton::Right {
-				if let Some(r) = row {
-					if !t.row_selected(r) {
-						t.select_all_rows(TableRowSelectFlag::Deselect);
-						let _ = t.select_row(r, TableRowSelectFlag::Select);
-						lead.set(r);
-						t.redraw();
-					}
-				}
-				s.send(Msg::Memo(MemoMsg::Picked));
-				s.send(Msg::Memo(MemoMsg::ListMenu));
-				return true;
-			}
-			if let Some(r) = row {
-				lead.set(r);
-			}
-			false
-		}
-		Event::Released => {
-			s.send(Msg::Memo(MemoMsg::Picked));
-			false
-		}
-		Event::KeyDown => {
-			let key = app::event_key();
-			if key == Key::Up || key == Key::Down {
-				let n = t.rows();
-				if n == 0 {
-					return true;
-				}
-				let next = (lead.get() + if key == Key::Up { -1 } else { 1 }).clamp(0, n - 1);
-				t.select_all_rows(TableRowSelectFlag::Deselect);
-				let _ = t.select_row(next, TableRowSelectFlag::Select);
-				t.set_row_position(next);
-				lead.set(next);
-				t.redraw();
-				s.send(Msg::Memo(MemoMsg::Picked));
-				return true;
-			}
-			let state = app::event_state();
-			let text = app::event_text();
-			let mut chars = text.chars();
-			if let (Some(c), None) = (chars.next(), chars.next()) {
-				let ctrl =
-					state.contains(fltk::enums::EventState::Ctrl) || state.contains(fltk::enums::EventState::Alt);
-				if !ctrl && !c.is_control() {
-					s.send(Msg::Memo(MemoMsg::TypeNew(c)));
-					return true;
-				}
-			}
-			false
-		}
-		Event::Paste => {
-			s.send(Msg::Memo(MemoMsg::PasteText(app::event_text())));
-			true
-		}
-		Event::Focus | Event::Unfocus => true,
-		_ => false,
-	}
-}
+/// The messages of the Memo List. A printable key starts a new memo that holds it, as on the Palm.
+const LIST_MSGS: ListMsgs = ListMsgs {
+	picked: || Msg::Memo(MemoMsg::Picked),
+	menu: || Msg::Memo(MemoMsg::ListMenu),
+	paste: |t| Msg::Memo(MemoMsg::PasteText(t)),
+	typed: Some(|c| Msg::Memo(MemoMsg::TypeNew(c))),
+	open: None,
+};
