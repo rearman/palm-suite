@@ -140,7 +140,10 @@ impl AddressView {
 		new_b.set_callback(move |_| s.send(Msg::Address(AddressMsg::New)));
 		// The title and Look up's label keep their place, the filter and the buttons keep to the right and the
 		// bottom, Look up widens and the list grows.
-		let grow = Frame::new(lx + 128, ly + 30, lw - 380, look_y - 4 - (ly + 30), None);
+		// FLTK widens a child whose span holds the resizable's left edge and moves one to the right of it, so the
+		// resizable is 1 px wide: a width taken from the pane would go negative for a narrow list, and FLTK would
+		// then slide the list in place of widening it.
+		let grow = Frame::new(lx + 128, ly + 30, 1, look_y - 4 - (ly + 30), None);
 		sp.left.resizable(&grow);
 		sp.left.end();
 

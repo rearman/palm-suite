@@ -216,7 +216,10 @@ impl TodoView {
 		show_b.set_callback(move |_| s.send(Msg::Todo(TodoMsg::Show)));
 		let mut new_b = Button::new(lx + lw - 85, ly + lh - 29, 75, 23, "&New");
 		new_b.set_callback(move |_| s.send(Msg::Todo(TodoMsg::New)));
-		let grow = Frame::new(lx + 120, ly + 30, lw - 290, lh - 64, None);
+		// FLTK widens a child whose span holds the resizable's left edge and moves one to the right of it, so the
+		// resizable is 1 px wide: a width taken from the pane would go negative for a narrow list, and FLTK would
+		// then slide the list in place of widening it.
+		let grow = Frame::new(lx + 120, ly + 30, 1, lh - 64, None);
 		sp.left.resizable(&grow);
 		sp.left.end();
 

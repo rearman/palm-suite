@@ -16,7 +16,9 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 const DIVIDER: i32 = 14;
-const MIN_LIST: i32 = 150;
+/// The narrowest list: the List by or Show button and New (166 px from the right) must stay right of the 1 px
+/// resizable of the list pane (128 px from the left), or FLTK widens them when the list widens again.
+const MIN_LIST: i32 = 300;
 const MIN_DETAIL: i32 = 200;
 /// The window width at which a `Grow::Share` detail width is saved: the normal 1000 px window.
 const REF_W: i32 = 1000;
@@ -61,12 +63,17 @@ pub fn split_grow(
 	let detail_w = detail_for(grow, detail_w, w);
 	let mut outer = Group::new(x, y, w, h, None);
 	let lw = w - DIVIDER - detail_w;
-	let left = Group::new(x, y, lw, h, None);
+	// The panes paint the panel gray under their widgets, so a widget that moves leaves no copy behind.
+	let mut left = Group::new(x, y, lw, h, None);
 	left.end();
+	left.set_frame(FrameType::FlatBox);
+	left.set_color(PANEL);
 	let mut bar = Frame::new(x + lw, y, DIVIDER, h, None);
 	bar.set_frame(FrameType::FlatBox);
-	let right = Group::new(x + lw + DIVIDER, y, detail_w, h, None);
+	let mut right = Group::new(x + lw + DIVIDER, y, detail_w, h, None);
 	right.end();
+	right.set_frame(FrameType::FlatBox);
+	right.set_color(PANEL);
 	match grow {
 		Grow::Detail => outer.resizable(&right),
 		Grow::Share => outer.resizable(&left),

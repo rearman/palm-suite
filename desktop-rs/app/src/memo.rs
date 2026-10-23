@@ -121,10 +121,11 @@ impl MemoView {
 		list_by_b.set_callback(move |_| s.send(Msg::ListBy));
 		let mut new_b = Button::new(lx + lw - 85, ly + lh - 29, 75, 23, "&New");
 		new_b.set_callback(move |_| s.send(Msg::Memo(MemoMsg::New)));
-		// The title stays, the filter and the buttons keep to the right and the bottom, the list grows. FLTK
-		// scales a child whose left edge lies inside the resizable, so the resizable ends at the left edge of
-		// List by...; the buttons to its right then keep their width.
-		let grow = Frame::new(lx + 120, ly + 30, (lw - 286).max(0), lh - 64, None);
+		// The title stays, the filter and the buttons keep to the right and the bottom, the list grows.
+		// FLTK widens a child whose span holds the resizable's left edge and moves one to the right of it, so the
+		// resizable is 1 px wide: a width taken from the pane would go negative for a narrow list, and FLTK would
+		// then slide the list in place of widening it.
+		let grow = Frame::new(lx + 120, ly + 30, 1, lh - 64, None);
 		sp.left.resizable(&grow);
 		sp.left.end();
 
