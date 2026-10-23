@@ -2,7 +2,8 @@
 //! editor with its category, private flag and Apply button on the right.
 
 use crate::category::{IdChoice, ALL, UNFILED};
-use crate::dialogs::{confirm_delete, delete_question, list_by};
+use crate::combo;
+use crate::dialogs::{confirm_delete_titled, list_by};
 use crate::msg::{MemoMsg, Msg};
 use crate::records::{self, list_state, ListAction, ListMsgs};
 use crate::split::split;
@@ -55,7 +56,7 @@ impl MemoView {
 	/// Builds the view in (x, y, w, h); call it between begin() and end() of the view's group.
 	pub fn new(x: i32, y: i32, w: i32, h: i32, s: Sender<Msg>, ctx_settings: &crate::settings::Settings) -> MemoView {
 		let fonts = theme::fonts();
-		let detail_w = ctx_settings.get_int("memoSplit", 315);
+		let detail_w = ctx_settings.get_int("memoSplit", 416);
 		let sp = split(x, y, w, h, detail_w, "memoSplit", s);
 
 		// The list side: the title, the filter, the list and the List by and New buttons.
@@ -66,12 +67,10 @@ impl MemoView {
 		title.set_label_font(fonts.arial_bold);
 		title.set_label_size(14);
 		title.set_align(Align::Center | Align::Inside);
-		let filter = IdChoice::new(
-			Choice::new(lx + lw - 114, ly + 4, 110, 22, None),
-			Some(1),
-			s,
-			Some(|| Msg::Memo(MemoMsg::Filter)),
-		);
+		let mut filter_menu = Choice::new(lx + lw - 114, ly + 4, 110, 22, None);
+		crate::draw::style_menu(&mut filter_menu);
+		combo::drop_below(&mut filter_menu);
+		let filter = IdChoice::new(filter_menu, Some(1), s, Some(|| Msg::Memo(MemoMsg::Filter)));
 
 		let rows: Rc<RefCell<Vec<Row>>> = Rc::new(RefCell::new(Vec::new()));
 		let lead = Rc::new(Cell::new(-1));
@@ -122,8 +121,10 @@ impl MemoView {
 		list_by_b.set_callback(move |_| s.send(Msg::ListBy));
 		let mut new_b = Button::new(lx + lw - 85, ly + lh - 29, 75, 23, "&New");
 		new_b.set_callback(move |_| s.send(Msg::Memo(MemoMsg::New)));
-		// The title stays, the filter and the buttons keep to the right and the bottom, the list grows.
-		let grow = Frame::new(lx + 120, ly + 30, lw - 240, lh - 64, None);
+		// The title stays, the filter and the buttons keep to the right and the bottom, the list grows. FLTK
+		// scales a child whose left edge lies inside the resizable, so the resizable ends at the left edge of
+		// List by...; the buttons to its right then keep their width.
+		let grow = Frame::new(lx + 120, ly + 30, (lw - 286).max(0), lh - 64, None);
 		sp.left.resizable(&grow);
 		sp.left.end();
 
@@ -141,10 +142,13 @@ impl MemoView {
 		let fy = ry + rh - 54;
 		let mut cat_label = Frame::new(rx + 8, fy, 60, 22, "Category:");
 		cat_label.set_align(Align::Right | Align::Inside);
-		let category = IdChoice::new(Choice::new(rx + 72, fy, rw - 80, 22, None), Some(1), s, None);
+		let mut category_menu = Choice::new(rx + 72, fy, rw - 80, 22, None);
+		crate::draw::style_menu(&mut category_menu);
+		combo::drop_below(&mut category_menu);
+		let category = IdChoice::new(category_menu, Some(1), s, None);
 		let mut private_label = Frame::new(rx + 8, fy + 26, 60, 22, "Private:");
 		private_label.set_align(Align::Right | Align::Inside);
-		let private_box = CheckButton::new(rx + 72, fy + 28, 18, 18, None);
+		let private_box = crate::draw::check(rx + 72, fy + 28, 18, 18, "");
 		let mut apply = Button::new(rx + rw - 83, fy + 26, 75, 23, "&Apply");
 		apply.set_callback(move |_| s.send(Msg::Memo(MemoMsg::Apply)));
 		let grow = Frame::new(rx + 80, ry + 8, rw - 170, rh - 72, None);
@@ -278,9 +282,13 @@ impl MemoView {
 		self.lead_memo()
 	}
 
-	/// Selects the memo with `id` alone, or nothing.
+	/// Selects the memo with `id` alone. With no `id`, selects the first memo, as the view opens on it; with no
+	/// memo, nothing.
 	fn pick(&mut self, id: Option<i64>) {
-		let row = id.and_then(|id| self.shown.iter().position(|m| m.id == id));
+		let row = match id {
+			Some(id) => self.shown.iter().position(|m| m.id == id),
+			None => (!self.shown.is_empty()).then_some(0),
+		};
 		records::pick_row(&mut self.table, &self.lead, row);
 	}
 
@@ -370,10 +378,11 @@ impl MemoView {
 	fn delete_selected(&mut self, ctx: &mut Ctx) {
 		let ms = self.selected();
 		if ms.is_empty()
-			|| !confirm_delete(
+			|| !confirm_delete_titled(
 				ctx.settings,
 				ctx.no_confirm,
-				&delete_question(ms.len(), "Delete the memo?", "memos"),
+				"Delete Memo Pad Items",
+				"Delete the selected Memo Pad item(s)?",
 			) {
 			return;
 		}
@@ -448,7 +457,10 @@ impl MemoView {
 				self.reflow(ctx, cur, false);
 			}
 			MemoMsg::ListMenu => {
-				if let Some(a) = records::list_menu(self.list_edit_state(), &[]) {
+				let picked = records::list_menu(self.list_edit_state(), &[]);
+				// The popup covered rows of the list, and rows it covered were not repainted when it closed.
+				self.table.redraw();
+				if let Some(a) = picked {
 					self.list_action(a, ctx);
 				}
 			}

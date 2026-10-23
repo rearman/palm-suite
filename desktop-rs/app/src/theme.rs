@@ -3,6 +3,7 @@
 //! are missing.
 
 use fltk::app;
+use fltk::draw;
 use fltk::enums::ColorDepth;
 use fltk::enums::{Color, Font};
 use fltk::image::{PngImage, RgbImage};
@@ -16,6 +17,8 @@ pub const SHADOW: Color = Color::from_rgb(160, 160, 160);
 /// The Windows application workspace gray around the Date view, as in Palm Desktop.
 pub const WORKSPACE: Color = Color::from_rgb(171, 171, 171);
 pub const SELECT: Color = Color::from_rgb(0, 120, 215);
+/// The height of a menu item in device-independent pixels, as a Windows 11 menu item.
+const MENU_ITEM_H: i32 = 22;
 
 /// The Palm Desktop fonts by role. Font::Helvetica is Microsoft Sans Serif, the dialog font, so every
 /// widget without its own font uses it.
@@ -74,6 +77,9 @@ pub fn install() {
 		Font::set_font(Font::HelveticaBold, &n);
 	}
 	app::set_font_size(11);
+	// A popup item is the text height plus the menu line spacing, so the spacing makes it MENU_ITEM_H tall.
+	draw::set_font(Font::Helvetica, 11);
+	app::set_menu_linespacing((MENU_ITEM_H - draw::height()).max(0));
 	let _ = FONTS.set(Fonts {
 		sans: Font::Helvetica,
 		sans_bold: Font::HelveticaBold,

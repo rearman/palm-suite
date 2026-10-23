@@ -4,14 +4,14 @@
 
 use crate::category::{menu_label, IdChoice, ALL, EDIT_CATEGORIES, UNFILED};
 use crate::date_picker::{self, Mode};
-use crate::dialogs::{confirm_delete, delete_question, key_label, run_modal};
+use crate::dialogs::{confirm_delete_titled, key_label, show_modal};
 use crate::draw::{fit, text_w, Dev};
 use crate::msg::{Msg, TodoMsg};
 use crate::note_dialog;
 use crate::platform::today;
 use crate::records::{self, list_state, ListAction, ListMsgs};
 use crate::settings::Settings;
-use crate::split::split;
+use crate::split::{split_grow, Grow};
 use crate::store::DesktopStore;
 use crate::text_edit::{EditState, Field};
 use crate::theme::{self, icon, SELECT};
@@ -40,12 +40,30 @@ const ROW_H: i32 = 16;
 /// The Due menu choices of a To Do, in menu order.
 pub const DUE_NAMES: [&str; 5] = ["Today", "Tomorrow", "One week later", "No date", "Choose date..."];
 
+/// The Sort by menu, in Palm Desktop 3.1.1 order.
 const SORT_NAMES: [&str; 4] = [
 	"Priority, Due Date",
 	"Due Date, Priority",
-	"Category, Priority",
 	"Category, Due Date",
+	"Category, Priority",
 ];
+
+/// The menu index of a stored sort index, or the reverse: the menu lists Category, Due Date before Category,
+/// Priority, the reverse of the stored order, so entries 2 and 3 swap. The stored settings keep their meaning.
+fn menu_sort(i: usize) -> usize {
+	match i {
+		2 => 3,
+		3 => 2,
+		other => other,
+	}
+}
+
+/// A drop-down that drops its list below the field, in the Windows menu look.
+fn styled_choice(mut c: Choice) -> Choice {
+	crate::combo::drop_below(&mut c);
+	crate::draw::style_menu(&mut c);
+	c
+}
 
 /// The kinds of the table columns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,6 +91,9 @@ impl Col {
 		}
 	}
 }
+
+/// The width of the Due box of the details; the day name takes the rest of the row, as in Palm Desktop 3.1.1.
+const DUE_W: i32 = 90;
 
 /// The columns the Show Options ask for.
 fn columns(settings: &Settings) -> Vec<Col> {
@@ -129,13 +150,24 @@ pub struct TodoView {
 	/// The item whose values are in the details, and a copy of it as they show it.
 	loaded_id: Option<i64>,
 	loaded: Option<Todo>,
+	/// The row of the last selection: the row that takes the selection when the selected item leaves the list.
+	last_pos: usize,
 }
 
 impl TodoView {
 	/// Builds the view in (x, y, w, h); call it between begin() and end() of the view's group.
 	pub fn new(x: i32, y: i32, w: i32, h: i32, s: Sender<Msg>, settings: &Settings) -> TodoView {
 		let fonts = theme::fonts();
-		let sp = split(x, y, w, h, settings.get_int("todoSplit", 315), "todoSplit", s);
+		let sp = split_grow(
+			x,
+			y,
+			w,
+			h,
+			settings.get_int("todoSplit", 272),
+			"todoSplit",
+			Grow::Share,
+			s,
+		);
 
 		// The list side: the title, the filter, the table, and the Show and New buttons.
 		sp.left.begin();
@@ -146,7 +178,7 @@ impl TodoView {
 		title.set_label_size(14);
 		title.set_align(Align::Center | Align::Inside);
 		let filter = IdChoice::new(
-			Choice::new(lx + lw - 114, ly + 4, 110, 22, None),
+			styled_choice(Choice::new(lx + lw - 114, ly + 4, 110, 22, None)),
 			Some(0),
 			s,
 			Some(|| Msg::Todo(TodoMsg::Filter)),
@@ -214,9 +246,7 @@ impl TodoView {
 		let mut radios = Vec::new();
 		for n in 0..5 {
 			let cell = (fw - 4) / 5;
-			let mut r = RoundButton::new(fx + 2 + n * cell + cell / 2 - 14, y + 1, 30, 21, None);
-			r.set_label(&format!("&{}", n + 1));
-			r.set_type(fltk::button::ButtonType::Radio);
+			let r = crate::draw::radio(fx + 2 + n * cell + cell / 2 - 14, y + 1, 30, 21, &format!("&{}", n + 1));
 			radios.push(r);
 		}
 		prio.end();
@@ -224,7 +254,7 @@ impl TodoView {
 		y += 23 + 6;
 
 		let pending_due = Rc::new(Cell::new(-1i64));
-		let mut due_box = Choice::new(fx, y, 130, 22, None);
+		let mut due_box = styled_choice(Choice::new(fx, y, DUE_W, 22, None));
 		for n in DUE_NAMES {
 			due_box.add_choice(n);
 		}
@@ -245,13 +275,13 @@ impl TodoView {
 			});
 		}
 		due_box.set_callback(move |_| s.send(Msg::Todo(TodoMsg::DuePick)));
-		let mut due_day = Output::new(fx + 134, y, fw - 134, 22, None);
+		let mut due_day = Output::new(fx + DUE_W + 4, y, fw - DUE_W - 4, 22, None);
 		due_day.set_frame(FrameType::DownBox);
 		due_day.set_color(theme::PANEL);
 		label("D&ue:", 22, Some(due_box.as_base_widget()), y);
 		y += 22 + 6;
 
-		let category = IdChoice::new(Choice::new(fx, y, fw, 22, None), Some(0), s, None);
+		let category = IdChoice::new(styled_choice(Choice::new(fx, y, fw, 22, None)), Some(0), s, None);
 		label("Cate&gory:", 22, Some(category.choice.as_base_widget()), y);
 		y += 22 + 6;
 
@@ -264,11 +294,11 @@ impl TodoView {
 		label("Not&e:", 26, Some(note_b.as_base_widget()), y + 2);
 		y += 26 + 6;
 
-		let private_box = CheckButton::new(fx, y, 18, 21, None);
+		let private_box = crate::draw::check(fx, y, 18, 21, "");
 		label("Pri&vate:", 21, Some(private_box.as_base_widget()), y);
 		y += 21 + 6;
 
-		let complete_box = CheckButton::new(fx, y + 1, 18, 21, None);
+		let complete_box = crate::draw::check(fx, y + 1, 18, 21, "");
 		let mut apply = Button::new(fx + fw - 75, y, 75, 23, "&Apply");
 		apply.set_callback(move |_| s.send(Msg::Todo(TodoMsg::Apply)));
 		label("Co&mplete:", 23, Some(complete_box.as_base_widget()), y);
@@ -302,6 +332,7 @@ impl TodoView {
 			selected_id: None,
 			loaded_id: None,
 			loaded: None,
+			last_pos: 0,
 		};
 		v.clear_details();
 		v
@@ -373,9 +404,18 @@ impl TodoView {
 	/// Rebuilds the columns and the table, and keeps the selection by id.
 	fn rebuild(&mut self, ctx: &Ctx) {
 		let today = today();
-		self.shown = visible(ctx, today);
 		let keep = self.selected_id;
+		let old_pos = keep.and_then(|id| self.shown.iter().position(|t| t.id == id));
+		self.shown = visible(ctx, today);
 		let idx = keep.and_then(|id| self.shown.iter().position(|t| t.id == id));
+		// The selected item, else the row where it was (the next item when it left the list), else the first.
+		let pick = idx.or_else(|| {
+			let from = old_pos.unwrap_or(self.last_pos);
+			(!self.shown.is_empty()).then(|| from.min(self.shown.len() - 1))
+		});
+		if let Some(p) = pick {
+			self.last_pos = p;
+		}
 		*self.rows.borrow_mut() = self
 			.shown
 			.iter()
@@ -393,10 +433,10 @@ impl TodoView {
 		}
 		self.table.set_rows(self.shown.len() as i32);
 		self.table.set_row_height_all(ROW_H);
-		records::pick_row(&mut self.table, &self.lead, idx);
-		match idx {
+		records::pick_row(&mut self.table, &self.lead, pick);
+		match pick {
 			None => self.clear_details(),
-			Some(i) if self.loaded_id != keep => self.load_details(&self.shown[i].clone()),
+			Some(i) if idx.is_none() || self.loaded_id != keep => self.load_details(&self.shown[i].clone()),
 			// A sync changed the item: show the new copy. Edits that are not applied yet stay, and Apply saves them.
 			Some(i) if self.loaded.as_ref() != Some(&self.shown[i]) && !self.has_edits() => {
 				self.load_details(&self.shown[i].clone())
@@ -546,10 +586,11 @@ impl TodoView {
 	fn delete_selected(&mut self, ctx: &mut Ctx) {
 		let list = self.selected();
 		if list.is_empty()
-			|| !confirm_delete(
+			|| !confirm_delete_titled(
 				ctx.settings,
 				ctx.no_confirm,
-				&delete_question(list.len(), "Delete the To Do item?", "To Do items"),
+				"Delete To Do Items",
+				"Delete the selected To Do item(s)?",
 			) {
 			return;
 		}
@@ -619,7 +660,7 @@ impl TodoView {
 				self.show_due();
 			}
 			TodoMsg::Note => {
-				if let Some(text) = note_dialog::edit("To Do Note", &self.pending_note) {
+				if let Some(text) = note_dialog::edit("Note Editor", &self.pending_note) {
 					self.note_field.set_value(first_line(&text));
 					self.pending_note = text;
 				}
@@ -755,6 +796,7 @@ fn popup(labels: &[&str]) -> Option<usize> {
 	for l in labels {
 		mb.add_choice(l);
 	}
+	crate::draw::style_menu(&mut mb);
 	let pick = mb.popup().map(|_| mb.value()).filter(|v| *v >= 0).map(|v| v as usize);
 	MenuButton::delete(mb);
 	pick
@@ -780,12 +822,15 @@ fn fit_columns(t: &mut TableRow, cols: &[Col]) {
 /// Palm Desktop.
 fn draw_cell(r: &Row, kind: Col, selected: bool, (x, y, w, h): (i32, i32, i32, i32), icons: (&PngImage, &PngImage)) {
 	let fonts = theme::fonts();
-	draw::draw_rect_fill(x, y, w, h, if selected { SELECT } else { Color::White });
-	let color = match (selected, r.overdue) {
-		(true, true) => Color::Yellow,
-		(true, false) => Color::White,
-		(false, true) => Color::Red,
-		(false, false) => Color::Black,
+	// The selection fills the title only; the other cells stay white.
+	let filled = selected && kind == Col::Title;
+	draw::draw_rect_fill(x, y, w, h, if filled { SELECT } else { Color::White });
+	// Only the title of an overdue item is red; the other cells are black on white.
+	let color = match (kind, selected, r.overdue) {
+		(Col::Title, true, true) => Color::Yellow,
+		(Col::Title, true, false) => Color::White,
+		(Col::Title, false, true) => Color::Red,
+		_ => Color::Black,
 	};
 	draw::set_font(fonts.sans, 11);
 	draw::set_draw_color(color);
@@ -804,7 +849,11 @@ fn draw_cell(r: &Row, kind: Col, selected: bool, (x, y, w, h): (i32, i32, i32, i
 				draw::draw_text("!", at, base);
 			}
 		}
-		Col::Category => draw::draw_text(&fit(&r.category, w - 4, &text_w), x + 2, base),
+		// Cut hard at the edge of the column (the cell clip), with no "...", as Palm Desktop does.
+		Col::Category => {
+			let _clip = crate::draw::Clip::push(x, y, w, h);
+			draw::draw_text(&r.category, x + 2, base);
+		}
 		Col::Marks => {
 			let mut ix = x + 2;
 			for (on, img) in [(!r.todo.note.is_empty(), icons.0), (r.todo.is_private, icons.1)] {
@@ -938,7 +987,8 @@ pub fn sort_index(settings: &Settings) -> usize {
 /// `list` in the order of the Show Options. The sort is stable, so equal items keep their store order.
 pub fn todo_order(mut list: Vec<Todo>, settings: &Settings, store: &DesktopStore) -> Vec<Todo> {
 	let due = |t: &Todo| if t.due < 0 { i64::MAX } else { t.due };
-	let cat = |t: &Todo| store.category_name(t.category).to_lowercase();
+	// Unfiled sorts after the named categories, which sort by name.
+	let cat = |t: &Todo| (t.category == UNFILED, store.category_name(t.category).to_lowercase());
 	match sort_index(settings) {
 		1 => list.sort_by(|a, b| due(a).cmp(&due(b)).then(a.priority.cmp(&b.priority))),
 		2 => list.sort_by(|a, b| cat(a).cmp(&cat(b)).then(a.priority.cmp(&b.priority))),
@@ -948,10 +998,10 @@ pub fn todo_order(mut list: Vec<Todo>, settings: &Settings, store: &DesktopStore
 	list
 }
 
-/// The due text of a To Do: M/d, with "!" when overdue, or "-" when no date.
+/// The due text of a To Do: M/d, with "!" when overdue, or a long dash when no date.
 pub fn due_label(t: &Todo, today: i64) -> String {
 	if t.due < 0 {
-		return "-".to_string();
+		return "\u{2014}".to_string();
 	}
 	let d = ymd(t.due);
 	format!("{}/{}{}", d.month, d.day, if is_overdue(t, today) { "!" } else { "" })
@@ -960,16 +1010,15 @@ pub fn due_label(t: &Todo, today: i64) -> String {
 /// The Show Options dialog: the sort order, the view filters and the columns of the list. Saves them and
 /// returns true on OK.
 fn show_options(settings: &mut Settings) -> bool {
-	let mut win = Window::default().with_size(300, 230).with_label("Show Options");
-	key_label("&Sort by", 12, 12, 44, 22, Align::Left);
-	let mut sort = Choice::new(58, 12, 130, 22, None);
+	let mut win = Window::default().with_size(291, 249).with_label("Show Options");
+	key_label("&Sort by", 12, 22, 40, 22, Align::Left);
+	let mut sort = styled_choice(Choice::new(56, 22, 124, 22, None));
 	for n in SORT_NAMES {
 		sort.add_choice(n);
 	}
-	sort.set_value(sort_index(settings) as i32);
-	let mut view = Group::new(12, 54, 176, 164, "View Options");
+	sort.set_value(menu_sort(sort_index(settings)) as i32);
+	let mut view = Group::new(14, 70, 162, 156, None);
 	view.set_frame(FrameType::EngravedBox);
-	view.set_align(Align::TopLeft);
 	let checks: Vec<(&str, &str, bool)> = vec![
 		("Show &completed items", "todoShowDone", false),
 		("Show only due &items", "todoOnlyDue", false),
@@ -980,16 +1029,17 @@ fn show_options(settings: &mut Settings) -> bool {
 	];
 	let mut boxes = Vec::new();
 	for (i, (label, key, default)) in checks.iter().enumerate() {
-		let y = 62 + 23 * i as i32 + if i >= 3 { 10 } else { 0 };
-		let mut b = CheckButton::new(20, y, 164, 21, None);
-		b.set_label(label);
+		let y = 85 + 21 * i as i32 + if i >= 3 { 12 } else { 0 };
+		let mut b = crate::draw::check(24, y, 160, 20, label);
 		b.set_value(settings.get_bool(key, *default));
 		boxes.push((*key, b));
 	}
 	view.end();
+	// The title sits on the top edge of the group, as in Palm Desktop 3.1.1.
+	crate::dialogs::group_title(14, 70, "View Options");
 	let saved = Rc::new(Cell::new(false));
-	let mut ok = Button::new(206, 12, 82, 23, "OK");
-	let mut cancel = Button::new(206, 41, 82, 23, "Cancel");
+	let mut ok = Button::new(202, 12, 75, 23, "OK");
+	let mut cancel = Button::new(202, 41, 75, 23, "Cancel");
 	ok.set_shortcut(fltk::enums::Shortcut::None | fltk::enums::Key::Enter);
 	{
 		let (saved, mut win) = (saved.clone(), win.clone());
@@ -1004,11 +1054,14 @@ fn show_options(settings: &mut Settings) -> bool {
 	}
 	win.end();
 	let _ = ok.take_focus();
-	run_modal(&mut win);
+	show_modal(&mut win);
+	while win.shown() {
+		app::wait();
+	}
 	if !saved.get() {
 		return false;
 	}
-	let _ = settings.set_int("todoSortBy", sort.value().max(0));
+	let _ = settings.set_int("todoSortBy", menu_sort(sort.value().max(0) as usize) as i32);
 	for (key, b) in &boxes {
 		let _ = settings.set_bool(key, b.value());
 	}
@@ -1055,6 +1108,15 @@ mod tests {
 	}
 
 	#[test]
+	fn the_sort_menu_swaps_the_last_two_and_keeps_the_stored_meaning() {
+		let (s, dir) = settings_with(&[("todoSortBy", "2")]);
+		assert_eq!(sort_index(&s), 2);
+		assert_eq!(menu_sort(sort_index(&s)), 3);
+		assert_eq!(menu_sort(menu_sort(2)), 2);
+		std::fs::remove_dir_all(dir).unwrap();
+	}
+
+	#[test]
 	fn order_puts_items_without_a_date_last_and_keeps_ties_in_store_order() {
 		let (_, dir) = settings_with(&[]);
 		let store = DesktopStore::open(&dir.join("desktop-data.json")).unwrap();
@@ -1078,7 +1140,7 @@ mod tests {
 	#[test]
 	fn due_labels_completion_and_the_show_options() {
 		let today = 100;
-		assert_eq!(due_label(&todo(1, 1, -1), today), "-");
+		assert_eq!(due_label(&todo(1, 1, -1), today), "\u{2014}");
 		// Epoch day 99 is 1970-04-10.
 		assert_eq!(due_label(&todo(1, 1, 99), today), "4/10!");
 		assert_eq!(due_label(&todo(1, 1, 100), today), "4/11");

@@ -1,6 +1,7 @@
 //! Sync > Options, as SyncDialog in Dialogs.kt: the palmsync server, the device token and the passphrase.
 //! Set Up and Turn Off close the dialog when they finish; Close leaves the sync settings as they are.
 
+use crate::dialogs;
 use crate::msg::Msg;
 use fltk::app::Sender;
 use fltk::button::Button;
@@ -41,7 +42,6 @@ impl SyncDialog {
 	/// Opens the dialog. When `saved_token` is true an empty Token field keeps the saved token.
 	pub fn open(s: Sender<Msg>, server: &str, saved_token: bool, sync_on: bool, status: &str) -> SyncDialog {
 		let mut win = Window::default().with_size(380, 200).with_label("Sync Options");
-		win.make_modal(true);
 		let mut server_in = Input::new(84, 14, 270, 22, "S&erver:");
 		server_in.set_value(server);
 		let mut token = SecretInput::new(84, 44, 270, 22, "&Token:");
@@ -76,7 +76,7 @@ impl SyncDialog {
 		}
 		win.set_callback(move |_| s.send(Msg::SyncDialogClose));
 		win.end();
-		win.show();
+		dialogs::show_modal(&mut win);
 
 		for mut input in [token.clone(), pass.clone()] {
 			let (token, pass, mut set_up) = (token.clone(), pass.clone(), set_up.clone());

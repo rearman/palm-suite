@@ -2,11 +2,11 @@
 //! found in every app. Go To closes it and shows the record in its view.
 
 use crate::address::by_company;
-use crate::dialogs::key_label;
+use crate::dialogs::{self, key_label};
 use crate::view::Ctx;
 use fltk::app;
 use fltk::browser::HoldBrowser;
-use fltk::button::{Button, CheckButton};
+use fltk::button::Button;
 use fltk::enums::{Align, CallbackTrigger, Event, Key};
 use fltk::frame::Frame;
 use fltk::input::Input;
@@ -134,6 +134,19 @@ fn row_parts(r: &Record, by_company: bool) -> (&'static str, String, String) {
 	}
 }
 
+/// The order of the result rows, as the 3.1.1 Find lists them: Address Book, then Date Book by date and
+/// time, then To Do List, then Memo Pad. Rows that tie keep the store order, since the sort is stable.
+fn result_order(r: &Record) -> (u8, i64, i32) {
+	match r {
+		Record::Address(_) => (0, 0, 0),
+		// An untimed event sorts before the timed ones of its day.
+		Record::Event(e) => (1, e.date, if e.untimed { -1 } else { e.start }),
+		Record::Todo(_) => (2, 0, 0),
+		Record::Memo(_) => (3, 0, 0),
+		Record::Category(_) => (4, 0, 0),
+	}
+}
+
 /// What the buttons ask for.
 #[derive(Clone, Copy)]
 enum Act {
@@ -143,25 +156,25 @@ enum Act {
 
 /// The Find dialog. Returns the record that Go To picked, or None on Cancel.
 pub fn show(ctx: &Ctx) -> Option<Record> {
-	let (w, short_h, tall_h) = (420, 100, 334);
+	let (w, short_h, tall_h) = (371, 106, 245);
 	let mut win = Window::default().with_size(w, short_h).with_label("Find");
 	let act: Rc<Cell<Option<Act>>> = Rc::new(Cell::new(None));
-	let mut field = Input::new(78, 10, 240, 22, None);
-	let mut find_l = key_label("Find &what:", 10, 10, 66, 22, Align::Left);
+	let mut field = Input::new(72, 8, 196, 21, None);
+	let mut find_l = key_label("Find &what:", 10, 10, 60, 21, Align::Left);
 	{
 		let f = field.clone();
 		find_l.set_callback(move |_| drop(f.clone().take_focus()));
 	}
-	let whole = CheckButton::new(10, 38, 220, 20, "&Match whole word only");
-	let case = CheckButton::new(10, 58, 220, 20, "Match &case");
-	let mut find_b = Button::new(330, 10, 80, 23, "&Find");
+	let whole = crate::draw::check(10, 38, 200, 20, "&Match whole word only");
+	let case = crate::draw::check(10, 60, 200, 20, "Match &case");
+	let mut find_b = Button::new(286, 8, 75, 23, "&Find");
 	find_b.deactivate();
-	let mut go_b = Button::new(330, 39, 80, 23, "&Go To");
+	let mut go_b = Button::new(286, 38, 75, 23, "&Go To");
 	go_b.deactivate();
-	let mut cancel = Button::new(330, 68, 80, 23, "Cancel");
-	let mut list = HoldBrowser::new(10, 104, w - 20, 200, None);
+	let mut cancel = Button::new(286, 68, 75, 23, "Cancel");
+	let mut list = HoldBrowser::new(10, 88, w - 20, 130, None);
 	list.hide();
-	let mut status = Frame::new(10, 308, w - 20, 18, None);
+	let mut status = Frame::new(10, 224, w - 20, 16, None);
 	status.set_align(Align::Left | Align::Inside);
 	status.hide();
 	for (b, a) in [(&mut find_b, Act::Find), (&mut go_b, Act::Go)] {
@@ -206,8 +219,7 @@ pub fn show(ctx: &Ctx) -> Option<Record> {
 	list.set_column_char('\t');
 
 	let mut found: Vec<Record> = Vec::new();
-	win.make_modal(true);
-	win.show();
+	dialogs::show_modal(&mut win);
 	let _ = field.take_focus();
 	while win.shown() {
 		app::wait();
@@ -225,6 +237,7 @@ pub fn show(ctx: &Ctx) -> Option<Record> {
 					status.show();
 				}
 				found = matches(ctx, &text, whole.value(), case.value());
+				found.sort_by_key(result_order);
 				list.clear();
 				let by = by_company(ctx.settings);
 				for r in &found {
@@ -234,11 +247,7 @@ pub fn show(ctx: &Ctx) -> Option<Record> {
 					list.add(&line);
 				}
 				let n = found.len();
-				status.set_label(&if n == 1 {
-					"1 item found.".to_string()
-				} else {
-					format!("{n} items found.")
-				});
+				status.set_label(&format!("{n} Item(s) found"));
 				// The first row is selected, so Go To is on.
 				if n > 0 {
 					list.select(1);
@@ -271,7 +280,42 @@ mod tests {
 		assert!(!has_whole_word("Call Bob today", "bob", true));
 		assert!(!has_whole_word("bob_x snake_bob", "bob", false));
 		assert!(has_whole_word("bob_x, bob.", "bob", false));
-		// Java's  also sits between a word character and a sign that starts or ends the word.
+		// Java's \b also sits between a word character and a sign that starts or ends the word.
 		assert!(has_whole_word("1+1=2", "+", false));
+	}
+
+	#[test]
+	fn results_list_address_then_date_then_todo_then_memo() {
+		let event = |date: i64, start: i32, untimed: bool| {
+			Record::Event(palm_core::model::Event {
+				date,
+				start,
+				untimed,
+				..Default::default()
+			})
+		};
+		let mut found = [
+			Record::Memo(Default::default()),
+			event(20390, 10 * 60, false),
+			Record::Todo(Default::default()),
+			event(20389, 13 * 60, false),
+			Record::Address(Default::default()),
+			event(20389, 9 * 60, false),
+			event(20389, 0, true),
+		];
+		found.sort_by_key(result_order);
+		let keys: Vec<(u8, i64, i32)> = found.iter().map(result_order).collect();
+		assert_eq!(
+			keys,
+			vec![
+				(0, 0, 0),
+				(1, 20389, -1),
+				(1, 20389, 9 * 60),
+				(1, 20389, 13 * 60),
+				(1, 20390, 10 * 60),
+				(2, 0, 0),
+				(3, 0, 0),
+			]
+		);
 	}
 }

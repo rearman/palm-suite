@@ -6,11 +6,12 @@
 //! copies, else the text makes new records. FLTK cannot read the clipboard at once, so the text arrives as
 //! a paste event on the list, which sends it on.
 
+use crate::draw;
 use crate::msg::Msg;
 use crate::text_edit::{clipboard_has_text, EditState};
 use fltk::app::{self, MouseButton, Sender};
 use fltk::enums::{Event, EventState, Key};
-use fltk::menu::{MenuFlag, MenuItem};
+use fltk::menu::{MenuButton, MenuButtonType, MenuFlag};
 use fltk::prelude::*;
 use fltk::table::{TableRow, TableRowSelectFlag};
 use palm_core::runner::Record;
@@ -73,34 +74,41 @@ pub enum ListAction {
 }
 
 /// Shows the right-click menu of a record list at the pointer. `extra` holds the label and the enabled
-/// state of each item the view adds below Select All.
+/// state of each item the view adds below Select All. A divider follows Delete, and one follows Select All
+/// when the view adds items.
 pub fn list_menu(s: EditState, extra: &[(&'static str, bool)]) -> Option<ListAction> {
 	let mut labels = vec!["Cu&t", "&Copy", "&Paste", "&Delete", "Select &All"];
 	labels.extend(extra.iter().map(|(l, _)| *l));
-	let menu = MenuItem::new(&labels);
 	let on: Vec<bool> = [s.cut, s.copy, s.paste, s.delete, s.select_all]
 		.into_iter()
 		.chain(extra.iter().map(|(_, on)| *on))
 		.collect();
+	let mut mb = MenuButton::default();
+	mb.set_type(MenuButtonType::Popup3);
+	for label in &labels {
+		mb.add_choice(label);
+	}
 	for (i, on) in on.iter().enumerate() {
-		if let Some(mut item) = menu.at(i as i32) {
-			if !on {
-				item.deactivate();
-			}
+		if let Some(mut item) = mb.at(i as i32) {
+			// The divider comes first: set_flag replaces all flags of the item, Inactive included.
 			if i == 3 || (i == 4 && !extra.is_empty()) {
 				item.set_flag(MenuFlag::MenuDivider);
 			}
+			if !on {
+				item.deactivate();
+			}
 		}
 	}
-	let item = menu.popup(app::event_x(), app::event_y())?;
-	let label = item.label().unwrap_or_default();
-	Some(match label.as_str() {
-		"Cu&t" => ListAction::Cut,
-		"&Copy" => ListAction::Copy,
-		"&Paste" => ListAction::Paste,
-		"&Delete" => ListAction::Delete,
-		"Select &All" => ListAction::SelectAll,
-		_ => ListAction::Extra(extra.iter().position(|(l, _)| *l == label)?),
+	draw::style_menu(&mut mb);
+	let pick = mb.popup().map(|_| mb.value()).filter(|v| *v >= 0).map(|v| v as usize);
+	MenuButton::delete(mb);
+	Some(match pick? {
+		0 => ListAction::Cut,
+		1 => ListAction::Copy,
+		2 => ListAction::Paste,
+		3 => ListAction::Delete,
+		4 => ListAction::SelectAll,
+		i => ListAction::Extra(i - 5),
 	})
 }
 

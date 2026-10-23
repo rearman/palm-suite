@@ -6,8 +6,8 @@ use crate::date_picker::week_start_of;
 use crate::date_shared::{
 	apply_alarm_preset, change_occurrence, delete_occurrence, dow_index, draw_box, draw_diamond, draw_hour_label,
 	draw_outline, edit_alarm, edit_note, event_menu, marker_at, on_handle, on_resize_bar, paint_event, raised_cell,
-	title_x, visible_events, week_begins, week_of_year, BoxAction, Fill, Marker, Occ, Rect, BAR_W, CHANGE_TEXT,
-	HOUR_LINE, MONTH_LONG, SEL_H,
+	title_x, visible_events, week_begins, week_of_year, work_day, BoxAction, Fill, Marker, Occ, Rect, BAR_W,
+	CHANGE_TEXT, HOUR_LINE, MONTH_LONG, SEL_H,
 };
 use crate::event_dialog;
 use crate::msg::{DateMsg, FieldEv, Mouse, MouseKind, Msg};
@@ -37,21 +37,24 @@ pub const NAV_H: i32 = 28;
 /// The navigation row of the Week and Month views: back, Go to and forward at the left, the title, and
 /// Today at the right. Returns the title.
 pub fn nav(x: i32, y: i32, w: i32, s: Sender<Msg>) -> Frame {
-	let mut back = Button::new(x + 2, y + 3, 20, 22, "@4>");
-	back.set_label_size(8);
+	// The row is its own group with the title as its resizable widget, so a wider window widens the title
+	// and the buttons keep the 3.1.1 sizes: arrows 18x20, Go to and Today 75x20.
+	let row = Group::new(x, y, w, 26, None);
+	let mut back = crate::draw::arrow(x + 2, y + 4, 18, 20, false);
 	back.set_callback(move |_| s.send(Msg::Date(DateMsg::Step(-1))));
-	let mut go = Button::new(x + 24, y + 3, 60, 22, "&Go to");
+	let mut go = Button::new(x + 20, y + 4, 75, 20, "&Go to");
 	go.set_callback(move |_| s.send(Msg::Date(DateMsg::GoTo)));
-	let mut fwd = Button::new(x + 86, y + 3, 20, 22, "@>");
-	fwd.set_label_size(8);
+	let mut fwd = crate::draw::arrow(x + 95, y + 4, 18, 20, true);
 	fwd.set_callback(move |_| s.send(Msg::Date(DateMsg::Step(1))));
-	let mut today_b = Button::new(x + w - 66, y + 3, 64, 22, "T&oday");
+	let mut today_b = Button::new(x + w - 77, y + 4, 75, 20, "T&oday");
 	today_b.set_callback(move |_| s.send(Msg::Date(DateMsg::Today)));
-	let mut title = Frame::new(x + 110, y + 3, w - 180, 22, None);
+	let mut title = Frame::new(x + 117, y + 4, w - 198, 20, None);
 	title.set_frame(FrameType::BorderBox);
 	title.set_color(Color::White);
 	title.set_label_font(theme::fonts().arial_bold);
 	title.set_label_size(13);
+	row.resizable(&title);
+	row.end();
 	title
 }
 
@@ -161,6 +164,24 @@ fn col_w(w: i32) -> i32 {
 	((w - TIME_W) / 7).max(1)
 }
 
+/// The shift of content row `y` from the grid's top: the untimed strip stays put, the hours move by `offset`.
+fn row_shift(untimed_h: i32, offset: i32, y: i32) -> i32 {
+	if y < untimed_h {
+		0
+	} else {
+		-offset
+	}
+}
+
+/// The content row under row `sy` of the grid, the inverse of `row_shift`.
+fn content_row(untimed_h: i32, offset: i32, sy: i32) -> i32 {
+	if sy < untimed_h {
+		sy
+	} else {
+		sy + offset
+	}
+}
+
 pub struct WeekView {
 	pub root: Group,
 	title: Frame,
@@ -202,6 +223,8 @@ impl WeekView {
 		}
 		forward_mouse(&mut header, s, |m| Msg::Date(DateMsg::WeekHeader(m)));
 		forward_mouse(&mut grid, s, |m| Msg::Date(DateMsg::WeekGrid(m)));
+		// A resize changes the height of the hours: the range and the bar follow at the next sync.
+		grid.resize_callback(move |_, _, _, _, _| s.send(Msg::Date(DateMsg::Scrolled)));
 		let grow = Frame::new(x + 200, gy + 40, w - 300, h - NAV_H - 80, None);
 		root.resizable(&grow);
 		root.end();
@@ -233,9 +256,9 @@ impl WeekView {
 			.or_else(|| self.title_edit.as_ref().map(|t| t.0.input.clone()))
 	}
 
+	/// Scrolls so that `hour` opens the hours area. The untimed strip does not scroll, so hour 0 is at offset 0.
 	pub fn scroll_to_hour(&mut self, hour: i32) {
-		let y = self.model.borrow().hour_y(hour);
-		self.scroller.scroll_later(y);
+		self.scroller.scroll_later(hour * HOUR_H);
 	}
 
 	/// The occurrence selected in the grid, or None when it is no longer shown.
@@ -261,6 +284,7 @@ impl WeekView {
 		if self.typing.is_some() && self.model.borrow().start != start {
 			self.end_typing(ctx, true);
 		}
+		let new_week = self.model.borrow().start != start;
 		let days: Vec<Vec<Occ>> = (0..7)
 			.map(|i| visible_events(ctx.store, start + i, ctx.show_private))
 			.collect();
@@ -294,12 +318,22 @@ impl WeekView {
 			long(start + 6),
 			week_of_year(start, begins == 1)
 		));
+		// A new week opens at the work-day start hour, as Palm Desktop does.
+		if new_week {
+			self.scroll_to_hour(work_day(ctx.settings));
+		}
 		self.sync();
 	}
 
+	/// Sets the range and the bar of the hours from the grid size and the untimed strip.
 	fn sync(&mut self) {
-		let total = self.model.borrow().hour_y(24) + 1;
-		self.scroller.set_range(self.grid.h(), total);
+		let untimed_h = self.model.borrow().untimed_h;
+		// The hours scroll under the untimed strip, so their bar starts below it.
+		let hours_h = (self.grid.h() - untimed_h).max(1);
+		let total = self.model.borrow().hour_y(24) - untimed_h + 1;
+		self.scroller.set_range(hours_h, total);
+		let b = &mut self.scroller.bar;
+		b.resize(b.x(), self.grid.y() + untimed_h, b.w(), hours_h);
 		let typing = self.typing.as_ref().map(|t| {
 			let m = self.model.borrow();
 			let cw = col_w(self.grid.w());
@@ -316,7 +350,7 @@ impl WeekView {
 			m.typing = typing;
 		}
 		if let (Some(t), Some(r)) = (self.typing.as_mut(), typing) {
-			let top = self.grid.y() - self.scroller.offset();
+			let top = self.grid.y() + row_shift(untimed_h, self.scroller.offset(), r.y);
 			t.field
 				.input
 				.resize(self.grid.x() + r.x + 3, top + r.y + 1, r.w - BAR_W - 4, 17);
@@ -370,7 +404,9 @@ impl WeekView {
 	}
 
 	pub fn grid_mouse(&mut self, ctx: &mut Ctx, m: Mouse) {
-		let (lx, ly) = (m.x - self.grid.x(), m.y - self.grid.y() + self.scroller.offset());
+		let untimed_h = self.model.borrow().untimed_h;
+		let lx = m.x - self.grid.x();
+		let ly = content_row(untimed_h, self.scroller.offset(), m.y - self.grid.y());
 		match m.kind {
 			MouseKind::Wheel(n) => {
 				self.scroller.wheel(n);
@@ -609,7 +645,8 @@ impl WeekView {
 	/// Opens the title of the box `occ` at `r` for editing, over its title area.
 	fn start_title_edit(&mut self, r: Rect, occ: Occ) {
 		let x = title_x(r, &occ.event);
-		let top = self.grid.y() - self.scroller.offset();
+		let shift = row_shift(self.model.borrow().untimed_h, self.scroller.offset(), r.y);
+		let top = self.grid.y() + shift;
 		let g = self.root.clone();
 		g.begin();
 		let mut field = TypeField::open(
@@ -693,7 +730,8 @@ impl Drag {
 	}
 }
 
-/// The day names over the columns. The selected day and today fill blue; today is red and bold.
+/// The day names over the columns on the panel gray, with no lines between them. The selected day fills blue
+/// with white text; today is red and bold, unless it is the selected day.
 fn draw_header(f: &Frame, m: &WeekModel) {
 	let fonts = theme::fonts();
 	let (x, y, w, h) = (f.x(), f.y(), f.w(), f.h());
@@ -703,62 +741,90 @@ fn draw_header(f: &Frame, m: &WeekModel) {
 		let cx = x + TIME_W + i * cw;
 		let day = m.start + i as i64;
 		let (sel, today) = (day == m.day, day == m.today);
-		draw::draw_rect_fill(cx, y, cw, h, if sel || today { SELECT } else { PANEL });
+		if sel {
+			draw::draw_rect_fill(cx, y, cw, h, SELECT);
+		}
 		let text = format!("{} {}", DOW_SHORT[dow_index(i as usize, m.begins)], ymd(day).day);
 		draw::set_font(if today { fonts.sans_bold } else { fonts.sans }, 11);
-		draw::set_draw_color(if today {
-			Color::Red
-		} else if sel {
+		draw::set_draw_color(if sel {
 			Color::White
+		} else if today {
+			Color::Red
 		} else {
 			Color::Black
 		});
 		draw::draw_text2(&text, cx, y, cw, h, Align::Center);
-		draw::set_draw_color(Color::from_rgb(160, 160, 160));
-		draw::draw_line(cx, y, cx, y + h - 1);
 	}
 	draw::draw_line(x + TIME_W, y + h - 1, x + w, y + h - 1);
 }
 
-/// The grid: the untimed area and the hours, the time column of raised cells, the day column lines, and the
-/// boxes, the selected one last.
+/// The grid. The untimed strip stays at the top; the hours scroll below it, clipped to their area, with the
+/// time column of raised cells, the day column lines, and the boxes, the selected one last.
 fn draw_grid(f: &Frame, m: &WeekModel) {
 	let (x, y, w, h) = (f.x(), f.y(), f.w(), f.h());
 	let top = y - m.offset;
+	let hours_y = y + m.untimed_h;
 	let cw = col_w(w);
 	let _clip = crate::draw::Clip::push(x, y, w, h);
 	draw::draw_rect_fill(x, y, w, h, Color::White);
-	draw::set_draw_color(HOUR_LINE);
-	for hour in 0..=24 {
-		let hy = top + m.hour_y(hour);
-		draw::draw_line(x, hy, x + w, hy);
-	}
-	raised_cell(x, top, TIME_W, m.untimed_h);
-	draw_diamond(x + TIME_W / 2, top + m.untimed_h / 2);
-	for hour in 0..24 {
-		let hy = top + m.hour_y(hour);
-		if hy > y + h || hy + HOUR_H < y {
-			continue;
-		}
-		raised_cell(x, hy, TIME_W, HOUR_H);
-		draw_hour_label(hour * 60, TIME_W, x, hy + HOUR_H / 2, m.h24);
-	}
-	// The day column lines. The first hour line is black: it parts the untimed area from the hours.
-	draw::set_draw_color(Color::Black);
-	for i in 0..=7 {
-		draw::draw_line(x + TIME_W + i * cw, top, x + TIME_W + i * cw, top + m.hour_y(24));
-	}
-	draw::draw_line(x + TIME_W, top + m.hour_y(0), x + w, top + m.hour_y(0));
 	let mut hits = m.hits(w);
 	hits.sort_by_key(|(_, o)| Some((o.event.id, o.day)) == m.selected);
-	for (r, o) in hits {
-		let sel = Some((o.event.id, o.day)) == m.selected;
-		paint_event(r.moved(x, top), &o.event, sel, o.event.untimed);
+	{
+		let _hours = crate::draw::Clip::push(x, hours_y, w, (h - m.untimed_h).max(0));
+		draw::set_draw_color(HOUR_LINE);
+		for hour in 1..=24 {
+			let hy = top + m.hour_y(hour);
+			draw::draw_line(x, hy, x + w, hy);
+		}
+		for hour in 0..24 {
+			let hy = top + m.hour_y(hour);
+			if hy > y + h || hy + HOUR_H < y {
+				continue;
+			}
+			raised_cell(x, hy, TIME_W, HOUR_H);
+			draw_hour_label(hour * 60, TIME_W, x, hy + HOUR_H / 2, m.h24);
+		}
+		draw::set_draw_color(Color::Black);
+		for i in 0..=7 {
+			draw::draw_line(
+				x + TIME_W + i * cw,
+				top + m.hour_y(0),
+				x + TIME_W + i * cw,
+				top + m.hour_y(24),
+			);
+		}
+		for (r, o) in hits.iter().filter(|(_, o)| !o.event.untimed) {
+			let sel = Some((o.event.id, o.day)) == m.selected;
+			paint_event(r.moved(x, top), &o.event, sel, false);
+		}
+		if let Some(r) = m.typing.filter(|r| r.y >= m.untimed_h) {
+			draw_box(r.moved(x, top), Fill::White, true);
+		}
+		if let Some(r) = m.outline.filter(|r| r.y >= m.untimed_h) {
+			draw_outline(r.moved(x, top));
+		}
 	}
-	if let Some(r) = m.typing {
-		draw_box(r.moved(x, top), Fill::White, true);
+	// The untimed strip: its own time cell and day column lines, then its rows, none of it scrolled.
+	{
+		let _strip = crate::draw::Clip::push(x, y, w, m.untimed_h);
+		raised_cell(x, y, TIME_W, m.untimed_h);
+		draw_diamond(x + TIME_W / 2, y + m.untimed_h / 2);
+		draw::set_draw_color(Color::Black);
+		for i in 0..=7 {
+			draw::draw_line(x + TIME_W + i * cw, y, x + TIME_W + i * cw, hours_y);
+		}
+		for (r, o) in hits.iter().filter(|(_, o)| o.event.untimed) {
+			let sel = Some((o.event.id, o.day)) == m.selected;
+			paint_event(r.moved(x, y), &o.event, sel, true);
+		}
+		if let Some(r) = m.typing.filter(|r| r.y < m.untimed_h) {
+			draw_box(r.moved(x, y), Fill::White, true);
+		}
+		if let Some(r) = m.outline.filter(|r| r.y < m.untimed_h) {
+			draw_outline(r.moved(x, y));
+		}
 	}
-	if let Some(r) = m.outline {
-		draw_outline(r.moved(x, top));
-	}
+	// The first hour line is black: it parts the untimed strip from the hours, and stays put.
+	draw::set_draw_color(Color::Black);
+	draw::draw_line(x + TIME_W, hours_y, x + w, hours_y);
 }

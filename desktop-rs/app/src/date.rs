@@ -40,15 +40,24 @@ use std::rc::Rc;
 
 /// The width of the time column.
 pub const TIME_W: i32 = 52;
-/// The height of one untimed row.
-const UNTIMED_H: i32 = 19;
+/// The height of one untimed row: a header of one row is 18 px with the 4 px selection bar, as in 3.1.1.
+const UNTIMED_H: i32 = 14;
 /// Pixels per half hour: Palm Desktop draws 38 px per hour.
 const HALF: i32 = 19;
-/// The width of the right pane.
-const PANE_W: i32 = 240;
+/// The width of the right pane, 234 px as in Palm Desktop 3.1.1.
+const PANE_W: i32 = 234;
 /// The width of the tab strip on the right edge.
 const TABS_W: i32 = 24;
 const ROW_H: i32 = 16;
+/// The height of the title box of the Day view.
+const TITLE_H: i32 = 18;
+/// The gap between the title box and the grid.
+const TITLE_GAP: i32 = 4;
+/// The size of the Today, Edit... and New... buttons.
+const BTN_W: i32 = 70;
+const BTN_H: i32 = 20;
+/// The height of one row of month buttons.
+const MONTH_H: i32 = 15;
 
 /// The mouse event of `ev`, when it is one a Date Book view takes.
 pub fn mouse_of(ev: Event) -> Option<Mouse> {
@@ -105,14 +114,14 @@ impl Scroller {
 		self.bar.value() as i32
 	}
 
-	/// Sets the range for a view of `view` px over content of `total` px, keeping the offset in range.
+	/// Sets the range for a view of `view` px over content of `total` px, keeping the offset in range. A
+	/// pending offset waits until the content is taller than the view.
 	pub fn set_range(&mut self, view: i32, total: i32) {
-		let max = (total - view).max(0);
-		self.bar.set_bounds(0.0, max as f64);
-		self.bar.set_slider_size((view as f32 / total.max(1) as f32).min(1.0));
-		self.bar.set_value((self.bar.value()).clamp(0.0, max as f64));
-		if let Some(y) = self.pending.take() {
-			self.scroll_to(y);
+		set_bar_range(&mut self.bar, view, total);
+		if total - view > 0 {
+			if let Some(y) = self.pending.take() {
+				self.scroll_to(y);
+			}
 		}
 	}
 
@@ -130,6 +139,92 @@ impl Scroller {
 	pub fn wheel(&mut self, lines: i32) {
 		let v = self.bar.value() + (lines * 3 * 10) as f64;
 		self.scroll_to(v as i32);
+	}
+}
+
+/// Sets the range of `bar` for a view of `view` px over content of `total` px, keeping the offset in range.
+fn set_bar_range(bar: &mut Scrollbar, view: i32, total: i32) {
+	let max = (total - view).max(0);
+	bar.set_bounds(0.0, max as f64);
+	bar.set_slider_size((view as f32 / total.max(1) as f32).min(1.0));
+	bar.set_value(bar.value().clamp(0.0, max as f64));
+}
+
+/// The widgets of the Day view that its group lays out. The group's resize callback holds a copy, so the
+/// group keeps the fixed sizes of the right pane and the buttons, and only the day area and the lists grow.
+#[derive(Clone)]
+struct Place {
+	title: Frame,
+	edge: Frame,
+	header: Frame,
+	grid: Frame,
+	bar: Scrollbar,
+	today: Button,
+	edit: Button,
+	new: Button,
+	back: Button,
+	year: Frame,
+	fwd: Button,
+	months: Vec<Button>,
+	month_edge: Frame,
+	cal_edge: Frame,
+	cal: Frame,
+	switch: Frame,
+	todo_cat: Choice,
+	addr_cat: Choice,
+	todo_list: TableRow,
+	addr_list: TableRow,
+	look_label: Frame,
+	look: Input,
+	model: Rc<RefCell<DayModel>>,
+}
+
+impl Place {
+	/// Lays the Day view out in `g`: the day area takes the width left of the right pane, the grid takes the
+	/// height under the title, and the lists take the height under the switch. The fixed parts keep their sizes.
+	fn apply(&mut self, g: Rect) {
+		let (cx, cy, cw, ch) = (g.x, g.y, g.w, g.h);
+		let dw = (cw - PANE_W - 11).max(0);
+		let rows = self.model.borrow().untimed_rows;
+		let hh = rows * UNTIMED_H + SEL_H;
+		let gy = cy + TITLE_H + TITLE_GAP;
+		let gh = (ch - (gy - cy) - 33).max(0);
+		let sb = app::scrollbar_size();
+		let view = (gh - 2 - hh).max(0);
+		self.title.resize(cx, cy, dw, TITLE_H);
+		self.edge.resize(cx, gy, dw, gh);
+		self.header.resize(cx + 1, gy + 1, (dw - 2).max(0), hh);
+		self.grid.resize(cx + 1, gy + 1 + hh, (dw - 2 - sb).max(0), view);
+		self.bar.resize(cx + dw - 1 - sb, gy + 1 + hh, sb, view);
+		set_bar_range(&mut self.bar, view, y_of(24 * 60) + 1);
+		self.model.borrow_mut().offset = self.bar.value() as i32;
+		let by = cy + ch - 28;
+		self.today.resize(cx + dw - 228, by, BTN_W, BTN_H);
+		self.edit.resize(cx + dw - 152, by, BTN_W, BTN_H);
+		self.new.resize(cx + dw - 76, by, BTN_W, BTN_H);
+
+		let px = cx + cw - PANE_W;
+		self.back.resize(px, cy + 2, 13, 20);
+		self.year.resize(px + 14, cy + 2, PANE_W - 28, 20);
+		self.fwd.resize(px + PANE_W - 13, cy + 2, 13, 20);
+		let bw = PANE_W / 6;
+		for (m, b) in self.months.iter_mut().enumerate() {
+			let (c, r) = ((m % 6) as i32, (m / 6) as i32);
+			b.resize(px + c * bw, cy + 26 + r * MONTH_H, bw, MONTH_H);
+		}
+		self.month_edge.resize(px, cy + 26, PANE_W, 2 * MONTH_H);
+		self.cal_edge.resize(px, cy + 60, PANE_W, 130);
+		self.cal.resize(px + 2, cy + 62, PANE_W - 4, 126);
+		let hy = cy + 194;
+		self.switch.resize(px, hy, 117, 18);
+		self.todo_cat.resize(px + 121, hy, PANE_W - 121, 18);
+		self.addr_cat.resize(px + 121, hy, PANE_W - 121, 18);
+		let ly = hy + 22;
+		let list_h = (ch - (ly - cy)).max(0);
+		self.todo_list.resize(px, ly, PANE_W, list_h);
+		self.addr_list.resize(px, ly, PANE_W, (list_h - 24).max(0));
+		self.look_label.resize(px, cy + ch - 20, 44, 20);
+		self.look.resize(px + 48, cy + ch - 20, PANE_W - 48, 20);
 	}
 }
 
@@ -228,6 +323,8 @@ struct DayModel {
 	outline: Option<Rect>,
 	/// The outline of the event a dragged pane row makes, local to the grid.
 	drop_box: Option<Rect>,
+	/// The event whose title is open for editing: its box is drawn white, with the field over the title.
+	editing: Option<i64>,
 	offset: i32,
 	h24: bool,
 }
@@ -366,7 +463,9 @@ pub struct DateView {
 	look_label: Frame,
 	look: Input,
 	pane: Rc<RefCell<PaneModel>>,
-	list_bottom: (i32, i32),
+	place: Place,
+	/// The day the grid last showed; a new day opens at the work day.
+	shown_day: Option<i64>,
 	occs: Vec<Occ>,
 	selected_id: Option<i64>,
 	/// The To Do category of the pane, None for All.
@@ -409,12 +508,12 @@ impl DateView {
 		// The Day view and the right pane.
 		let day_group = Group::new(cx, cy, cw, ch, None);
 		let dw = cw - PANE_W - 11;
-		let mut title = Frame::new(cx, cy, dw, 21, None);
+		let mut title = Frame::new(cx, cy, dw, TITLE_H, None);
 		title.set_frame(FrameType::DownBox);
 		title.set_color(Color::White);
 		title.set_label_font(fonts.arial_bold);
 		title.set_label_size(13);
-		title.set_label_color(Color::Red);
+		title.set_label_color(Color::Black);
 		title.handle(move |_, ev| {
 			if ev == Event::Push && app::event_clicks() {
 				s.send(Msg::Date(DateMsg::TitleDouble));
@@ -422,8 +521,8 @@ impl DateView {
 			}
 			false
 		});
-		let gy = cy + 25;
-		let gh = ch - 25 - 33;
+		let gy = cy + TITLE_H + TITLE_GAP;
+		let gh = ch - (gy - cy) - 33;
 		let model = Rc::new(RefCell::new(DayModel {
 			untimed_rows: 1,
 			h24: crate::platform::uses_24_hours(),
@@ -448,31 +547,29 @@ impl DateView {
 		forward_mouse(&mut header, s, |m| Msg::Date(DateMsg::Day(true, m)));
 		forward_mouse(&mut grid, s, |m| Msg::Date(DateMsg::Day(false, m)));
 		let by2 = cy + ch - 28;
-		let mut today_b = Button::new(cx + dw - 243, by2, 75, 23, "T&oday");
+		let mut today_b = Button::new(cx + dw - 228, by2, BTN_W, BTN_H, "T&oday");
 		today_b.set_callback(move |_| s.send(Msg::Date(DateMsg::Today)));
-		let mut edit_b = Button::new(cx + dw - 162, by2, 75, 23, "Ed&it...");
+		let mut edit_b = Button::new(cx + dw - 152, by2, BTN_W, BTN_H, "Ed&it...");
 		edit_b.set_callback(move |_| s.send(Msg::Date(DateMsg::Edit)));
 		edit_b.deactivate();
-		let mut new_b = Button::new(cx + dw - 81, by2, 75, 23, "&New...");
+		let mut new_b = Button::new(cx + dw - 76, by2, BTN_W, BTN_H, "&New...");
 		new_b.set_callback(move |_| s.send(Msg::Date(DateMsg::New)));
 
 		// The right pane.
 		let px = cx + cw - PANE_W;
-		let mut back = Button::new(px, cy + 2, 18, 20, "@4>");
-		back.set_label_size(8);
+		let mut back = crate::draw::arrow(px, cy + 2, 13, 20, false);
 		back.set_callback(move |_| s.send(Msg::Date(DateMsg::Year(-1))));
-		let mut year = Frame::new(px + 22, cy + 2, PANE_W - 44, 20, None);
+		let mut year = Frame::new(px + 14, cy + 2, PANE_W - 28, 20, None);
 		year.set_frame(FrameType::DownBox);
 		year.set_color(Color::White);
 		year.set_label_font(fonts.sans_bold);
-		let mut fwd = Button::new(px + PANE_W - 18, cy + 2, 18, 20, "@>");
-		fwd.set_label_size(8);
+		let mut fwd = crate::draw::arrow(px + PANE_W - 13, cy + 2, 13, 20, true);
 		fwd.set_callback(move |_| s.send(Msg::Date(DateMsg::Year(1))));
 		let mut months = Vec::new();
 		for m in 0..12u32 {
 			let (c, r) = ((m % 6) as i32, (m / 6) as i32);
 			let bw = PANE_W / 6;
-			let mut b = Button::new(px + c * bw, cy + 26 + r * 22, bw, 22, MONTH_SHORT[m as usize]);
+			let mut b = Button::new(px + c * bw, cy + 26 + r * MONTH_H, bw, MONTH_H, MONTH_SHORT[m as usize]);
 			b.set_frame(FrameType::FlatBox);
 			b.set_down_frame(FrameType::FlatBox);
 			b.clear_visible_focus();
@@ -488,7 +585,7 @@ impl DateView {
 			b.set_callback(move |_| s.send(Msg::Date(DateMsg::Month(m + 1))));
 			months.push(b);
 		}
-		let mut month_edge = Frame::new(px, cy + 26, PANE_W, 44, None);
+		let mut month_edge = Frame::new(px, cy + 26, PANE_W, 2 * MONTH_H, None);
 		month_edge.draw(|f| {
 			let d = Dev::begin();
 			let (x, y, w, h) = d.rect(f.x(), f.y(), f.w(), f.h());
@@ -497,16 +594,16 @@ impl DateView {
 			draw::draw_rect_fill(x, y, k, h, Color::Black);
 		});
 		let pane = Rc::new(RefCell::new(PaneModel::default()));
-		let mut cal_edge = Frame::new(px, cy + 74, PANE_W, 130, None);
+		let mut cal_edge = Frame::new(px, cy + 60, PANE_W, 130, None);
 		cal_edge.set_frame(FrameType::DownBox);
-		let mut cal = Frame::new(px + 2, cy + 76, PANE_W - 4, 126, None);
+		let mut cal = Frame::new(px + 2, cy + 62, PANE_W - 4, 126, None);
 		{
 			let p = pane.clone();
 			cal.draw(move |f| draw_calendar(f, &p.borrow()));
 		}
 		forward_mouse(&mut cal, s, |m| Msg::Date(DateMsg::Calendar(m)));
-		let hy = cy + 74 + 134;
-		let mut switch = Frame::new(px, hy, 117, 25, None);
+		let hy = cy + 194;
+		let mut switch = Frame::new(px, hy, 117, 18, None);
 		switch.set_frame(FrameType::DownBox);
 		{
 			let p = pane.clone();
@@ -529,23 +626,18 @@ impl DateView {
 			}
 			false
 		});
-		let todo_cat = IdChoice::new(
-			Choice::new(px + 121, hy + 2, PANE_W - 121, 22, None),
-			Some(0),
-			s,
-			Some(|| Msg::Date(DateMsg::Category)),
-		);
-		let addr_cat = IdChoice::new(
-			Choice::new(px + 121, hy + 2, PANE_W - 121, 22, None),
-			Some(2),
-			s,
-			Some(|| Msg::Date(DateMsg::Category)),
-		);
-		let ly = hy + 29;
-		let list_bottom = (cy + ch - ly, cy + ch - ly - 24);
+		let mut todo_choice = Choice::new(px + 121, hy, PANE_W - 121, 18, None);
+		crate::draw::style_menu(&mut todo_choice);
+		crate::combo::drop_below(&mut todo_choice);
+		let todo_cat = IdChoice::new(todo_choice, Some(0), s, Some(|| Msg::Date(DateMsg::Category)));
+		let mut addr_choice = Choice::new(px + 121, hy, PANE_W - 121, 18, None);
+		crate::draw::style_menu(&mut addr_choice);
+		crate::combo::drop_below(&mut addr_choice);
+		let addr_cat = IdChoice::new(addr_choice, Some(2), s, Some(|| Msg::Date(DateMsg::Category)));
+		let ly = hy + 22;
 		let mut lists = Vec::new();
 		for address in [false, true] {
-			let mut t = TableRow::new(px, ly, PANE_W, list_bottom.0, None);
+			let mut t = TableRow::new(px, ly, PANE_W, cy + ch - ly, None);
 			t.set_type(TableRowSelectMode::Single);
 			t.set_rows(0);
 			t.set_cols(1);
@@ -589,11 +681,37 @@ impl DateView {
 		look.set_trigger(CallbackTrigger::Changed);
 		look.set_callback(move |_| s.send(Msg::Date(DateMsg::Look)));
 		Field::Input(look.clone()).attach_menu();
-		// The day grid takes the extra width and height; the right pane keeps its width.
-		let grow = Frame::new(cx + 120, gy + 40, dw - 260, gh - 80, None);
-		let dg = day_group.clone();
-		dg.resizable(&grow);
 		day_group.end();
+		// The group lays its widgets out on every resize, so the buttons and the right pane never stretch.
+		let mut place = Place {
+			title: title.clone(),
+			edge: edge.clone(),
+			header: header.clone(),
+			grid: grid.clone(),
+			bar: scroller.bar.clone(),
+			today: today_b.clone(),
+			edit: edit_b.clone(),
+			new: new_b.clone(),
+			back: back.clone(),
+			year: year.clone(),
+			fwd: fwd.clone(),
+			months: months.clone(),
+			month_edge: month_edge.clone(),
+			cal_edge: cal_edge.clone(),
+			cal: cal.clone(),
+			switch: switch.clone(),
+			todo_cat: todo_cat.choice.clone(),
+			addr_cat: addr_cat.choice.clone(),
+			todo_list: todo_list.clone(),
+			addr_list: addr_list.clone(),
+			look_label: look_label.clone(),
+			look: look.clone(),
+			model: model.clone(),
+		};
+		let mut dg = day_group.clone();
+		let mut on_resize = place.clone();
+		dg.resize_callback(move |_, x, y, w, h| on_resize.apply(Rect::new(x, y, w, h)));
+		place.apply(Rect::new(cx, cy, cw, ch));
 
 		let week = WeekView::new(cx, cy, cw, ch, s);
 		let month = MonthView::new(cx, cy, cw, ch, s);
@@ -664,7 +782,8 @@ impl DateView {
 			look_label,
 			look,
 			pane,
-			list_bottom,
+			place,
+			shown_day: None,
 			occs: Vec::new(),
 			selected_id: None,
 			todo_cat_id: None,
@@ -751,6 +870,14 @@ impl DateView {
 		}
 		self.end_title_edit_ctx(ctx, true);
 		self.title.set_label(&date_title(day));
+		// The title is red only for today.
+		self.title
+			.set_label_color(if day == today() { Color::Red } else { Color::Black });
+		if self.shown_day != Some(day) {
+			// A newly shown day opens at the work day start.
+			self.shown_day = Some(day);
+			self.scroller.scroll_later(y_of(work_day(ctx.settings) * 60));
+		}
 		self.occs = visible_events(ctx.store, day, ctx.show_private);
 		if !self.occs.iter().any(|o| Some(o.event.id) == self.selected_id) {
 			self.selected_id = None;
@@ -851,17 +978,13 @@ impl DateView {
 		if let Some(i) = keep.and_then(|id| self.pane_addrs.iter().position(|a| a.id == id)) {
 			let _ = self.addr_list.select_row(i as i32, TableRowSelectFlag::Select);
 		}
-		let (h_todo, h_addr) = self.list_bottom;
-		let (x, y, w) = (self.todo_list.x(), self.todo_list.y(), self.todo_list.w());
 		if address {
 			self.todo_list.hide();
-			self.addr_list.resize(x, y, w, h_addr);
 			self.addr_list.show();
 			self.look_label.show();
 			self.look.show();
 		} else {
 			self.addr_list.hide();
-			self.todo_list.resize(x, y, w, h_todo);
 			self.todo_list.show();
 			self.look_label.hide();
 			self.look.hide();
@@ -881,29 +1004,26 @@ impl DateView {
 			m.occs = self.occs.clone();
 			m.selected = self.selected_id;
 			m.untimed_rows = rows;
-			m.offset = self.scroller.offset();
-			m.typing = self.typing.as_ref().map(|t| {
-				let w = if t.untimed { self.header.w() } else { self.grid.w() };
-				let r = if t.untimed {
-					Rect::new(TIME_W + 2, (rows - 1) * UNTIMED_H + 1, w - TIME_W - 4, UNTIMED_H - 2)
-				} else {
-					hour_box(t.min, w)
-				};
-				(t.untimed, r)
-			});
+			m.editing = self.title_edit.as_ref().map(|t| t.occ.event.id);
 		}
-		// The header grows by one row for each untimed event, and keeps SEL_H for the blue bar.
-		let hh = rows * UNTIMED_H + SEL_H;
-		if self.header.h() != hh {
-			let top = self.header.y();
-			let bottom = self.grid.y() + self.grid.h();
-			self.header.resize(self.header.x(), top, self.header.w(), hh);
-			self.grid
-				.resize(self.grid.x(), top + hh, self.grid.w(), bottom - top - hh);
-			let b = &mut self.scroller.bar;
-			b.resize(b.x(), top + hh, b.w(), bottom - top - hh);
-			self.day_group.init_sizes();
-		}
+		// The header grows by one row for each untimed event, and the grid takes the rest of the height.
+		let g = Rect::new(
+			self.day_group.x(),
+			self.day_group.y(),
+			self.day_group.w(),
+			self.day_group.h(),
+		);
+		self.place.apply(g);
+		let typing = self.typing.as_ref().map(|t| {
+			let w = if t.untimed { self.header.w() } else { self.grid.w() };
+			let r = if t.untimed {
+				Rect::new(TIME_W + 2, (rows - 1) * UNTIMED_H + 1, w - TIME_W - 4, UNTIMED_H - 2)
+			} else {
+				hour_box(t.min, w)
+			};
+			(t.untimed, r)
+		});
+		self.model.borrow_mut().typing = typing;
 		let gh = self.grid.h();
 		self.scroller.set_range(gh, y_of(24 * 60) + 1);
 		self.model.borrow_mut().offset = self.scroller.offset();
@@ -937,6 +1057,12 @@ impl DateView {
 			DateMode::Week => self.week.selected_occ(),
 			_ => self.selected_occ(),
 		}
+	}
+
+	/// True when the view shown has a selected event, for the Edit menu: Edit Event, Delete Event, Delete and
+	/// Select All are gray without one, as in Palm Desktop 3.1.1.
+	pub fn has_selected_event(&self) -> bool {
+		self.current_occ().is_some()
 	}
 
 	/// Shows the event `e` in the Day view on its date, selected.
@@ -1121,8 +1247,7 @@ impl DateView {
 		if save && !text.is_empty() && text != occ.event.title {
 			change_occurrence(ctx.store, &occ, CHANGE_TEXT, |e| e.title = text);
 		}
-		self.grid.redraw();
-		self.header.redraw();
+		self.sync_model();
 	}
 
 	fn add_event(&mut self, ctx: &mut Ctx, title: &str, day: i64, min: i32, untimed: bool) {
@@ -1222,6 +1347,7 @@ impl DateView {
 		let _ = field.input.set_position(n);
 		let _ = field.input.set_mark(0);
 		self.title_edit = Some(TitleEdit { field, occ });
+		self.sync_model();
 	}
 
 	/// The local point and the layout of the header (true) or the grid, for window point (x, y).
@@ -1335,6 +1461,12 @@ impl DateView {
 						self.suppress_click = true;
 						let _ = self.update_drag(&mut d, m.x, m.y, lx, ly);
 						let e = d.occ.event.clone();
+						if !d.resize {
+							// A moved box is deselected, as in Palm Desktop 3.1.1.
+							self.selected_id = None;
+							self.edit_b.deactivate();
+							self.sync_model();
+						}
 						if let Some(day) = d.drop_day {
 							change_occurrence(ctx.store, &d.occ, CHANGE_TEXT, |x| x.date = day);
 						} else if d.resize {
@@ -1371,12 +1503,13 @@ impl DateView {
 				let marker = marker_at(r, &occ.event, lx, ly, header);
 				if double && on_handle(r, lx, ly) {
 					event_dialog::edit(ctx, Some(occ.event), occ.day, None, "");
-				} else if double {
-					self.edit_title(occ, r, header);
 				} else if marker == Some(Marker::Alarm) {
 					edit_alarm(ctx.store, &occ);
 				} else if marker == Some(Marker::Note) {
 					edit_note(ctx.store, &occ);
+				} else if !double && !on_handle(r, lx, ly) {
+					// A click on the title starts the in-place edit at once, as in Palm Desktop 3.1.1.
+					self.edit_title(occ, r, header);
 				}
 			}
 			None if !double => {
@@ -1576,6 +1709,7 @@ fn records_selected(t: &TableRow, n: usize) -> Option<usize> {
 /// Shows a menu of `labels` at the pointer; the index of the pick.
 fn popup(labels: &[&str]) -> Option<usize> {
 	let mut mb = MenuButton::default();
+	crate::draw::style_menu(&mut mb);
 	mb.set_type(MenuButtonType::Popup3);
 	for l in labels {
 		mb.add_choice(l);
@@ -1657,7 +1791,8 @@ fn draw_pane_todo(
 	if let Some((a, _)) = due {
 		if r.todo.due >= 0 {
 			let plain = r.due.trim_end_matches('!');
-			draw::set_draw_color(if r.overdue { Color::Red } else { Color::Black });
+			// An overdue due date stays black, with a bold black "!", as in Palm Desktop 3.1.1.
+			draw::set_draw_color(Color::Black);
 			draw::draw_text(plain, x + a, base);
 			if plain.len() < r.due.len() {
 				let at = x + a + text_w(plain);
@@ -1721,6 +1856,16 @@ fn draw_calendar(f: &Frame, p: &PaneModel) {
 	}
 }
 
+/// Draws the box of `e` in `r`. The box of a title being edited is white, the field lies over its title.
+fn paint_box(r: Rect, e: &Ev, m: &DayModel, centered: bool) {
+	let selected = Some(e.id) == m.selected;
+	if m.editing == Some(e.id) {
+		draw_box(r, Fill::White, selected);
+	} else {
+		paint_event(r, e, selected, centered);
+	}
+}
+
 /// The untimed rows above the Day grid: one raised cell with the diamond at its middle, a black line under
 /// the rows, and a box for each untimed event.
 fn draw_header(f: &Frame, m: &DayModel) {
@@ -1737,7 +1882,7 @@ fn draw_header(f: &Frame, m: &DayModel) {
 	boxes.sort_by_key(|(i, _, _)| Some(m.occs[*i].event.id) == m.selected);
 	for (i, r, _) in boxes {
 		let e = &m.occs[*i].event;
-		paint_event(r.moved(x, y), e, Some(e.id) == m.selected, true);
+		paint_box(r.moved(x, y), e, m, true);
 	}
 	if let Some((true, r)) = m.typing {
 		draw_box(r.moved(x, y), Fill::White, true);
@@ -1770,7 +1915,7 @@ fn draw_grid(f: &Frame, m: &DayModel) {
 	boxes.sort_by_key(|(i, _, _)| Some(m.occs[*i].event.id) == m.selected);
 	for (i, r, _) in boxes {
 		let e = &m.occs[*i].event;
-		paint_event(r.moved(x, top), e, Some(e.id) == m.selected, false);
+		paint_box(r.moved(x, top), e, m, false);
 	}
 	if let Some((false, r)) = m.typing {
 		draw_box(r.moved(x, top), Fill::White, true);

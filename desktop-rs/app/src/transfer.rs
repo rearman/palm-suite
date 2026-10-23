@@ -1,8 +1,9 @@
 //! Import and Export, as Transfer.kt: iCalendar files, the Date Book backup file and vCard files.
 
 use crate::address;
+use crate::dialogs::{self, Icon};
 use crate::view::Ctx;
-use fltk::dialog::{self, FileDialogOptions, FileDialogType, NativeFileChooser};
+use fltk::dialog::{FileDialogOptions, FileDialogType, NativeFileChooser};
 use palm_core::backup::{self, Content};
 use palm_core::{ical, vcard};
 use std::collections::{HashMap, HashSet};
@@ -57,7 +58,11 @@ pub fn export(ctx: &mut Ctx, addresses: bool) -> Option<String> {
 		(with_ext(typed, if as_json { "json" } else { "ics" }), text)
 	};
 	if let Err(e) = std::fs::write(&path, text) {
-		dialog::alert_default(&format!("The file could not be saved.\n{e}"));
+		dialogs::message(
+			"Palm Desktop",
+			Icon::Warning,
+			&format!("The file could not be saved.\n{e}"),
+		);
 		return None;
 	}
 	let name = path
@@ -110,7 +115,11 @@ pub fn import(ctx: &mut Ctx) {
 	let text = match std::fs::read_to_string(&path) {
 		Ok(t) => t,
 		Err(e) => {
-			dialog::alert_default(&format!("The file could not be read.\n{e}"));
+			dialogs::message(
+				"Palm Desktop",
+				Icon::Warning,
+				&format!("The file could not be read.\n{e}"),
+			);
 			return;
 		}
 	};
@@ -124,8 +133,12 @@ pub fn import(ctx: &mut Ctx) {
 		import_json(ctx, body)
 	};
 	match message {
-		Ok(m) => dialog::message_default(&m),
-		Err(_) => dialog::alert_default("This file is not a Date Book backup or an iCalendar file."),
+		Ok(m) => dialogs::message("Palm Desktop", Icon::Info, &m),
+		Err(_) => dialogs::message(
+			"Palm Desktop",
+			Icon::Warning,
+			"This file is not a Date Book backup or an iCalendar file.",
+		),
 	}
 }
 

@@ -5,7 +5,7 @@
 use fltk::app::{self, ClipboardContent, MouseButton};
 use fltk::enums::Event;
 use fltk::input::Input;
-use fltk::menu::{MenuFlag, MenuItem};
+use fltk::menu::{MenuButton, MenuButtonType, MenuFlag};
 use fltk::prelude::*;
 use fltk::text::TextEditor;
 
@@ -156,12 +156,25 @@ impl Field {
 	}
 }
 
-/// Shows the right-click menu of a text field at the pointer, and returns the chosen item.
+/// Shows the right-click menu of a text field at the pointer, and returns the chosen item. The items and their
+/// dividers follow the Windows edit menu of Palm Desktop 3.1.1.
 fn menu(s: EditState) -> Option<TextAction> {
-	let menu = MenuItem::new(&["&Undo", "Cu&t", "&Copy", "&Paste", "&Delete", "Select &All"]);
+	const ITEMS: [(&str, TextAction); 6] = [
+		("&Undo", TextAction::Undo),
+		("Cu&t", TextAction::Cut),
+		("&Copy", TextAction::Copy),
+		("&Paste", TextAction::Paste),
+		("&Delete", TextAction::Delete),
+		("Select &All", TextAction::SelectAll),
+	];
 	let on = [s.undo, s.cut, s.copy, s.paste, s.delete, s.select_all];
+	let mut mb = MenuButton::default();
+	mb.set_type(MenuButtonType::Popup3);
+	for (label, _) in ITEMS.iter() {
+		mb.add_choice(label);
+	}
 	for (i, enabled) in on.iter().enumerate() {
-		if let Some(mut item) = menu.at(i as i32) {
+		if let Some(mut item) = mb.at(i as i32) {
 			if !enabled {
 				item.deactivate();
 			}
@@ -170,13 +183,8 @@ fn menu(s: EditState) -> Option<TextAction> {
 			}
 		}
 	}
-	let item = menu.popup(app::event_x(), app::event_y())?;
-	Some(match item.label().unwrap_or_default().as_str() {
-		"&Undo" => TextAction::Undo,
-		"Cu&t" => TextAction::Cut,
-		"&Copy" => TextAction::Copy,
-		"&Paste" => TextAction::Paste,
-		"&Delete" => TextAction::Delete,
-		_ => TextAction::SelectAll,
-	})
+	crate::draw::style_menu(&mut mb);
+	let pick = mb.popup().map(|_| mb.value()).filter(|v| *v >= 0).map(|v| v as usize);
+	MenuButton::delete(mb);
+	pick.map(|i| ITEMS[i].1)
 }

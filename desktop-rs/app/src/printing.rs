@@ -1,8 +1,8 @@
 //! Print, as Printing.kt: the title of the view in bold, then its lines in 10 pt, wrapped at the page width
 //! and split into pages. The system print dialog sets the printer and the paper.
 
+use crate::dialogs::{self, Icon};
 use crate::theme;
-use fltk::dialog;
 use fltk::draw;
 use fltk::printer::Printer;
 
@@ -61,7 +61,7 @@ pub fn print(title: &str, lines: &[String]) {
 	}
 	if let Err(e) = p.begin_page() {
 		p.end_job();
-		dialog::alert_default(&format!("The print job failed.\n{e}"));
+		dialogs::message("Palm Desktop", Icon::Warning, &format!("The print job failed.\n{e}"));
 		return;
 	}
 	let (pw, ph) = p.printable_rect();
@@ -84,7 +84,7 @@ pub fn print(title: &str, lines: &[String]) {
 			let _ = p.end_page();
 			if let Err(e) = p.begin_page() {
 				p.end_job();
-				dialog::alert_default(&format!("The print job failed.\n{e}"));
+				dialogs::message("Palm Desktop", Icon::Warning, &format!("The print job failed.\n{e}"));
 				return;
 			}
 			y = 0;

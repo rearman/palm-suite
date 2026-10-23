@@ -1,6 +1,7 @@
 //! A list beside a detail pane, parted by a 14 px divider the user drags, as detailSplit in Theme.kt. The
-//! divider draws the raised bar of Palm Desktop. The list takes the extra width and the detail pane keeps
-//! its width, which is saved as a setting when the divider is released.
+//! divider draws the raised bar of Palm Desktop. Which side takes a change of the window width is set by
+//! `Grow`: the Address Book and Memo Pad keep the list and the detail pane takes the extra width; the To
+//! Do List keeps both sides in their shares. The width is saved as a setting when the divider is released.
 
 use crate::draw::{Dev, HIGHLIGHT, SHADOW};
 use crate::msg::Msg;
@@ -11,10 +12,24 @@ use fltk::enums::{Color, Cursor, Event, FrameType};
 use fltk::frame::Frame;
 use fltk::group::Group;
 use fltk::prelude::*;
+use std::cell::Cell;
+use std::rc::Rc;
 
 const DIVIDER: i32 = 14;
 const MIN_LIST: i32 = 150;
 const MIN_DETAIL: i32 = 200;
+/// The window width at which a `Grow::Share` detail width is saved: the normal 1000 px window.
+const REF_W: i32 = 1000;
+
+/// How the panes follow a change of the window width.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Grow {
+	/// The list keeps its width and the detail pane takes the extra width (Address Book, Memo Pad).
+	Detail,
+	/// The list and the detail pane keep their shares of the width (To Do List). The saved width is the
+	/// detail width in a window of `REF_W` px, so it scales with the window.
+	Share,
+}
 
 pub struct Split {
 	pub outer: Group,
@@ -22,11 +37,29 @@ pub struct Split {
 	pub right: Group,
 }
 
-/// Builds the split in (x, y, w, h). `detail_w` is the saved width of the detail pane. Fill each side
-/// between its begin() and end(). `key` names the setting of the width.
+/// Builds the split in (x, y, w, h) with `Grow::Detail`. `detail_w` is the saved width of the detail pane.
+/// Fill each side between its begin() and end(). `key` names the setting of the width.
 pub fn split(x: i32, y: i32, w: i32, h: i32, detail_w: i32, key: &'static str, s: Sender<Msg>) -> Split {
-	let detail_w = detail_w.clamp(MIN_DETAIL, (w - DIVIDER - MIN_LIST).max(MIN_DETAIL));
-	let outer = Group::new(x, y, w, h, None);
+	split_grow(x, y, w, h, detail_w, key, Grow::Detail, s)
+}
+
+/// Builds the split in (x, y, w, h) with the rule `grow`. `detail_w` is the saved width of the detail pane;
+/// with `Grow::Share` it is the width at `REF_W`. Fill each side between its begin() and end().
+#[allow(clippy::too_many_arguments)]
+pub fn split_grow(
+	x: i32,
+	y: i32,
+	w: i32,
+	h: i32,
+	detail_w: i32,
+	key: &'static str,
+	grow: Grow,
+	s: Sender<Msg>,
+) -> Split {
+	// The detail width at REF_W, kept current by the drag, so that a resize scales from it.
+	let ref_detail = Rc::new(Cell::new(detail_w));
+	let detail_w = detail_for(grow, detail_w, w);
+	let mut outer = Group::new(x, y, w, h, None);
 	let lw = w - DIVIDER - detail_w;
 	let left = Group::new(x, y, lw, h, None);
 	left.end();
@@ -34,8 +67,20 @@ pub fn split(x: i32, y: i32, w: i32, h: i32, detail_w: i32, key: &'static str, s
 	bar.set_frame(FrameType::FlatBox);
 	let right = Group::new(x + lw + DIVIDER, y, detail_w, h, None);
 	right.end();
-	outer.resizable(&left);
+	match grow {
+		Grow::Detail => outer.resizable(&right),
+		Grow::Share => outer.resizable(&left),
+	}
 	outer.end();
+
+	if grow == Grow::Share {
+		let (mut l, mut b, mut r) = (left.clone(), bar.clone(), right.clone());
+		let rd = ref_detail.clone();
+		outer.resize_callback(move |o, _, _, _, _| {
+			let d = detail_for(Grow::Share, rd.get(), o.w());
+			place(o, &mut l, &mut b, &mut r, o.w() - DIVIDER - d);
+		});
+	}
 
 	bar.draw(|b| {
 		draw::draw_rect_fill(b.x(), b.y(), b.w(), b.h(), PANEL);
@@ -58,6 +103,7 @@ pub fn split(x: i32, y: i32, w: i32, h: i32, detail_w: i32, key: &'static str, s
 		}
 	});
 	let (mut l, mut r, mut o) = (left.clone(), right.clone(), outer.clone());
+	let rd = ref_detail.clone();
 	bar.handle(move |b, ev| match ev {
 		Event::Enter => {
 			if let Some(mut win) = b.window() {
@@ -76,18 +122,45 @@ pub fn split(x: i32, y: i32, w: i32, h: i32, detail_w: i32, key: &'static str, s
 			let total = o.w();
 			let mx = fltk::app::event_x() - o.x() - DIVIDER / 2;
 			let lw = mx.clamp(MIN_LIST, (total - DIVIDER - MIN_DETAIL).max(MIN_LIST));
-			l.resize(o.x(), o.y(), lw, o.h());
-			b.resize(o.x() + lw, o.y(), DIVIDER, o.h());
-			r.resize(o.x() + lw + DIVIDER, o.y(), total - lw - DIVIDER, o.h());
+			place(&o, &mut l, b, &mut r, lw);
+			if grow == Grow::Share {
+				rd.set(to_ref(total - lw - DIVIDER, total));
+			}
 			o.init_sizes();
 			o.redraw();
 			true
 		}
 		Event::Released => {
-			s.send(Msg::SplitMoved { key, width: r.w() });
+			let width = match grow {
+				Grow::Detail => r.w(),
+				Grow::Share => rd.get(),
+			};
+			s.send(Msg::SplitMoved { key, width });
 			true
 		}
 		_ => false,
 	});
 	Split { outer, left, right }
+}
+
+/// The detail width in a window of `total` px. A `Grow::Share` width is scaled up or down from `REF_W`.
+fn detail_for(grow: Grow, detail: i32, total: i32) -> i32 {
+	let d = match grow {
+		Grow::Detail => detail,
+		// Known limit: integer division rounds the share down, by under 1 px per resize.
+		Grow::Share => detail * (total - DIVIDER) / (REF_W - DIVIDER),
+	};
+	d.clamp(MIN_DETAIL, (total - DIVIDER - MIN_LIST).max(MIN_DETAIL))
+}
+
+/// The detail width of `detail` px in a window of `total` px, scaled to `REF_W`.
+fn to_ref(detail: i32, total: i32) -> i32 {
+	detail * (REF_W - DIVIDER) / (total - DIVIDER).max(1)
+}
+
+/// Lays the list, the divider and the detail pane in `o`, with the list `lw` px wide.
+fn place(o: &Group, l: &mut Group, b: &mut Frame, r: &mut Group, lw: i32) {
+	l.resize(o.x(), o.y(), lw, o.h());
+	b.resize(o.x() + lw, o.y(), DIVIDER, o.h());
+	r.resize(o.x() + lw + DIVIDER, o.y(), o.w() - lw - DIVIDER, o.h());
 }

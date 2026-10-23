@@ -3,7 +3,8 @@
 
 use crate::address_dialog::{self, custom_labels};
 use crate::category::{menu_label, IdChoice, ALL, UNFILED};
-use crate::dialogs::{confirm_delete, delete_question, list_by, run_modal};
+use crate::combo;
+use crate::dialogs::{self, confirm_delete_titled, list_by, run_modal, Icon};
 use crate::draw::{fit, text_w};
 use crate::msg::{AddressMsg, Msg};
 use crate::records::{self, list_state, ListAction, ListMsgs};
@@ -14,7 +15,6 @@ use crate::theme::{self, PANEL, SELECT};
 use crate::view::Ctx;
 use fltk::app::{self, Sender};
 use fltk::button::Button;
-use fltk::dialog;
 use fltk::draw;
 use fltk::enums::{Align, CallbackTrigger, Color, FrameType};
 use fltk::frame::Frame;
@@ -66,6 +66,8 @@ pub struct AddressView {
 	shown: Vec<Address>,
 	/// The address the user selected, kept over a rebuild.
 	selected_id: Option<i64>,
+	/// The Look up text that last matched a name; a typed character that matches none is refused back to it.
+	look_ok: String,
 }
 
 impl AddressView {
@@ -73,7 +75,7 @@ impl AddressView {
 	pub fn new(x: i32, y: i32, w: i32, h: i32, s: Sender<Msg>, settings: &Settings) -> AddressView {
 		let fonts = theme::fonts();
 		// 302 px: the AddressCard width of Palm Desktop.
-		let sp = split(x, y, w, h, settings.get_int("addressSplit", 302), "addressSplit", s);
+		let sp = split(x, y, w, h, settings.get_int("addressSplit", 416), "addressSplit", s);
 
 		// The list side: the title, the filter, the list, Look up, and the List by, Edit and New buttons.
 		sp.left.begin();
@@ -83,12 +85,10 @@ impl AddressView {
 		title.set_label_font(fonts.arial_bold);
 		title.set_label_size(14);
 		title.set_align(Align::Center | Align::Inside);
-		let filter = IdChoice::new(
-			Choice::new(lx + lw - 114, ly + 4, 110, 22, None),
-			Some(2),
-			s,
-			Some(|| Msg::Address(AddressMsg::Filter)),
-		);
+		let mut filter_menu = Choice::new(lx + lw - 114, ly + 4, 110, 22, None);
+		crate::draw::style_menu(&mut filter_menu);
+		combo::drop_below(&mut filter_menu);
+		let filter = IdChoice::new(filter_menu, Some(2), s, Some(|| Msg::Address(AddressMsg::Filter)));
 
 		let by = ly + lh - 29;
 		let look_y = by - 5 - 21;
@@ -174,6 +174,7 @@ impl AddressView {
 			card_data,
 			shown: Vec::new(),
 			selected_id: None,
+			look_ok: String::new(),
 		}
 	}
 
@@ -289,10 +290,11 @@ impl AddressView {
 	fn delete_selected(&mut self, ctx: &mut Ctx) {
 		let picked = self.selected();
 		if picked.is_empty()
-			|| !confirm_delete(
+			|| !confirm_delete_titled(
 				ctx.settings,
 				ctx.no_confirm,
-				&delete_question(picked.len(), "Delete the address?", "addresses"),
+				"Delete Address Book Items",
+				"Delete the selected Address Book item(s)?",
 			) {
 			return;
 		}
@@ -356,7 +358,7 @@ impl AddressView {
 			AddressMsg::ListMenu => {
 				let lead = self.lead_address();
 				let dial = lead.as_ref().is_some_and(|a| !phone_slots(a).is_empty());
-				let extra = [("&Edit...", lead.is_some()), ("D&ial...", dial)];
+				let extra = [("&Edit...", lead.is_some()), ("&Dial...", dial)];
 				match records::list_menu(self.list_edit_state(), &extra) {
 					Some(ListAction::Extra(0)) => self.edit_selected(ctx),
 					Some(ListAction::Extra(_)) => {
@@ -368,14 +370,22 @@ impl AddressView {
 					None => {}
 				}
 			}
+			AddressMsg::Dial => {
+				if let Some(a) = self.lead_address().filter(|a| !phone_slots(a).is_empty()) {
+					dial_address(&a);
+				}
+			}
 			AddressMsg::PasteText(text) => self.paste_text(ctx, &text),
 		}
 	}
 
-	/// Selects the first address whose list name starts with the Look up text, ignoring case.
+	/// Selects the first address whose list name starts with the Look up text, ignoring case. A text that
+	/// matches no name is refused: the field goes back to the last text that matched.
 	fn find_by_name(&mut self, ctx: &Ctx) {
-		let text = self.look.value().to_lowercase();
+		let typed = self.look.value();
+		let text = typed.to_lowercase();
 		if text.is_empty() {
+			self.look_ok.clear();
 			return;
 		}
 		let by_company = by_company(ctx.settings);
@@ -384,11 +394,22 @@ impl AddressView {
 			.iter()
 			.position(|a| a.list_name(by_company).to_lowercase().starts_with(&text))
 		else {
+			self.refuse_look(&typed);
 			return;
 		};
+		self.look_ok = typed;
 		records::pick_row(&mut self.table, &self.lead, Some(i));
 		self.selected_id = Some(self.shown[i].id);
 		self.show_card(ctx);
+	}
+
+	/// Puts back the Look up text that last matched. The cursor returns to the start of the refused text, so a
+	/// typed character leaves the field as it was.
+	fn refuse_look(&mut self, typed: &str) {
+		let grew = typed.len().saturating_sub(self.look_ok.len());
+		let at = self.look.position().max(0) as usize;
+		self.look.set_value(&self.look_ok);
+		let _ = self.look.set_position(at.saturating_sub(grew) as i32);
 	}
 
 	/// Cut, Copy, Paste, Delete and Select All of the selected addresses. The text of an address is its
@@ -557,6 +578,8 @@ fn dial_address(a: &Address) {
 			.unwrap_or(&"Other");
 		pick.add_choice(&menu_label(&format!("{label}: {}", a.phones[*i])));
 	}
+	crate::draw::style_menu(&mut pick);
+	combo::drop_below(&mut pick);
 	pick.set_value(slots.iter().position(|i| *i as i32 == a.show_phone).unwrap_or(0) as i32);
 	let go = Rc::new(Cell::new(false));
 	let mut dial_b = Button::new(64, 48, 72, 23, "&Dial");
@@ -579,7 +602,11 @@ fn dial_address(a: &Address) {
 	}
 	let number = &a.phones[slots[pick.value().max(0) as usize]];
 	if fltk::utils::open_uri(&format!("tel:{}", tel_digits(number))).is_err() {
-		dialog::message_default("This computer has no app that makes phone calls.");
+		dialogs::message(
+			"Dial",
+			Icon::Warning,
+			"This computer has no app that makes phone calls.",
+		);
 	}
 }
 
@@ -601,10 +628,10 @@ fn fit_name(name: &str, w: i32, measure: &dyn Fn(&str) -> i32) -> String {
 }
 
 /// One row of the Address List, laid out as Palm Desktop 3.1.1 does. The number column is as wide as the
-/// widest number of the list and ends RIGHT px from the right edge; the name gets the rest. When the list
-/// is too narrow, the number column takes at most MAX_SHARE of the room and both columns end in "...". The
-/// letter after the number always shows. A selected row is filled from the left edge to the end of the
-/// number.
+/// widest number of the list and ends RIGHT px from the right edge; the number is right-aligned at that
+/// column's end, so the phones line up at the right. The name gets the rest. When the list is too narrow,
+/// the number column takes at most MAX_SHARE of the room and both columns end in "...". The letter after the
+/// number always shows. A selected row is filled from the left edge to the end of the number.
 pub(crate) fn draw_row(r: &Row, selected: bool, (x, y, w, h): (i32, i32, i32, i32), widest: i32) {
 	draw::set_font(theme::fonts().sans, 11);
 	let room = (w - RIGHT).max(0);
@@ -619,21 +646,22 @@ pub(crate) fn draw_row(r: &Row, selected: bool, (x, y, w, h): (i32, i32, i32, i3
 	};
 	let number = if r.number.is_empty() {
 		String::new()
+	} else if r.letter.is_empty() {
+		fit(&r.number, number_w, &text_w)
 	} else {
 		format!("{} {}", fit(&r.number, number_w - letter_w, &text_w), r.letter)
 	};
+	// The number ends at the room's edge, the RIGHT gap is left after it.
+	let number_left = room - text_w(&number);
 	if selected {
-		let end = if number.is_empty() {
-			number_x
-		} else {
-			number_x + text_w(&number) + 4
-		};
+		// The fill runs 4 px past the end of the number.
+		let end = if number.is_empty() { number_x } else { room + 4 };
 		draw::draw_rect_fill(x, y, end, h, SELECT);
 	}
 	draw::set_draw_color(if selected { Color::White } else { Color::Black });
 	// The name stops 6 px short of the number column.
 	draw::draw_text(&fit_name(&r.name, number_x - 9, &text_w), x + 3, base);
-	draw::draw_text(&number, x + number_x, base);
+	draw::draw_text(&number, x + number_left, base);
 }
 
 /// The card of an address: the name and the category on the first line, then the filled fields.

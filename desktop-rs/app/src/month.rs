@@ -2,7 +2,7 @@
 
 use crate::date_picker::week_start_of;
 use crate::date_shared::{dow_index, time_label, visible_events, week_begins, Occ, MONTH_LONG};
-use crate::draw::{fit, text_w};
+use crate::draw::{fit, text_w, Dev};
 use crate::event_dialog;
 use crate::msg::{DateMode, DateMsg, Mouse, MouseKind, Msg};
 use crate::platform::today;
@@ -14,7 +14,7 @@ use fltk::draw;
 use fltk::enums::{Align, Color, Event, EventState};
 use fltk::frame::Frame;
 use fltk::group::Group;
-use fltk::menu::MenuItem;
+use fltk::menu::{MenuButton, MenuButtonType, MenuFlag};
 use fltk::prelude::*;
 use palm_core::days::{epoch_day, ymd};
 use palm_core::model::DOW_LONG;
@@ -138,13 +138,9 @@ impl MonthView {
 		let day = self.model.borrow().start + i;
 		*ctx.day = day;
 		if m.right {
-			let menu = MenuItem::new(&["&Day View", "&Week View", "&New Event..."]);
-			if let Some(mut item) = menu.at(1) {
-				item.set_flag(fltk::menu::MenuFlag::MenuDivider);
-			}
-			match menu.popup(m.x, m.y).and_then(|i| i.label()).as_deref() {
-				Some("&Day View") => return Some(DateMode::Day),
-				Some("&Week View") => return Some(DateMode::Week),
+			match cell_menu() {
+				Some(0) => return Some(DateMode::Day),
+				Some(1) => return Some(DateMode::Week),
 				Some(_) => event_dialog::edit(ctx, None, day, None, ""),
 				None => {}
 			}
@@ -152,6 +148,22 @@ impl MonthView {
 		}
 		m.double.then_some(DateMode::Day)
 	}
+}
+
+/// Shows the Month cell menu at the pointer; the index of the pick.
+fn cell_menu() -> Option<usize> {
+	let mut mb = MenuButton::default();
+	mb.set_type(MenuButtonType::Popup3);
+	for l in ["&Day View", "&Week View", "&New Event..."] {
+		mb.add_choice(l);
+	}
+	if let Some(mut item) = mb.at(1) {
+		item.set_flag(MenuFlag::MenuDivider);
+	}
+	crate::draw::style_menu(&mut mb);
+	let pick = mb.popup().map(|_| mb.value()).filter(|v| *v >= 0).map(|v| v as usize);
+	MenuButton::delete(mb);
+	pick
 }
 
 /// The text of an event line: an asterisk for an untimed event, the start time for a timed one.
@@ -190,7 +202,7 @@ fn draw_month(f: &Frame, m: &MonthModel) {
 	let shown = ymd(m.day).month;
 	draw::set_font(fonts.sans, 11);
 	let number_h = draw::height() + NUM_PAD;
-	draw::set_font(fonts.arial, 13);
+	draw::set_font(fonts.arial, 12);
 	let line_h = draw::height();
 	let key = icon("private");
 	for i in 0..7 * WEEKS {
@@ -199,7 +211,6 @@ fn draw_month(f: &Frame, m: &MonthModel) {
 		let other = ymd(day).month != shown;
 		draw::push_clip(rx, ry, cw, ch);
 		draw::draw_rect_fill(rx, ry, cw, ch, if other { PANEL } else { Color::White });
-		draw::draw_rect_with_color(rx, ry, cw, ch, Color::from_rgb(160, 160, 160));
 		// The date number at the top right. The selected day fills with the select color; today is red and
 		// bold, on the fill too.
 		let today = day == m.today;
@@ -226,7 +237,7 @@ fn draw_month(f: &Frame, m: &MonthModel) {
 		// The event lines that fit. A black triangle at the top left shows the day has more events.
 		let room = ((ch - number_h) / line_h.max(1)).max(0) as usize;
 		let list = &m.days[i as usize];
-		draw::set_font(fonts.arial, 13);
+		draw::set_font(fonts.arial, 12);
 		let asc = draw::height() - draw::descent();
 		let mut ly = ry + number_h;
 		for o in list.iter().take(room) {
@@ -236,7 +247,7 @@ fn draw_month(f: &Frame, m: &MonthModel) {
 				k.draw(lx, ly, k.w(), k.h());
 				lx += 13;
 			}
-			draw::set_font(fonts.arial, 13);
+			draw::set_font(fonts.arial, 12);
 			draw::set_draw_color(Color::Black);
 			draw::draw_text(&fit(&line_text(o, m.h24), rx + cw - lx - 2, &text_w), lx, ly + asc);
 			ly += line_h;
@@ -248,5 +259,24 @@ fn draw_month(f: &Frame, m: &MonthModel) {
 		}
 		draw::pop_clip();
 	}
+	draw_grid(x, y, cw, ch);
 	draw::pop_clip();
+}
+
+/// The grid lines: one black device pixel line on each edge of the six weeks, drawn once for all cells, so
+/// two cells never draw the same edge twice.
+fn draw_grid(x: i32, y: i32, cw: i32, ch: i32) {
+	let d = Dev::begin();
+	let (top, bottom) = (y + NAME_H, y + NAME_H + WEEKS * ch);
+	let (left, right) = (x, x + 7 * cw);
+	let (dt, db) = (d.p(top), d.p(bottom));
+	let (dl, dr) = (d.p(left), d.p(right));
+	let lw = d.lw();
+	draw::set_draw_color(Color::Black);
+	for c in 0..=7 {
+		draw::draw_rectf(d.p(left + c * cw), dt, lw, db - dt);
+	}
+	for r in 0..=WEEKS {
+		draw::draw_rectf(dl, d.p(top + r * ch), dr - dl, lw);
+	}
 }

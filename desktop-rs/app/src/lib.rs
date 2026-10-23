@@ -3,6 +3,7 @@
 pub mod address;
 pub mod address_dialog;
 pub mod category;
+pub mod combo;
 pub mod date;
 pub mod date_picker;
 pub mod date_shared;
@@ -11,6 +12,7 @@ pub mod draw;
 pub mod event_dialog;
 pub mod find;
 pub mod memo;
+pub mod mnemonics;
 pub mod month;
 pub mod msg;
 pub mod note_dialog;

@@ -2,9 +2,12 @@
 //! Custom Field Labels dialog of Dialogs.kt.
 
 use crate::category::IdChoice;
-use crate::dialogs::key_label;
+use crate::combo;
+use crate::dialogs::{key_label, show_modal};
+use crate::draw;
+use crate::note_dialog::NoteBox;
 use crate::settings::Settings;
-use crate::text_edit::Field;
+use crate::text_edit::{Field, TextAction};
 use crate::view::Ctx;
 use fltk::app;
 use fltk::button::{Button, CheckButton, RoundButton};
@@ -47,6 +50,12 @@ pub fn default_labels(settings: &Settings) -> [i32; 5] {
 		}
 		_ => first,
 	}
+}
+
+/// The text of a phone label choice, with the colon of the form: "E-Mail:" as Palm Desktop 3.1.1 writes it.
+fn phone_label(l: &str) -> String {
+	let text = if l == "E-mail" { "E-Mail" } else { l };
+	format!("{text}:")
 }
 
 /// The keys of a dialog: Alt and a letter moves the focus to the field of that letter, on its tab page when
@@ -194,13 +203,13 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Address>, new_category: i32) {
 		phone_labels: default_labels(settings).to_vec(),
 		..Address::default()
 	};
-	let mut win = Window::default().with_size(454, 365).with_label("Edit Address");
+	let mut win = Window::default().with_size(448, 341).with_label("Edit Address");
 	let mut keys: Keys = Vec::new();
-	let tabs = Tabs::new(9, 28, 326, 328, None);
+	let tabs = Tabs::new(9, 8, 326, 328, None);
 	// The pages start below the tab row; (px, py) is the origin of the page layouts of AddressDialog.kt.
-	let (px, py) = (11, 51);
+	let (px, py) = (11, 31);
 	let page = |label: &str| {
-		let mut g = Group::new(9, 49, 326, 307, None);
+		let mut g = Group::new(9, 29, 326, 307, None);
 		g.set_label(label);
 		g.set_frame(FrameType::UpBox);
 		g
@@ -220,51 +229,54 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Address>, new_category: i32) {
 	label("S&how in list:", px + 14, py + 107, 90, 21);
 	let (mut show, mut labels, mut phones) = (Vec::new(), Vec::new(), Vec::new());
 	for y in [127, 151, 177, 203, 229] {
-		let mut r = RoundButton::new(px + 60, py + y, 18, 21, None);
-		r.set_type(fltk::button::ButtonType::Radio);
-		show.push(r);
+		show.push(draw::radio(px + 60, py + y, 18, 21, ""));
 		let mut c = Choice::new(px + 83, py + y, 72, 21, None);
 		for l in LABELS {
-			c.add_choice(&format!("{l}:"));
+			c.add_choice(&phone_label(l));
 		}
+		combo::drop_below(&mut c);
+		draw::style_menu(&mut c);
 		labels.push(c);
 		phones.push(field(px + 158, py + y, 144, 21));
 	}
 	keys.push(('h', Some(name_page.clone()), show[0].as_base_widget()));
-	let default_box = CheckButton::new(px + 60, py + 260, 130, 18, "Sa&ve as default");
+	let default_box = draw::check(px + 60, py + 260, 130, 18, "Sa&ve as default");
 	name_page.end();
 
 	let address_page = page("&Address");
-	label("A&ddress:", px + 14, py + 10, 66, 21);
+	key_label("A&ddress:", px + 14, py + 10, 66, 21, Align::Right);
 	let (address_e, address) = area(px + 83, py + 10, 221, 88);
 	keys.push(('d', Some(address_page.clone()), address_e.as_base_widget()));
 	let row = |text: &str, key: char, y: i32, keys: &mut Keys| {
-		label(text, px + 14, py + y, 66, 21);
+		key_label(text, px + 14, py + y, 66, 21, Align::Right);
 		let f = field(px + 83, py + y, 221, 21);
 		keys.push((key, Some(address_page.clone()), f.as_base_widget()));
 		f
 	};
 	let city = row("C&ity:", 'i', 101, &mut keys);
 	let state = row("&State:", 's', 122, &mut keys);
-	let zip = row("&Zip Code:", 'z', 143, &mut keys);
+	let zip = row("&Zip:", 'z', 143, &mut keys);
 	let country = row("Co&untry:", 'u', 164, &mut keys);
 	let names = custom_labels(ctx.settings);
 	let mut custom = Vec::new();
 	for (i, y) in [198, 219, 241, 262].into_iter().enumerate() {
-		label(
+		key_label(
 			&format!("{}:", names[i]).replace('&', "&&").replace('@', "@@"),
 			px + 14,
 			py + y,
 			66,
 			21,
+			Align::Right,
 		);
 		custom.push(field(px + 84, py + y, 221, 21));
 	}
 	address_page.end();
 
-	// Alt+O is OK, so the Note tab has no Alt key.
+	// Alt+O is OK, so the Note tab has no Alt key. The toolbar above the note has the Cut, Copy, Paste and Undo
+	// of the Note Editor; the note box has its vertical scroll bar.
 	let note_page = page("Note");
-	let (_, note) = area(px + 11, py + 37, 290, 250);
+	let mut note_box = NoteBox::new(px + 10, 30, 24, (px + 12, 60, 288, 250));
+	let note = note_box.buf.clone();
 	note_page.end();
 	tabs.end();
 
@@ -279,14 +291,17 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Address>, new_category: i32) {
 		});
 		b
 	};
-	let ok = button("&OK", 47, Some(Act::Ok));
-	button("&Cancel", 77, None);
-	button("Ne&w", 107, Some(Act::New));
-	let mut category = IdChoice::new(Choice::new(342, 311, 105, 22, None), None, ctx.s, None);
+	let ok = button("&OK", 27, Some(Act::Ok));
+	button("&Cancel", 57, None);
+	button("Ne&w", 87, Some(Act::New));
+	let mut menu = Choice::new(342, 289, 105, 22, None);
+	combo::drop_below(&mut menu);
+	draw::style_menu(&mut menu);
+	let mut category = IdChoice::new(menu, None, ctx.s, None);
 	let mut items = vec![("Unfiled".to_string(), 0)];
 	items.extend(ctx.store.address_categories.iter().map(|c| (c.name.clone(), c.id)));
 	category.set_items(&items, false, 0);
-	let private_box = CheckButton::new(342, 341, 105, 21, "&Private");
+	let private_box = draw::check(342, 317, 105, 21, "&Private");
 	win.end();
 	handle_keys(&mut win, Some(tabs.clone()), keys, ok);
 
@@ -311,10 +326,14 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Address>, new_category: i32) {
 	};
 	form.fill(&orig.clone().unwrap_or_else(|| blank(new_category, ctx.settings)));
 
-	win.make_modal(true);
-	win.show();
+	show_modal(&mut win);
+	// The Last name text is selected on open.
+	let _ = form.last.take_focus();
+	let mut last_field = Field::Input(form.last.clone());
+	last_field.run(TextAction::SelectAll);
 	while win.shown() {
 		app::wait();
+		note_box.sync();
 		let Some(a) = act.take() else { continue };
 		if form.default_box.value() {
 			let text = serde_json::to_string(&form.label_choices()).expect("a list of numbers is JSON");
@@ -341,19 +360,20 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Address>, new_category: i32) {
 /// the default name "Custom n".
 pub fn custom_field_labels(ctx: &mut Ctx) -> bool {
 	let labels = custom_labels(ctx.settings);
-	// Template 2043 is 129 x 113 dlu, so the dialog is about 194 x 184 px.
-	let mut win = Window::default().with_size(194, 150).with_label("Custom Field Labels");
+	// The Palm Desktop 3.1.1 dialog is 194 x 184 px: labels at the left, fields to their right, OK and Cancel
+	// at the bottom.
+	let mut win = Window::default().with_size(194, 184).with_label("Custom Field Labels");
 	let mut fields = Vec::new();
 	for (i, text) in labels.iter().enumerate() {
-		let y = 12 + 26 * i as i32;
-		label(&format!("Label {}:", i + 1), 10, y, 52, 21);
-		let mut f = field(64, y, 120, 21);
+		let y = 18 + 28 * i as i32;
+		label(&format!("Label {}:", i + 1), 14, y, 50, 21);
+		let mut f = field(68, y, 106, 21);
 		f.set_value(text);
 		fields.push(f);
 	}
 	let saved = Rc::new(Cell::new(false));
-	let mut ok = Button::new(22, 117, 72, 23, "OK");
-	let mut cancel = Button::new(100, 117, 72, 23, "Cancel");
+	let mut ok = Button::new(42, 142, 50, 23, "OK");
+	let mut cancel = Button::new(106, 142, 50, 23, "Cancel");
 	{
 		let (saved, mut win) = (saved.clone(), win.clone());
 		ok.set_callback(move |_| {
@@ -422,5 +442,11 @@ mod tests {
 		assert_eq!(default_labels(&none), [0, 1, 2, 3, 4]);
 		std::fs::remove_dir_all(dir).unwrap();
 		std::fs::remove_dir_all(dir2).unwrap();
+	}
+
+	#[test]
+	fn phone_labels_read_as_palm_desktop() {
+		assert_eq!(phone_label("E-mail"), "E-Mail:");
+		assert_eq!(phone_label("Work"), "Work:");
 	}
 }

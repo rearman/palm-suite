@@ -1,7 +1,9 @@
 //! The main window, as MainFrame.kt: the menus, the toolbar, the launcher bar on the left, the four views in
 //! the middle and the status bar at the bottom. Every control sends a [Msg]; the main loop does the work.
 
-use crate::msg::{DateMsg, EditCmd, Msg, TodoMsg, View};
+use crate::dialogs;
+use crate::draw;
+use crate::msg::{AddressMsg, DateMsg, EditCmd, Msg, TodoMsg, View};
 use crate::text_edit::EditState;
 use crate::theme::{self, icon, PANEL, WORKSPACE};
 use fltk::app::Sender;
@@ -19,11 +21,25 @@ const MENU_H: i32 = 20;
 const TOOL_H: i32 = 30;
 const STATUS_H: i32 = 22;
 const LAUNCHER_W: i32 = 72;
+/// A launcher button is 57 x 44 px, and the next one starts 51 px lower, as Palm Desktop 3.1.1.
+const LAUNCHER_BTN_W: i32 = 57;
+const LAUNCHER_BTN_H: i32 = 44;
+const LAUNCHER_STEP: i32 = 51;
 
-/// The View menu radio item of each view.
+/// The View menu item of each view. It has a check mark while its view shows.
 type ViewItems = Vec<(View, &'static str)>;
-/// Menu items that show in some views only.
+/// Menu items that apply to some views only. The other views gray them.
 type OnlyIn = Vec<(&'static str, &'static [View])>;
+
+/// Which record items of the Edit menu apply to the selection, as main.rs reports them.
+#[derive(Clone, Copy, Debug)]
+struct RecordState {
+	/// Delete and Select All.
+	delete: bool,
+	select_all: bool,
+	/// Edit Event... and Delete Event.
+	event: bool,
+}
 
 pub struct Ui {
 	pub win: Window,
@@ -37,6 +53,11 @@ pub struct Ui {
 	only_in: OnlyIn,
 	/// The toolbar buttons whose state changes: "cut", "copy", "paste", "undo" and "new".
 	tools: Vec<(&'static str, Button)>,
+	sender: Sender<Msg>,
+	/// The view on show. The Edit menu holds the items of this view.
+	view: View,
+	edit: EditState,
+	record: RecordState,
 }
 
 fn ctrl(c: char) -> Shortcut {
@@ -50,7 +71,8 @@ impl Ui {
 		win.size_range(640, 480, 0, 0);
 		win.set_icon(Some(icon("app48")));
 
-		let (bar, view_items, only_in) = menu_bar(s);
+		let (mut bar, view_items, only_in) = menu_bar(s);
+		draw::style_menu(&mut bar);
 		let (mut private_icon, tools) = toolbar(s);
 		private_icon.hide();
 
@@ -65,7 +87,7 @@ impl Ui {
 			(View::Memo, "Memo", "memo"),
 		] {
 			launchers.push((view, launcher_button(y, label, png, s, view)));
-			y += 58 + 6;
+			y += LAUNCHER_STEP;
 		}
 		// The empty space below the buttons takes the height of a taller window.
 		let spacer = Frame::new(0, y, LAUNCHER_W, launcher.h() - (y - launcher.y()), None);
@@ -91,6 +113,7 @@ impl Ui {
 		let (status, position) = status_bar();
 		win.resizable(&center);
 		win.end();
+		dialogs::set_main(&win);
 		win.handle(move |_, ev| {
 			use fltk::enums::Event;
 			match ev {
@@ -113,7 +136,7 @@ impl Ui {
 				s.send(Msg::Exit);
 			}
 		});
-		Ui {
+		let mut ui = Ui {
 			win,
 			bar,
 			launchers,
@@ -124,11 +147,21 @@ impl Ui {
 			view_items,
 			only_in,
 			tools,
-		}
+			sender: s,
+			view: View::Date,
+			edit: EditState::default(),
+			record: RecordState {
+				delete: true,
+				select_all: true,
+				event: true,
+			},
+		};
+		ui.build_edit_menu();
+		ui
 	}
 
-	/// Shows the view and checks its launcher button and View menu item, and shows the menu items that
-	/// belong to it.
+	/// Shows the view and checks its launcher button and View menu item, and grays the menu items that
+	/// belong to other views. The Edit menu takes the items of the view.
 	pub fn show_view(&mut self, view: View) {
 		for (v, g) in self.views.iter_mut() {
 			if *v == view {
@@ -140,6 +173,14 @@ impl Ui {
 		for (v, b) in self.launchers.iter_mut() {
 			b.set_value(*v == view);
 		}
+		self.view = view;
+		// The menu items are found by their paths, which hold '&', and the Edit menu is built again.
+		crate::mnemonics::with_originals(|| self.update_menus(view));
+		self.win.redraw();
+	}
+
+	/// Checks the View item of `view`, grays the items of other views and builds the Edit menu of `view`.
+	fn update_menus(&mut self, view: View) {
 		for (v, path) in &self.view_items {
 			if let Some(mut item) = self.bar.find_item(path) {
 				if *v == view {
@@ -152,13 +193,22 @@ impl Ui {
 		for (path, views) in &self.only_in {
 			if let Some(mut item) = self.bar.find_item(path) {
 				if views.contains(&view) {
-					item.show();
+					item.activate();
 				} else {
-					item.hide();
+					item.deactivate();
 				}
 			}
 		}
-		self.win.redraw();
+		self.build_edit_menu();
+	}
+
+	/// Clears the Edit submenu and adds the items of the view on show, so no item is hidden. The Edit
+	/// state and the record state carry over.
+	fn build_edit_menu(&mut self) {
+		let idx = self.bar.find_index("&Edit");
+		self.bar.clear_submenu(idx).expect("the Edit menu exists");
+		edit_menu(&mut self.bar, self.sender, self.view);
+		apply_edit_state(&mut self.bar, self.edit, self.record);
 	}
 
 	fn set_tool(&mut self, name: &str, on: bool) {
@@ -175,23 +225,24 @@ impl Ui {
 
 	/// Grays the Edit items and toolbar buttons that do not apply to the focus owner.
 	pub fn set_edit_state(&mut self, s: EditState) {
-		for (path, on) in [
-			("&Edit/&Undo", s.undo),
-			("&Edit/Cu&t", s.cut),
-			("&Edit/&Copy", s.copy),
-			("&Edit/&Paste", s.paste),
-		] {
-			if let Some(mut item) = self.bar.find_item(path) {
-				if on {
-					item.activate();
-				} else {
-					item.deactivate();
-				}
-			}
-		}
+		self.edit = s;
+		let (bar, edit, record) = (&mut self.bar, self.edit, self.record);
+		crate::mnemonics::with_originals(|| apply_edit_state(bar, edit, record));
 		for (name, on) in [("undo", s.undo), ("cut", s.cut), ("copy", s.copy), ("paste", s.paste)] {
 			self.set_tool(name, on);
 		}
+	}
+
+	/// Grays Delete and Select All when no record is selected, and Edit Event... and Delete Event when no
+	/// event is selected, as Palm Desktop 3.1.1 does.
+	pub fn set_record_state(&mut self, delete: bool, select_all: bool, event: bool) {
+		self.record = RecordState {
+			delete,
+			select_all,
+			event,
+		};
+		let (bar, edit, record) = (&mut self.bar, self.edit, self.record);
+		crate::mnemonics::with_originals(|| apply_edit_state(bar, edit, record));
 	}
 
 	/// The group of one view, for the view to build its widgets in.
@@ -219,20 +270,96 @@ impl Ui {
 			self.private_icon.hide();
 		}
 		let (show, hide) = ("&View/&Show Private Records", "&View/&Hide Private Records");
-		for (path, on) in [(show, !hidden), (hide, hidden)] {
-			if let Some(mut item) = self.bar.find_item(path) {
-				if on {
-					item.set();
-				} else {
-					item.clear();
+		let bar = &mut self.bar;
+		crate::mnemonics::with_originals(|| {
+			for (path, on) in [(show, !hidden), (hide, hidden)] {
+				if let Some(mut item) = bar.find_item(path) {
+					if on {
+						item.set();
+					} else {
+						item.clear();
+					}
 				}
 			}
-		}
+		});
 		self.win.redraw();
 	}
 }
 
-/// The menu bar of MainFrame.kt. Items whose feature comes in a later phase of the port are grayed.
+/// The Edit submenu of one view, as Palm Desktop 3.1.1: the text commands, Delete and Select All, the
+/// items of the view, then Find... at the end.
+fn edit_menu(bar: &mut MenuBar, s: Sender<Msg>, view: View) {
+	let edit = move |c: EditCmd| move |_: &mut MenuBar| s.send(Msg::Edit(c));
+	let send = move |m: fn() -> Msg| move |_: &mut MenuBar| s.send(m());
+	let normal = MenuFlag::Normal;
+	let divider = MenuFlag::MenuDivider;
+
+	bar.add("&Edit/&Undo", ctrl('z'), divider, edit(EditCmd::Undo));
+	bar.add("&Edit/Cu&t", ctrl('x'), normal, edit(EditCmd::Cut));
+	bar.add("&Edit/&Copy", ctrl('c'), normal, edit(EditCmd::Copy));
+	bar.add("&Edit/&Paste", ctrl('v'), normal, edit(EditCmd::Paste));
+	bar.add(
+		"&Edit/&Delete",
+		Shortcut::from_key(Key::Delete),
+		divider,
+		edit(EditCmd::Delete),
+	);
+	bar.add("&Edit/Select &All", ctrl('a'), divider, edit(EditCmd::SelectAll));
+	match view {
+		View::Date => {
+			bar.add("&Edit/&New Event...", ctrl('n'), normal, edit(EditCmd::New));
+			bar.add(
+				"&Edit/&Edit Event...",
+				Shortcut::None,
+				normal,
+				send(|| Msg::Date(DateMsg::Edit)),
+			);
+			bar.add("&Edit/De&lete Event", Shortcut::None, divider, edit(EditCmd::Delete));
+		}
+		View::Todo => {
+			bar.add("&Edit/&New To Do", ctrl('n'), divider, edit(EditCmd::New));
+		}
+		View::Memo => {
+			bar.add("&Edit/&New Memo", ctrl('n'), divider, edit(EditCmd::New));
+		}
+		View::Address => {
+			bar.add("&Edit/&New Address...", ctrl('n'), normal, edit(EditCmd::New));
+			bar.add(
+				"&Edit/&Dial...",
+				ctrl('i'),
+				divider,
+				send(|| Msg::Address(AddressMsg::Dial)),
+			);
+		}
+	}
+	bar.add("&Edit/&Find...", ctrl('f'), normal, send(|| Msg::Find));
+}
+
+/// Grays the Edit items that do not apply: the text commands by the Edit state, and Delete, Select All
+/// and the event items by the record state.
+fn apply_edit_state(bar: &mut MenuBar, edit: EditState, record: RecordState) {
+	for (path, on) in [
+		("&Edit/&Undo", edit.undo),
+		("&Edit/Cu&t", edit.cut),
+		("&Edit/&Copy", edit.copy),
+		("&Edit/&Paste", edit.paste),
+		("&Edit/&Delete", record.delete),
+		("&Edit/Select &All", record.select_all),
+		("&Edit/&Edit Event...", record.event),
+		("&Edit/De&lete Event", record.event),
+	] {
+		if let Some(mut item) = bar.find_item(path) {
+			if on {
+				item.activate();
+			} else {
+				item.deactivate();
+			}
+		}
+	}
+}
+
+/// The menu bar of MainFrame.kt. The Edit submenu comes from `edit_menu`. Items whose feature comes in a
+/// later phase of the port are grayed.
 fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	let mut bar = MenuBar::new(0, 0, W, MENU_H, None);
 	bar.set_frame(FrameType::FlatBox);
@@ -241,7 +368,6 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	let normal = MenuFlag::Normal;
 	let divider = MenuFlag::MenuDivider;
 	let later = MenuFlag::Inactive;
-	let later_div = MenuFlag::Inactive | MenuFlag::MenuDivider;
 	let none = |_: &mut MenuBar| {};
 
 	bar.add("&File/&Save All", ctrl('s'), divider, send(|| Msg::SaveAll));
@@ -250,31 +376,8 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	bar.add("&File/Page Set&up...", Shortcut::None, later, none);
 	bar.add("&File/&Print...", ctrl('p'), divider, send(|| Msg::Print));
 	bar.add("&File/E&xit", Shortcut::None, normal, send(|| Msg::Exit));
-
-	let edit = move |c: EditCmd| move |_: &mut MenuBar| s.send(Msg::Edit(c));
-	bar.add("&Edit/&Undo", ctrl('z'), later_div, edit(EditCmd::Undo));
-	bar.add("&Edit/Cu&t", ctrl('x'), later, edit(EditCmd::Cut));
-	bar.add("&Edit/&Copy", ctrl('c'), later, edit(EditCmd::Copy));
-	bar.add("&Edit/&Paste", ctrl('v'), later, edit(EditCmd::Paste));
-	bar.add(
-		"&Edit/&Delete",
-		Shortcut::from_key(Key::Delete),
-		divider,
-		edit(EditCmd::Delete),
-	);
-	bar.add("&Edit/Select &All", ctrl('a'), normal, edit(EditCmd::SelectAll));
-	bar.add("&Edit/&New Event...", ctrl('n'), normal, edit(EditCmd::New));
-	bar.add(
-		"&Edit/&Edit Event...",
-		Shortcut::None,
-		normal,
-		send(|| Msg::Date(DateMsg::Edit)),
-	);
-	bar.add("&Edit/De&lete Event", Shortcut::None, normal, edit(EditCmd::Delete));
-	bar.add("&Edit/&New To Do", ctrl('n'), normal, edit(EditCmd::New));
-	bar.add("&Edit/&New Memo", ctrl('n'), normal, edit(EditCmd::New));
-	bar.add("&Edit/&New Address...", ctrl('n'), divider, edit(EditCmd::New));
-	bar.add("&Edit/&Find...", ctrl('f'), normal, send(|| Msg::Find));
+	// The Edit submenu of the start view; `Ui::show_view` rebuilds it for each view.
+	edit_menu(&mut bar, s, View::Date);
 
 	let views: [(View, &'static str, Key); 4] = [
 		(View::Date, "&View/&Date Book", Key::F2),
@@ -284,9 +387,9 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	];
 	for (i, (view, path, key)) in views.iter().enumerate() {
 		let flag = if i == 3 {
-			MenuFlag::Radio | MenuFlag::MenuDivider
+			MenuFlag::Toggle | MenuFlag::MenuDivider
 		} else {
-			MenuFlag::Radio
+			MenuFlag::Toggle
 		};
 		let view = *view;
 		bar.add(path, Shortcut::from_key(*key), flag, move |_| {
@@ -296,13 +399,13 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 	bar.add(
 		"&View/&Show Private Records",
 		Shortcut::None,
-		MenuFlag::Radio,
+		MenuFlag::Toggle,
 		move |_| s.send(Msg::SetShowPrivate(true)),
 	);
 	bar.add(
 		"&View/&Hide Private Records",
 		Shortcut::None,
-		MenuFlag::Radio | MenuFlag::MenuDivider,
+		MenuFlag::Toggle | MenuFlag::MenuDivider,
 		move |_| s.send(Msg::SetShowPrivate(false)),
 	);
 	bar.add(
@@ -347,14 +450,9 @@ fn menu_bar(s: Sender<Msg>) -> (MenuBar, ViewItems, OnlyIn) {
 
 	let view_items = views.iter().map(|(v, p, _)| (*v, *p)).collect();
 	let only_in: OnlyIn = vec![
-		("&Edit/&New Event...", &[View::Date]),
-		("&Edit/&Edit Event...", &[View::Date]),
-		("&Edit/De&lete Event", &[View::Date]),
-		("&Edit/&New To Do", &[View::Todo]),
-		("&Edit/&New Memo", &[View::Memo]),
-		("&Edit/&New Address...", &[View::Address]),
 		("&View/Sh&ow...", &[View::Todo]),
 		("&View/&List By...", &[View::Memo, View::Address]),
+		("&Tools/&Categories...", &[View::Todo, View::Memo, View::Address]),
 		("&Tools/Custom &Field Labels...", &[View::Address]),
 		("&Tools/&Purge Events...", &[View::Date]),
 		("&Tools/&Purge Completed To Do's...", &[View::Todo]),
@@ -406,7 +504,7 @@ fn toolbar(s: Sender<Msg>) -> (Frame, Vec<(&'static str, Button)>) {
 /// A launcher button: the 24 px app icon over its name. It has no Alt key: F2 to F5 from the View menu
 /// select the views, as in Palm Desktop.
 fn launcher_button(y: i32, label: &str, png: &str, s: Sender<Msg>, view: View) -> RadioButton {
-	let mut b = RadioButton::new(7, y, 58, 58, None);
+	let mut b = RadioButton::new(7, y, LAUNCHER_BTN_W, LAUNCHER_BTN_H, None);
 	b.set_label(label);
 	b.set_label_font(theme::fonts().segoe);
 	b.set_label_size(12);

@@ -71,6 +71,8 @@ pub enum AddressMsg {
 	New,
 	/// A right click on the list.
 	ListMenu,
+	/// Edit > Dial... (Ctrl+I): the Dial dialog of the lead address.
+	Dial,
 	/// The clipboard text of a Paste into the list.
 	PasteText(String),
 }

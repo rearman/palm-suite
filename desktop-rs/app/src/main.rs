@@ -6,12 +6,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use fltk::app::{self, TimeoutHandle};
-use fltk::dialog;
 use fltk::prelude::*;
 use palm_core::runner::Record;
 use palm_desktop::address::AddressView;
 use palm_desktop::date::DateView;
+use palm_desktop::dialogs::{self, Icon};
 use palm_desktop::memo::MemoView;
+use palm_desktop::mnemonics;
 use palm_desktop::msg::{EditCmd, Msg, View};
 use palm_desktop::records::ListAction;
 use palm_desktop::settings::{self, Settings};
@@ -65,7 +66,7 @@ enum Target {
 }
 
 fn fail(text: &str) -> ! {
-	dialog::alert_default(text);
+	dialogs::message("Palm Desktop", Icon::Warning, text);
 	std::process::exit(1);
 }
 
@@ -143,9 +144,16 @@ impl App {
 			}
 			Msg::Purge => match self.view {
 				View::Todo => {
-					if dialog::choice2_default("Delete all completed To Do items?", "OK", "Cancel", "") == Some(0) {
+					if dialogs::ask_icon(
+						"Purge Completed To Do Items",
+						Icon::Question,
+						"Purge completed To Do item(s)?",
+						&["OK", "Cancel"],
+						0,
+					) == Some(0)
+					{
 						let n = self.store.purge_todos();
-						dialog::message_default(&format!("{n} To Do items purged."));
+						dialogs::message("Palm Desktop", Icon::Info, &format!("{n} To Do items purged."));
 					}
 				}
 				View::Date => {
@@ -258,7 +266,7 @@ impl App {
 			}
 			Msg::SyncDialogTurnOff => {
 				let ask = "Turn off sync on this computer? Your records stay here.";
-				if dialog::choice2_default(ask, "Turn Off", "Cancel", "") == Some(0) {
+				if dialogs::ask_icon("Palm Desktop", Icon::Question, ask, &["Turn Off", "Cancel"], 0) == Some(0) {
 					if let Err(e) = DesktopSync::turn_off(&mut self.settings) {
 						self.alert(&format!("The settings were not saved: {e}"));
 					}
@@ -266,7 +274,7 @@ impl App {
 				}
 			}
 			Msg::SyncDialogClose => self.close_dialog(),
-			Msg::About => dialog::message_default("Palm Desktop for the palm-suite apps"),
+			Msg::About => dialogs::about(),
 			Msg::Exit => app::quit(),
 		}
 		self.check_save();
@@ -274,6 +282,7 @@ impl App {
 			self.refresh_views();
 		}
 		self.update_edit_state();
+		mnemonics::refresh();
 	}
 
 	/// Reads the store again in every view.
@@ -314,7 +323,8 @@ impl App {
 	}
 
 	fn update_edit_state(&mut self) {
-		let s = match self.target() {
+		let target = self.target();
+		let s = match &target {
 			Target::Text(f) => f.state(),
 			Target::MemoList => self.memo.list_edit_state(),
 			Target::AddressList => self.address.list_edit_state(),
@@ -322,7 +332,35 @@ impl App {
 			Target::None => EditState::default(),
 		};
 		self.ui.set_edit_state(s);
+		self.update_record_state(&target);
 		self.update_position();
+	}
+
+	/// Tells the window which record commands apply: Delete when the view has a selected record or the
+	/// focused field has a text selection, Select All when the view has records, and the Event items when
+	/// the Date Book has a selected event. DateView exposes no accessor for its selection or its records
+	/// yet, so the Date Book passes true for all three.
+	fn update_record_state(&mut self, target: &Target) {
+		let text_selected = matches!(target, Target::Text(f) if f.state().delete);
+		let (delete, select_all, event) = match self.view {
+			View::Memo => {
+				let s = self.memo.list_edit_state();
+				(s.delete, s.select_all, false)
+			}
+			View::Address => {
+				let s = self.address.list_edit_state();
+				(s.delete, s.select_all, false)
+			}
+			View::Todo => {
+				let s = self.todo.list_edit_state();
+				(s.delete, s.select_all, false)
+			}
+			View::Date => {
+				let on = self.date.has_selected_event();
+				(on, on, on)
+			}
+		};
+		self.ui.set_record_state(delete || text_selected, select_all, event);
 	}
 
 	/// The Edit menu and toolbar: the focused text field takes the text commands; the view takes the rest.
@@ -427,7 +465,7 @@ impl App {
 	}
 
 	fn alert(&self, text: &str) {
-		dialog::alert_default(text);
+		dialogs::message("Palm Desktop", Icon::Warning, text);
 	}
 
 	fn save_setting(&mut self, key: &str, value: &str) {
@@ -457,14 +495,14 @@ impl App {
 			View::Todo => self.todo.focus(),
 			View::Date => self.date.focus(),
 		}
-		self.update_position();
+		self.update_edit_state();
 	}
 
 	/// The selected date in the Date Book, and the position in the other views.
 	fn update_position(&mut self) {
 		let text = match self.view {
 			View::Date => {
-				let d = palm_core::days::ymd(self.day);
+				let d = palm_core::days::ymd(platform::today());
 				format!("{}/{}/{}", d.month, d.day, d.year)
 			}
 			View::Memo => self.memo.position(),
@@ -515,6 +553,7 @@ fn main() {
 	let date = DateView::new(g.x(), g.y(), g.w(), g.h(), sender, &settings);
 	g.resizable(&date.root);
 	g.end();
+	mnemonics::install();
 	let show_private = settings.get_bool("showPrivate", false);
 	ui.set_private_hidden(!show_private);
 	let mut a = App {
@@ -545,6 +584,7 @@ fn main() {
 	a.refresh_views();
 	a.show_view(View::from_key(&start).unwrap_or(View::Date));
 	a.ui.win.show();
+	mnemonics::refresh();
 	let shot_at = args.iter().position(|x| x == "--shot");
 	if shot_at.is_none() {
 		a.ui.win.maximize();

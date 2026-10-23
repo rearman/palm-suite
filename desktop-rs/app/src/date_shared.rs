@@ -2,22 +2,22 @@
 //! and their hit tests, the Current, All and Cancel question of a repeating event, Alarm Settings, the menu
 //! of an event box, and the repeat summary of Change Repeat.
 
-use crate::dialogs::{ask, confirm_delete, run_modal};
+use crate::combo;
+use crate::dialogs::{ask_icon, key_label, run_modal, Icon};
 use crate::draw::{Dev, HIGHLIGHT};
 use crate::settings::Settings;
 use crate::store::DesktopStore;
 use crate::theme::{self, icon, PANEL, SELECT, SHADOW};
-use fltk::app;
-use fltk::button::{Button, CheckButton};
+use fltk::button::Button;
 use fltk::draw;
-use fltk::enums::{Align, Color, Shortcut};
+use fltk::enums::{Align, Color, Font, Shortcut};
 use fltk::image::PngImage;
-use fltk::menu::{Choice, MenuItem};
+use fltk::menu::{Choice, MenuButton, MenuButtonType, MenuFlag};
 use fltk::misc::Spinner;
 use fltk::prelude::*;
 use fltk::window::Window;
 use palm_core::days::{dow, ymd};
-use palm_core::model::{ordinal, repeat, short_date, week_index, Event, DOW_LONG, DOW_SHORT};
+use palm_core::model::{month_week, ordinal, repeat, short_date, Event, DOW_LONG, DOW_SHORT};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -166,20 +166,18 @@ pub fn draw_box(r: Rect, fill: Fill, selected: bool) {
 		Fill::White => draw::draw_rect_fill(x, y, w, h, Color::White),
 		Fill::Event => {
 			// The yellow and white dither of Palm Desktop, one device pixel per dot: white, then the yellow
-			// pixels whose x + y is even, which lie on the anti-diagonals two pixels apart.
+			// pixels whose x + y is even. Each row draws 1 x 1 rectangles, so no pixel is antialiased.
+			// Cost: about w * h / 2 rectangles per redraw; a full-day box of 200 x 800 px is about 80000.
+			// Upgrade path: a cached RGB image of the checker, drawn with draw_image, if redraws slow down.
 			draw::draw_rect_fill(x, y, w, h, Color::White);
-			draw::push_clip(x, y, w, h);
 			draw::set_draw_color(Color::Yellow);
-			draw::set_line_style(draw::LineStyle::Solid, 1);
-			let first = (x + y) + (x + y).rem_euclid(2);
-			let mut k = first;
-			while k <= x + y + w + h {
-				// The line x + y = k across the box.
-				draw::draw_line(k - y, y, k - y - h, y + h);
-				k += 2;
+			for py in y..y + h {
+				let mut px = if (x + py).rem_euclid(2) == 0 { x } else { x + 1 };
+				while px < x + w {
+					draw::draw_rectf(px, py, 1, 1);
+					px += 2;
+				}
 			}
-			draw::set_line_style(draw::LineStyle::Solid, 0);
-			draw::pop_clip();
 		}
 	}
 	let k = d.lw();
@@ -232,16 +230,67 @@ pub fn paint_event(r: Rect, e: &Event, selected: bool, centered: bool) {
 		i.draw(x, marker_y(r, ih, centered), iw, ih);
 		x += iw + 2;
 	}
-	draw::set_font(theme::fonts().arial, 13);
+	// The title is Helvetica 11 (MS Sans Serif 8), word-wrapped to the box left of the bar: the first line
+	// starts after the marker icons, the others at the left edge. Lines past the bottom are cut by the clip.
+	draw::set_font(Font::Helvetica, 11);
 	draw::set_draw_color(Color::Black);
-	let (asc, desc) = (draw::height() - draw::descent(), draw::descent());
-	let ty = if centered {
-		r.y + (r.h + asc - desc) / 2
+	let asc = draw::height() - draw::descent();
+	let lh = draw::height();
+	let right = r.x + r.w - BAR_W - 2;
+	let lines = wrap_words(&e.title, right - x, right - (r.x + 3), &crate::draw::text_w);
+	let top = if centered {
+		r.y + (r.h - lines.len() as i32 * lh) / 2
 	} else {
-		r.y + asc + 1
+		r.y + 1
 	};
-	draw::draw_text(&e.title, x, ty);
+	for (i, line) in lines.iter().enumerate() {
+		let lx = if i == 0 { x } else { r.x + 3 };
+		draw::draw_text(line, lx, top + asc + i as i32 * lh);
+	}
 	draw::pop_clip();
+}
+
+/// Splits `text` into lines at its spaces: the first line at most `first_w` px wide and the others `rest_w`
+/// px, as `measure` gives the width of a string. A word wider than its line is cut between characters.
+pub fn wrap_words(text: &str, first_w: i32, rest_w: i32, measure: &dyn Fn(&str) -> i32) -> Vec<String> {
+	let mut lines: Vec<String> = Vec::new();
+	let mut cur = String::new();
+	for word in text.split_whitespace() {
+		let mut word = word.to_string();
+		loop {
+			let limit = if lines.is_empty() { first_w } else { rest_w };
+			let candidate = if cur.is_empty() {
+				word.clone()
+			} else {
+				format!("{cur} {word}")
+			};
+			if measure(&candidate) <= limit {
+				cur = candidate;
+				break;
+			}
+			if !cur.is_empty() {
+				lines.push(std::mem::take(&mut cur));
+				continue;
+			}
+			// A word wider than the line: cut it after the last character that fits, at least one character.
+			let first_char = word.chars().next().map_or(0, char::len_utf8);
+			let cut = word
+				.char_indices()
+				.map(|(i, c)| i + c.len_utf8())
+				.take_while(|&end| measure(&word[..end]) <= limit)
+				.last()
+				.unwrap_or(first_char);
+			lines.push(word[..cut].to_string());
+			word = word[cut..].to_string();
+			if word.is_empty() {
+				break;
+			}
+		}
+	}
+	if !cur.is_empty() {
+		lines.push(cur);
+	}
+	lines
 }
 
 /// X where the title of `e` starts, after its marker icons.
@@ -316,7 +365,13 @@ pub fn draw_hour_label(min: i32, w: i32, x: i32, mid: i32, h24: bool) {
 
 /// Asks Current or All for a repeating event: Some(true) the current occurrence, Some(false) all, None Cancel.
 pub fn ask_repeat_scope(text: &str) -> Option<bool> {
-	match ask("Repeating Event", text, &["Current", "All", "Cancel"], 1)? {
+	match ask_icon(
+		"Repeating Event",
+		Icon::Question,
+		text,
+		&["&Current", "&All", "Cancel"],
+		1,
+	)? {
 		0 => Some(true),
 		1 => Some(false),
 		_ => None,
@@ -390,7 +445,16 @@ pub fn delete_occurrence(store: &mut DesktopStore, settings: &Settings, no_confi
 			None => return false,
 		}
 	} else {
-		if !confirm_delete(settings, no_confirm, "Delete selected event?") {
+		let confirm = !no_confirm && settings.get_bool("confirmDelete", true);
+		if confirm
+			&& ask_icon(
+				"Delete Date Book Items",
+				Icon::Question,
+				"Delete the selected Date Book item(s)?",
+				&["OK", "Cancel"],
+				0,
+			) != Some(0)
+		{
 			return false;
 		}
 		store.delete_event(occ.event.id);
@@ -412,18 +476,23 @@ pub fn count_spinner(x: i32, y: i32, w: i32, h: i32, value: i32, min: i32) -> Sp
 
 /// The Alarm Settings dialog. Writes the alarm fields of `e` on OK, and returns true; it does not save.
 pub fn alarm_dialog(e: &mut Event) -> bool {
-	let mut win = Window::default().with_size(300, 72).with_label("Alarm Settings");
-	let mut on = CheckButton::new(8, 8, 62, 22, "&Alarm:");
+	let mut win = Window::default().with_size(227, 89).with_label("Alarm Settings");
+	// The check box at the right of its "Alarm:" label, as Palm Desktop 3.1.1 lays it out.
+	let mut on = crate::draw::check(47, 19, 13, 13, "");
 	on.set_value(e.alarm);
-	let mut amount = count_spinner(72, 8, 52, 22, e.alarm_advance, 1);
-	let mut unit = Choice::new(128, 8, 120, 22, None);
+	let mut label = key_label("&Alarm:", 19, 17, 26, 18, Align::Left);
+	let mut amount = count_spinner(71, 17, 36, 18, e.alarm_advance, 1);
+	let mut unit = Choice::new(115, 17, 102, 18, None);
 	for u in ALARM_UNITS {
 		unit.add_choice(u);
 	}
 	unit.set_value(e.alarm_unit.clamp(0, 2));
+	crate::draw::style_menu(&mut unit);
+	combo::drop_below(&mut unit);
 	let saved = Rc::new(Cell::new(false));
-	let mut ok = Button::new(75, 40, 72, 23, "&OK");
-	let mut cancel = Button::new(153, 40, 72, 23, "Cancel");
+	// OK and Cancel at the bottom, 75 x 23 each, as in 3.1.1.
+	let mut ok = Button::new(26, 54, 75, 23, "&OK");
+	let mut cancel = Button::new(108, 54, 75, 23, "Cancel");
 	ok.set_shortcut(Shortcut::None | fltk::enums::Key::Enter);
 	{
 		let (saved, mut win) = (saved.clone(), win.clone());
@@ -437,19 +506,28 @@ pub fn alarm_dialog(e: &mut Event) -> bool {
 		cancel.set_callback(move |_| win.hide());
 	}
 	win.end();
+	// The count and the units show only while Alarm is checked.
 	let set_on = |amount: &mut Spinner, unit: &mut Choice, on: bool| {
 		if on {
-			amount.activate();
-			unit.activate();
+			amount.show();
+			unit.show();
 		} else {
-			amount.deactivate();
-			unit.deactivate();
+			amount.hide();
+			unit.hide();
 		}
 	};
 	set_on(&mut amount, &mut unit, e.alarm);
 	{
 		let (mut amount, mut unit) = (amount.clone(), unit.clone());
 		on.set_callback(move |b| set_on(&mut amount, &mut unit, b.value()));
+	}
+	// Alt+A on the "Alarm:" label toggles the check box.
+	{
+		let mut on = on.clone();
+		label.set_callback(move |_| {
+			on.set_value(!on.value());
+			on.do_callback();
+		});
 	}
 	run_modal(&mut win);
 	if !saved.get() {
@@ -502,17 +580,24 @@ pub enum BoxAction {
 
 /// Shows the menu of an event box at the pointer.
 pub fn event_menu() -> Option<BoxAction> {
-	let menu = MenuItem::new(&["&Delete", "&Note...", "&Alarm...", "&Edit..."]);
+	let mut mb = MenuButton::default();
+	mb.set_type(MenuButtonType::Popup3);
+	for label in ["&Delete", "&Note...", "&Alarm...", "&Edit..."] {
+		mb.add_choice(label);
+	}
+	// A divider after Delete and after Alarm, as in Palm Desktop 3.1.1.
 	for i in [0, 2] {
-		if let Some(mut item) = menu.at(i) {
-			item.set_flag(fltk::menu::MenuFlag::MenuDivider);
+		if let Some(mut item) = mb.at(i) {
+			item.set_flag(MenuFlag::MenuDivider);
 		}
 	}
-	let item = menu.popup(app::event_x(), app::event_y())?;
-	Some(match item.label()?.as_str() {
-		"&Delete" => BoxAction::Delete,
-		"&Note..." => BoxAction::Note,
-		"&Alarm..." => BoxAction::Alarm,
+	crate::draw::style_menu(&mut mb);
+	let pick = mb.popup().map(|_| mb.value()).filter(|v| *v >= 0).map(|v| v as usize);
+	MenuButton::delete(mb);
+	Some(match pick? {
+		0 => BoxAction::Delete,
+		1 => BoxAction::Note,
+		2 => BoxAction::Alarm,
 		_ => BoxAction::Edit,
 	})
 }
@@ -568,7 +653,7 @@ pub fn describe_desktop(e: &Event) -> String {
 			}
 		}
 		repeat::MONTH_DAY => {
-			let w = week_index(e.date);
+			let w = month_week(e);
 			let week = if w == 5 { "last".to_string() } else { ordinal(w as i32) };
 			format!(
 				"The {week} {} of {}",
@@ -676,6 +761,11 @@ mod tests {
 			describe_desktop(&ev(tue, repeat::MONTH_DAY, 1)),
 			"The 3rd Tuesday of every month"
 		);
+		// 2026-10-25 is both the 4th and the last Sunday of its month; the LAST_WEEK flag picks the last.
+		let mut sun = ev(epoch_day(2026, 10, 25), repeat::MONTH_DAY, 1);
+		assert_eq!(describe_desktop(&sun), "The 4th Sunday of every month");
+		sun.week_days = repeat::LAST_WEEK;
+		assert_eq!(describe_desktop(&sun), "The last Sunday of every month");
 		let mut until = ev(tue, repeat::DAY, 1);
 		until.repeat_end = epoch_day(2026, 12, 31);
 		assert_eq!(describe_desktop(&until), "Every day until 12/31/26");
@@ -692,5 +782,24 @@ mod tests {
 		assert_eq!(week_of_year(epoch_day(2026, 1, 1), false), 1);
 		// 2027 starts on a Friday: its first days are ISO week 0 in weekOfYear.
 		assert_eq!(week_of_year(epoch_day(2027, 1, 1), true), 0);
+	}
+}
+
+#[cfg(test)]
+mod wrap_tests {
+	use super::wrap_words;
+
+	/// Six px per character, so a line of 12 px holds two characters.
+	fn six(s: &str) -> i32 {
+		s.chars().count() as i32 * 6
+	}
+
+	#[test]
+	fn words_wrap_at_spaces_and_long_words_cut_between_characters() {
+		assert_eq!(wrap_words("aa bb cc", 12, 12, &six), vec!["aa", "bb", "cc"]);
+		assert_eq!(wrap_words("abcdefgh", 12, 12, &six), vec!["ab", "cd", "ef", "gh"]);
+		// The first line, after the markers, may be wider than the rest.
+		assert_eq!(wrap_words("a b cd", 18, 12, &six), vec!["a b", "cd"]);
+		assert!(wrap_words("   ", 12, 12, &six).is_empty());
 	}
 }

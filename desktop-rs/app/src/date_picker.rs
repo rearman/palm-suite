@@ -1,6 +1,7 @@
 //! The Palm Desktop date dialog of DatePicker.kt: Select Date, Select Week or Select Month. The year with
 //! its arrows, the twelve month buttons, and (except for a month) a calendar of six weeks.
 
+use crate::dialogs;
 use crate::draw::Dev;
 use crate::theme::{self, SELECT, SHADOW};
 use fltk::app;
@@ -50,19 +51,19 @@ pub fn pick(mode: Mode, day: i64, today: i64, begins: u32) -> Option<i64> {
 		Mode::Week => "Select Week",
 		Mode::Month => "Select Month",
 	};
-	let h = if mode == Mode::Month { 112 } else { 250 };
+	// The client heights of Palm Desktop 3.1.1 at 100%: 232 for a calendar, 102 for a month.
+	let h = if mode == Mode::Month { 102 } else { 232 };
 	let mut win = Window::default().with_size(210, h).with_label(title);
 	let sel = Rc::new(Cell::new(day));
 	let done: Rc<Cell<Option<bool>>> = Rc::new(Cell::new(None));
 	let fonts = theme::fonts();
 
-	let mut back = Button::new(6, 6, 20, 20, "@4>");
+	let mut back = crate::draw::arrow(6, 6, 20, 20, false);
 	let mut year = Frame::new(30, 6, 150, 20, None);
 	year.set_frame(FrameType::DownBox);
 	year.set_label_font(fonts.sans_bold);
-	let mut fwd = Button::new(184, 6, 20, 20, "@>");
+	let mut fwd = crate::draw::arrow(184, 6, 20, 20, true);
 	for (b, years) in [(&mut back, -12), (&mut fwd, 12)] {
-		b.set_label_size(9);
 		let sel = sel.clone();
 		b.set_callback(move |_| sel.set(add_months(sel.get(), years)));
 	}
@@ -91,7 +92,7 @@ pub fn pick(mode: Mode, day: i64, today: i64, begins: u32) -> Option<i64> {
 	}
 
 	// The calendar: a header row of day letters, then six weeks; a click picks a day, a double click is OK.
-	let mut cal = Frame::new(6, 78, 198, 136, None);
+	let mut cal = Frame::new(6, 76, 198, 122, None);
 	if mode == Mode::Month {
 		cal.hide();
 	}
@@ -128,8 +129,11 @@ pub fn pick(mode: Mode, day: i64, today: i64, begins: u32) -> Option<i64> {
 					if picked {
 						draw::draw_rect_fill(x, y, w, h, SELECT);
 					}
-					draw::set_font(fonts.sans, 11);
-					draw::set_draw_color(if d == today {
+					// In a week, today is bold red; in a day, a red box is drawn around it below.
+					let week_today = mode == Mode::Week && d == today;
+					let label = ymd(d).day.to_string();
+					draw::set_font(if week_today { fonts.sans_bold } else { fonts.sans }, 11);
+					draw::set_draw_color(if week_today {
 						Color::Red
 					} else if picked {
 						Color::White
@@ -138,7 +142,14 @@ pub fn pick(mode: Mode, day: i64, today: i64, begins: u32) -> Option<i64> {
 					} else {
 						Color::Black
 					});
-					draw::draw_text2(&ymd(d).day.to_string(), x, y, w, h, Align::Center);
+					draw::draw_text2(&label, x, y, w, h, Align::Center);
+					if mode == Mode::Day && d == today {
+						// A 1 px red box around the number, drawn on the blue fill when today is selected.
+						let (tw, th) = draw::measure(&label, false);
+						let (bx, by) = (x + (w - tw) / 2 - 2, y + (h - th) / 2 - 1);
+						draw::set_draw_color(Color::Red);
+						draw::draw_rect(bx, by, tw + 4, th + 2);
+					}
 				}
 			}
 			let d = Dev::begin();
@@ -222,8 +233,7 @@ pub fn pick(mode: Mode, day: i64, today: i64, begins: u32) -> Option<i64> {
 	}
 
 	let shown = Rc::new(RefCell::new(i64::MIN));
-	win.make_modal(true);
-	win.show();
+	dialogs::show_modal(&mut win);
 	while win.shown() {
 		app::wait();
 		if let Some(answer) = done.take() {

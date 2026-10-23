@@ -1,11 +1,12 @@
 //! The Edit Event dialog of EventDialog.kt, after Palm Desktop 3.1.1, with its Change Repeat and Select Time
 //! dialogs, and the parsers of its time and date fields.
 
+use crate::combo;
 use crate::date_picker::{self, Mode};
 use crate::date_shared::{
 	apply_alarm_preset, count_spinner, describe_desktop, save_occurrence, week_begins, Occ, ALARM_UNITS, CHANGE_TEXT,
 };
-use crate::dialogs::{key_label, run_modal};
+use crate::dialogs::{draw_icon, key_label, message, push_button, run_modal, show_modal, Icon};
 use crate::note_dialog;
 use crate::platform::today;
 use crate::text_edit::Field;
@@ -13,19 +14,19 @@ use crate::theme::{self, icon, PANEL, SELECT};
 use crate::view::Ctx;
 use fltk::app;
 use fltk::browser::HoldBrowser;
-use fltk::button::{Button, CheckButton, RadioRoundButton};
+use fltk::button::Button;
 use fltk::dialog;
 use fltk::draw;
 use fltk::enums::{Align, Color, Event as Ev, FrameType, Key, Shortcut};
 use fltk::frame::Frame;
 use fltk::input::Input;
-use fltk::menu::{Choice, MenuItem};
+use fltk::menu::{Choice, MenuButton};
 use fltk::output::Output;
 use fltk::prelude::*;
 use fltk::text::{TextBuffer, TextEditor, WrapMode};
 use fltk::window::Window;
 use palm_core::days::{dow, epoch_day, month_length, ymd};
-use palm_core::model::{repeat, short_date, time, Event, DOW_LETTER, DOW_LONG};
+use palm_core::model::{is_last_week, repeat, short_date, time, week_index, Event, DOW_LETTER, DOW_LONG};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -107,6 +108,54 @@ fn first_line(s: &str) -> &str {
 	s.lines().next().unwrap_or("")
 }
 
+/// Shows a warning in the Palm Desktop message box.
+fn warn(text: &str) {
+	message("Palm Desktop", Icon::Warning, text);
+}
+
+/// True for a day in both the 4th and the last week of its month. The monthly repeat by day reads the week
+/// from its first date, so such a day asks which of the two is meant.
+fn in_4th_and_last_week(day: i64) -> bool {
+	week_index(day) == 4 && is_last_week(day)
+}
+
+/// The Monthly Repeat question: "4th week" (Some(0)) or "Last week" (Some(1)), or None when the box is
+/// closed. The question has a Question icon, two radios and one OK button; "Last week" is set at first when
+/// `last` is true.
+fn monthly_week_question(last: bool) -> Option<usize> {
+	let (w, h) = (230, 130);
+	let mut win = Window::default().with_size(w, h).with_label("Monthly Repeat");
+	let mut badge = Frame::new(11, 11, 32, 32, None);
+	badge.draw(|f| draw_icon(Icon::Question, f.x(), f.y()));
+	let mut text = Frame::new(
+		53,
+		14,
+		166,
+		34,
+		"Does this event occur on the 4th or last week of each month?",
+	);
+	text.set_align(Align::Left | Align::Top | Align::Inside | Align::Wrap);
+	let mut fourth = crate::draw::radio(53, 60, 80, 20, "&4th week");
+	fourth.set_value(!last);
+	let mut last_r = crate::draw::radio(140, 60, 80, 20, "&Last week");
+	last_r.set_value(last);
+	let last = last_r;
+	let answer: Rc<Cell<Option<usize>>> = Rc::new(Cell::new(None));
+	let mut ok = push_button((w - 75) / 2, 92, "OK", true);
+	ok.set_shortcut(Shortcut::None | Key::Enter);
+	{
+		let (answer, mut win, last) = (answer.clone(), win.clone(), last.clone());
+		ok.set_callback(move |_| {
+			answer.set(Some(usize::from(last.value())));
+			win.hide();
+		});
+	}
+	win.set_callback(|w| w.hide());
+	win.end();
+	run_modal(&mut win);
+	answer.get()
+}
+
 fn icon_button(x: i32, y: i32, png: &str, tip: &str) -> Button {
 	let mut b = Button::new(x, y, 22, 22, None);
 	b.set_image(Some(icon(png)));
@@ -151,40 +200,45 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Event>, day: i64, start_min: Option<i32>
 		apply_alarm_preset(&mut work, ctx.settings);
 	}
 	let h24 = ctx.h24;
-	let mut win = Window::default().with_size(330, 272).with_label("Edit Event");
+	let mut win = Window::default().with_size(258, 262).with_label("Edit Event");
 	let act: Rc<Cell<Option<Act>>> = Rc::new(Cell::new(None));
 	let button_act = |b: &mut Button, a: Act| {
 		let act = act.clone();
 		b.set_callback(move |_| act.set(Some(a)));
 	};
 	let label = |text: &str, y: i32, target: fltk::widget::Widget| {
-		let mut l = key_label(text, 6, y, 70, 22, Align::Right);
+		let mut l = key_label(text, 6, y, 60, 22, Align::Right);
 		l.set_callback(move |_| drop(target.clone().take_focus()));
 	};
 
 	let desc_buf = TextBuffer::default();
-	let mut desc = TextEditor::new(80, 8, 240, 66, None);
+	let mut desc = TextEditor::new(70, 4, 182, 50, None);
 	desc.set_buffer(desc_buf.clone());
 	desc.wrap_mode(WrapMode::AtBounds, 0);
 	desc.set_scrollbar_align(Align::Right);
 	Field::Editor(desc.clone()).attach_menu();
-	label("De&scription:", 8, desc.as_base_widget());
+	label("De&scription:", 4, desc.as_base_widget());
 	desc_buf.clone().set_text(&work.title);
-	// A title typed in the Month view goes on after its first key.
-	desc.set_insert_position(desc_buf.length());
+	if orig.is_some() {
+		// The description of an event is selected on open, so the first key replaces it.
+		desc_buf.clone().select(0, desc_buf.length());
+	} else {
+		// A title typed in the Month view goes on after its first key.
+		desc.set_insert_position(desc_buf.length());
+	}
 
-	let mut start_f = Input::new(80, 80, 60, 22, None);
-	let mut end_f = Input::new(166, 80, 60, 22, None);
+	let mut start_f = Input::new(70, 60, 60, 22, None);
+	let mut end_f = Input::new(158, 60, 60, 22, None);
 	for f in [&start_f, &end_f] {
 		Field::Input(f.clone()).attach_menu();
 	}
-	label("T&ime:", 80, start_f.as_base_widget());
-	let mut to = key_label("&to", 142, 80, 22, 22, Align::Center);
+	label("T&ime:", 60, start_f.as_base_widget());
+	let mut to = key_label("&to", 134, 60, 22, 22, Align::Center);
 	{
 		let end_f = end_f.clone();
 		to.set_callback(move |_| drop(end_f.clone().take_focus()));
 	}
-	let mut clock = icon_button(298, 80, "clock", "Set time");
+	let mut clock = icon_button(226, 60, "clock", "Set time");
 	button_act(&mut clock, Act::Clock);
 	let show_time = |s: &mut Input, e: &mut Input, t: &Event| {
 		s.set_value(&if t.untimed {
@@ -200,43 +254,45 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Event>, day: i64, start_min: Option<i32>
 	};
 	show_time(&mut start_f, &mut end_f, &work);
 
-	let mut date_f = Input::new(80, 106, 80, 22, None);
+	let mut date_f = Input::new(70, 90, 80, 22, None);
 	Field::Input(date_f.clone()).attach_menu();
 	date_f.set_value(&full_date(day));
-	label("D&ate:", 106, date_f.as_base_widget());
-	let mut day_name = Frame::new(164, 106, 76, 22, None);
+	label("D&ate:", 90, date_f.as_base_widget());
+	let mut day_name = Frame::new(154, 90, 68, 22, None);
 	day_name.set_frame(FrameType::DownBox);
 	day_name.set_label(DOW_LONG[dow(day) as usize]);
-	let mut cal = icon_button(298, 106, "calendar", "Choose date");
+	let mut cal = icon_button(226, 90, "calendar", "Choose date");
 	button_act(&mut cal, Act::Calendar);
 
-	let mut note_f = Output::new(80, 132, 210, 22, None);
+	let mut note_f = Output::new(70, 120, 152, 22, None);
 	note_f.set_color(PANEL);
 	note_f.set_value(first_line(&work.note));
-	label("Not&e:", 132, note_f.as_base_widget());
-	let mut note_b = icon_button(298, 132, "note", "Edit note");
+	label("Not&e:", 120, note_f.as_base_widget());
+	let mut note_b = icon_button(226, 120, "note", "Edit note");
 	button_act(&mut note_b, Act::Note);
 
-	let mut repeat_b = Button::new(80, 158, 90, 22, None);
+	let mut repeat_b = Button::new(70, 150, 90, 22, None);
 	button_act(&mut repeat_b, Act::Repeat);
-	label("&Repeat:", 158, repeat_b.as_base_widget());
+	label("&Repeat:", 150, repeat_b.as_base_widget());
 
-	let mut alarm = CheckButton::new(80, 184, 18, 22, None);
+	let mut alarm = crate::draw::check(70, 180, 18, 22, "");
 	alarm.set_value(work.alarm);
-	label("A&larm:", 184, alarm.as_base_widget());
-	let amount = count_spinner(102, 184, 50, 22, work.alarm_advance, 1);
-	let mut unit = Choice::new(156, 184, 120, 22, None);
+	label("A&larm:", 180, alarm.as_base_widget());
+	let amount = count_spinner(92, 180, 44, 22, work.alarm_advance, 1);
+	let mut unit = Choice::new(140, 180, 112, 22, None);
 	for u in ALARM_UNITS {
 		unit.add_choice(u);
 	}
 	unit.set_value(work.alarm_unit.clamp(0, 2));
-	let mut private = CheckButton::new(80, 210, 18, 22, None);
+	crate::draw::style_menu(&mut unit);
+	combo::drop_below(&mut unit);
+	let mut private = crate::draw::check(70, 210, 18, 22, "");
 	private.set_value(work.is_private);
 	label("&Private:", 210, private.as_base_widget());
 
-	let mut ok = Button::new(6, 240, 68, 23, "OK");
+	let mut ok = Button::new(51, 234, 75, 23, "OK");
 	button_act(&mut ok, Act::Ok);
-	let mut cancel = Button::new(80, 240, 68, 23, "Cancel");
+	let mut cancel = Button::new(132, 234, 75, 23, "Cancel");
 	{
 		let mut win = win.clone();
 		cancel.set_callback(move |_| win.hide());
@@ -263,8 +319,7 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Event>, day: i64, start_min: Option<i32>
 		}
 	};
 	show_repeat(&mut repeat_b, &work);
-	win.make_modal(true);
-	win.show();
+	show_modal(&mut win);
 	let _ = desc.take_focus();
 	while win.shown() {
 		app::wait();
@@ -320,7 +375,7 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Event>, day: i64, start_min: Option<i32>
 			}
 			Act::Ok => {
 				let Some(new_day) = parse_short_date(&date_f.value()) else {
-					dialog::alert_default("Enter a date as M/D/YY.");
+					warn("Enter a date as M/D/YY.");
 					continue;
 				};
 				let timed = !is_no_time(&start_f.value());
@@ -332,11 +387,11 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Event>, day: i64, start_min: Option<i32>
 				};
 				if timed {
 					let (Some(s), Some(en)) = (s, en) else {
-						dialog::alert_default("Invalid time entered.");
+						warn("Invalid time entered.");
 						continue;
 					};
 					if en < s {
-						dialog::alert_default("The end time is before the start time.");
+						warn("The end time is before the start time.");
 						continue;
 					}
 					work.start = s;
@@ -348,6 +403,15 @@ pub fn edit(ctx: &mut Ctx, orig: Option<Event>, day: i64, start_min: Option<i32>
 				work.alarm_advance = amount.value() as i32;
 				work.alarm_unit = unit.value().max(0);
 				work.is_private = private.value();
+				if work.repeat == repeat::MONTH_DAY && in_4th_and_last_week(new_day) {
+					// The first date alone cannot tell the 4th week from the last, so the answer goes into the
+					// LAST_WEEK flag of the rule.
+					match monthly_week_question(work.week_days & repeat::LAST_WEEK != 0) {
+						Some(0) => work.week_days &= !repeat::LAST_WEEK,
+						Some(_) => work.week_days |= repeat::LAST_WEEK,
+						None => continue,
+					}
+				}
 				match &orig {
 					None => {
 						work.date = new_day;
@@ -390,10 +454,11 @@ pub fn change_repeat(e: &mut Event, settings: &crate::settings::Settings) -> boo
 	} else {
 		repeat::MONTH_DATE
 	};
-	let mut mask = if e.week_days == 0 {
+	// Bits 0 to 6 are the week days; a monthly repeat by day keeps its LAST_WEEK flag in bit 7.
+	let mut mask = if e.week_days & 0x7F == 0 {
 		1 << dow(e.date)
 	} else {
-		e.week_days
+		e.week_days & 0x7F
 	};
 	let mut end = e.repeat_end;
 	let mut win = Window::default().with_size(263, 222).with_label("Change Repeat");
@@ -413,8 +478,7 @@ pub fn change_repeat(e: &mut Event, settings: &crate::settings::Settings) -> boo
 	.into_iter()
 	.enumerate()
 	{
-		let mut r = RadioRoundButton::new(10, 16 + 24 * i as i32, 72, 20, None);
-		r.set_label(label);
+		let mut r = crate::draw::radio(10, 16 + 24 * i as i32, 72, 20, label);
 		let on = match k {
 			repeat::MONTH_DATE => kind == repeat::MONTH_DATE || kind == repeat::MONTH_DAY,
 			_ => kind == k,
@@ -432,24 +496,29 @@ pub fn change_repeat(e: &mut Event, settings: &crate::settings::Settings) -> boo
 		"Click one of the buttons to the left to set a repeat interval.",
 	);
 	hint.set_align(Align::Left | Align::Top | Align::Inside | Align::Wrap);
-	let every_l = key_label("&Every:", 96, 18, 46, 17, Align::Left);
-	let mut every = count_spinner(144, 16, 44, 21, e.every, 1);
+	let every_l = key_label("&Every:", 96, 18, 46, 17, Align::Right);
+	let mut every = count_spinner(144, 16, 32, 21, e.every, 1);
 	{
 		let f = send(RepeatAct::Refresh);
 		every.set_callback(move |_| f());
 	}
 	let mut every_unit = Frame::new(192, 18, 66, 17, None);
 	every_unit.set_align(Align::Left | Align::Inside);
-	let end_l = key_label("End &on:", 96, 44, 46, 17, Align::Left);
+	let end_l = key_label("End &on:", 96, 44, 46, 17, Align::Right);
 	let mut end_f = Output::new(144, 42, 80, 21, None);
 	end_f.set_color(PANEL);
 	let mut cal = Button::new(224, 42, 20, 20, None);
 	cal.set_image(Some(icon("calendar")));
+	// The popup of End on: a hidden menu button at the calendar button, in the Windows menu look.
+	let mut end_menu = MenuButton::new(cal.x(), cal.y() + cal.h(), 0, 0, None);
+	end_menu.add_choice("No End Date|Date...");
+	crate::draw::style_menu(&mut end_menu);
+	end_menu.hide();
 	{
 		let f = send(RepeatAct::End);
 		cal.set_callback(move |_| f());
 	}
-	let days_l = key_label("Day&s:", 96, 70, 46, 17, Align::Left);
+	let days_l = key_label("Day&s:", 96, 70, 46, 17, Align::Right);
 	// The seven day cells in week order, in 1 px black lines; a click turns a day on or off.
 	let mask_cell = Rc::new(Cell::new(mask));
 	let mut strip = Frame::new(144, 69, 99, 18, None);
@@ -481,10 +550,12 @@ pub fn change_repeat(e: &mut Event, settings: &crate::settings::Settings) -> boo
 			true
 		});
 	}
-	let by_l = key_label("&By:", 96, 70, 46, 17, Align::Left);
-	let mut by = Choice::new(144, 68, 100, 21, None);
-	by.add_choice("Date|Day");
-	by.set_value(if month_by == repeat::MONTH_DAY { 1 } else { 0 });
+	let by_l = key_label("&By:", 96, 70, 46, 17, Align::Right);
+	let mut by = Choice::new(144, 68, 70, 21, None);
+	by.add_choice("Day|Date");
+	by.set_value(if month_by == repeat::MONTH_DAY { 0 } else { 1 });
+	crate::draw::style_menu(&mut by);
+	combo::drop_below(&mut by);
 	{
 		let f = send(RepeatAct::Refresh);
 		by.set_callback(move |_| f());
@@ -514,6 +585,8 @@ pub fn change_repeat(e: &mut Event, settings: &crate::settings::Settings) -> boo
 			repeat_end: if on { end } else { -1 },
 			week_days: if !on {
 				0
+			} else if kind == repeat::MONTH_DAY {
+				e.week_days & repeat::LAST_WEEK
 			} else if mask == 0 {
 				1 << dow(first)
 			} else {
@@ -583,15 +656,14 @@ pub fn change_repeat(e: &mut Event, settings: &crate::settings::Settings) -> boo
 		win_w.redraw();
 	};
 	refresh(kind, end, mask);
-	win.make_modal(true);
-	win.show();
+	show_modal(&mut win);
 	while win.shown() {
 		app::wait();
 		let Some(a) = act.take() else { continue };
 		match a {
 			RepeatAct::Kind(k) => kind = if k == repeat::MONTH_DATE { month_by } else { k },
 			RepeatAct::Refresh => {
-				month_by = if by.value() == 1 {
+				month_by = if by.value() == 0 {
 					repeat::MONTH_DAY
 				} else {
 					repeat::MONTH_DATE
@@ -602,15 +674,14 @@ pub fn change_repeat(e: &mut Event, settings: &crate::settings::Settings) -> boo
 			}
 			RepeatAct::Toggle(day) => mask ^= 1 << day,
 			RepeatAct::End => {
-				let menu = MenuItem::new(&["No End Date", "Date..."]);
-				let pick = menu.popup(cal.x(), cal.y() + cal.h()).and_then(|i| i.label());
+				let pick = end_menu.popup().and_then(|i| i.label());
 				match pick.as_deref() {
 					Some("No End Date") => end = -1,
 					Some(_) => {
 						let from = if end >= 0 { end } else { e.date };
 						if let Some(d) = date_picker::pick(Mode::Day, from, today(), begins) {
 							if d < e.date {
-								dialog::alert_default("The end date is before the first date.");
+								warn("The end date is before the first date.");
 							} else {
 								end = d;
 							}
@@ -655,13 +726,13 @@ pub fn select_time(t: &mut Event, h24: bool) -> bool {
 	};
 	let mut start_l = Frame::new(8, 8, 80, 17, "Start time:");
 	start_l.set_align(Align::Left | Align::Inside);
-	let mut start_r = RadioRoundButton::new(8, 26, 18, 22, None);
+	let mut start_r = crate::draw::radio(8, 26, 18, 22, "");
 	start_r.set_value(true);
 	let mut start_show = Output::new(28, 26, 60, 22, None);
 	start_show.set_color(PANEL);
 	let mut end_l = Frame::new(8, 54, 80, 17, "End time:");
 	end_l.set_align(Align::Left | Align::Inside);
-	let mut end_r = RadioRoundButton::new(8, 72, 18, 22, None);
+	let mut end_r = crate::draw::radio(8, 72, 18, 22, "");
 	let mut end_show = Output::new(28, 72, 60, 22, None);
 	end_show.set_color(PANEL);
 	let mut no_time = Button::new(8, 102, 80, 23, "&No Time");
@@ -722,15 +793,33 @@ pub fn select_time(t: &mut Event, h24: bool) -> bool {
 	let mut edit_start = true;
 	let (mut hours_w, mut minutes_w) = (hours.clone(), minutes.clone());
 	let mut refresh = move |t: &Event, edit_start: bool| {
-		start_show.set_value(&time(t.start, h24));
-		end_show.set_value(&time(t.end, h24));
+		start_show.set_value(&if t.untimed {
+			NO_TIME.to_string()
+		} else {
+			time(t.start, h24)
+		});
+		end_show.set_value(&if t.untimed {
+			NO_TIME.to_string()
+		} else {
+			time(t.end, h24)
+		});
+		if t.untimed {
+			// No hour or minute is chosen, and the hours start at 08 at the top of the list.
+			if hours_w.value() > 0 {
+				hours_w.deselect(hours_w.value());
+			}
+			if minutes_w.value() > 0 {
+				minutes_w.deselect(minutes_w.value());
+			}
+			hours_w.top_line(9);
+			return;
+		}
 		let active = if edit_start { t.start } else { t.end };
 		hours_w.select(active / 60 + 1);
 		minutes_w.select(active % 60 / 5 + 1);
 	};
 	refresh(t, edit_start);
-	win.make_modal(true);
-	win.show();
+	show_modal(&mut win);
 	while win.shown() {
 		app::wait();
 		let Some(a) = act.take() else { continue };
@@ -772,18 +861,22 @@ pub fn select_time(t: &mut Event, h24: bool) -> bool {
 /// The Purge Events dialog: deletes the events that ended more than the chosen span ago, and reports the
 /// count.
 pub fn purge_events(ctx: &mut Ctx) {
-	let spans = [("1 week", 7), ("2 weeks", 14), ("3 weeks", 21), ("1 month", 30)];
-	let mut win = Window::default().with_size(290, 80).with_label("Purge Events");
-	key_label("&Delete events older than:", 10, 12, 140, 22, Align::Left);
-	let mut span = Choice::new(152, 12, 90, 22, None);
+	let spans = [("1 Week", 7), ("2 Weeks", 14), ("3 Weeks", 21), ("1 Month", 30)];
+	let mut win = Window::default().with_size(399, 141).with_label("Purge Events");
+	let mut badge = Frame::new(11, 11, 32, 32, None);
+	badge.draw(|f| draw_icon(Icon::Question, f.x(), f.y()));
+	key_label("&Delete events older than:", 102, 16, 120, 22, Align::Left);
+	let mut span = Choice::new(234, 16, 72, 22, None);
 	for (name, _) in spans {
 		span.add_choice(name);
 	}
 	span.set_value(0);
+	crate::draw::style_menu(&mut span);
+	combo::drop_below(&mut span);
 	let go = Rc::new(Cell::new(false));
-	let mut ok = Button::new(70, 46, 72, 23, "OK");
+	let mut ok = push_button(121, 107, "OK", true);
 	ok.set_shortcut(Shortcut::None | Key::Enter);
-	let mut cancel = Button::new(148, 46, 72, 23, "Cancel");
+	let mut cancel = push_button(202, 107, "Cancel", false);
 	{
 		let (go, mut win) = (go.clone(), win.clone());
 		ok.set_callback(move |_| {
@@ -802,7 +895,7 @@ pub fn purge_events(ctx: &mut Ctx) {
 	}
 	let days = spans[span.value().max(0) as usize].1;
 	let n = ctx.store.purge_events(today() - days);
-	dialog::message_default(&format!("{n} events purged."));
+	message("Palm Desktop", Icon::Info, &format!("{n} events purged."));
 }
 
 #[cfg(test)]
