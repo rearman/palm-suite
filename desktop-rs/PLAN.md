@@ -13,13 +13,13 @@ The port moves the desktop app in `desktop/` (Kotlin and Swing) to Rust and fltk
 | 4     | The shell: window, menus, toolbar, launcher, status bar, classic edges, sync and Sync Options       | 7c681c9          |
 | 5     | The Memo Pad and the shared parts: split, category drop-downs and dialog, record clipboard, menus   | d0cce03          |
 | 6     | The Address Book: list, card, Look up, Edit Address, Custom Field Labels, Dial                      | 69ee55c          |
+| 7     | The To Do List: table, details, Show Options, Purge; the date dialog and the Note Editor            | 7fe0117          |
 
 ## Still to do
 
 | Phase | Work                                                                                                                                                                                                    | Kotlin source                                                                                                      | Size (Rust lines) |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------- |
-| 7     | To Do List: the table with the check boxes, priority, due date and category columns, the detail pane, Show options, Purge Completed                                                                     | `TodoPanel.kt`, `TodoMenus.kt`                                                                                     | c. 1,100          |
-| 8     | Date Book: the Day, Week and Month views, the date picker, Edit Event, Change Repeat, alarms and notes, event drag and resize, repeat scopes, Purge Events, the To Do and Address panes of the Day view | `DatePanel.kt`, `WeekView.kt`, `MonthView.kt`, `DatePicker.kt`, `EventDialog.kt`, `DateShared.kt`, `RepeatText.kt` | c. 4,000          |
+| 8     | Date Book: the Day, Week and Month views, Edit Event, Change Repeat, alarms and notes, event drag and resize, repeat scopes, Purge Events, the To Do and Address panes of the Day view                  | `DatePanel.kt`, `WeekView.kt`, `MonthView.kt`, `EventDialog.kt`, `DateShared.kt`, `RepeatText.kt`                  | c. 3,800          |
 | 9     | Cross-cutting: Find, Import and Export (iCalendar, vCard, the backup file), Print and Page Setup, Tools > Options, Help > About, `tel:` links; then packaging, a beta period and the cutover            | `Dialogs.kt`, `Transfer.kt`, `Printing.kt`, `MainFrame.kt`                                                         | c. 1,000          |
 
 Each view phase follows the Memo Pad: build the view in its group of the main window, send every widget event as a `Msg`, reuse `split.rs`, `category.rs`, `records.rs`, `text_edit.rs` and `dialogs.rs`, and draw custom views through `draw::Dev`. Check each view against a Swing screenshot taken on the fixture store, at 100%, 125% and 150%.
