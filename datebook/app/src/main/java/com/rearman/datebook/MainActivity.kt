@@ -9,11 +9,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.ColorFilter
 import android.graphics.Paint
-import android.graphics.PixelFormat
 import android.graphics.Rect
-import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
@@ -1580,48 +1577,6 @@ open class MainActivity : Activity() {
             }
         }
     }
-}
-
-/**
- * Palm dotted underlines: one under each text line of [ed]. As the background of a row it
- * spans the row; as the background of [ed] itself it spans the field. With no editor (a
- * masked record), one line at the bottom. With [fill], the lines continue to the bottom, as on a
- * Memo Pad page.
- */
-class LinedBackground(ctx: Context, private val ed: TextView?, private val fill: Boolean = false) : Drawable() {
-    private val p = Paint().apply {
-        color = Palm.INK; strokeWidth = ctx.ppf(1f)
-        pathEffect = android.graphics.DashPathEffect(floatArrayOf(ctx.ppf(1f), ctx.ppf(1f)), 0f)
-    }
-
-    override fun draw(c: Canvas) {
-        val b = bounds
-        val h = p.strokeWidth / 2
-        val layout = ed?.layout
-        if (ed == null || layout == null) {
-            c.drawLine(b.left.toFloat(), b.bottom - h, b.right.toFloat(), b.bottom - h, p)
-            return
-        }
-        val off = if (ed.background === this) 0 else ed.top
-        for (i in 0 until layout.lineCount) {
-            val y = b.top + off + ed.paddingTop + layout.getLineBottom(i) - h
-            c.drawLine(b.left.toFloat(), y, b.right.toFloat(), y, p)
-        }
-        if (fill) {
-            // Lines below the text, one per editor line height, down to the bottom of the bounds.
-            val step = ed.lineHeight.toFloat()
-            var y = b.top + off + ed.paddingTop + layout.getLineBottom(layout.lineCount - 1) - h + step
-            while (step > 0 && y <= b.bottom) {
-                c.drawLine(b.left.toFloat(), y, b.right.toFloat(), y, p)
-                y += step
-            }
-        }
-    }
-
-    override fun setAlpha(alpha: Int) {}
-    override fun setColorFilter(colorFilter: ColorFilter?) {}
-    @Deprecated("Deprecated in Java")
-    override fun getOpacity() = PixelFormat.TRANSLUCENT
 }
 
 /**

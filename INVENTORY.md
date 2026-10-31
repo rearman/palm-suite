@@ -414,17 +414,17 @@ Palm reference: Memo Pad: menus. Code: `MainActivity.menus`.
 
 Palm reference: Palm form 1000. Code: `buildAddressList`.
 
-| Kind    | Item                                        | Code             | Look | Works | Notes                                                                               |
-| ------- | ------------------------------------------- | ---------------- | ---- | ----- | ----------------------------------------------------------------------------------- |
-| screen  | Title tab "Address"                         | tab              |      |       |                                                                                     |
-| trigger | Category                                    | buildAddressList |      |       |                                                                                     |
-| button  | Name row: opens Address View                | addressRow       |      |       |                                                                                     |
-| icon    | Phone number & label letter                 | addressRow       |      |       |                                                                                     |
-| icon    | Note icon                                   | noteIcon         |      |       |                                                                                     |
-| icon    | Gray bar of a masked record: Private Record | revealAsk        |      |       |                                                                                     |
-| field   | Look Up                                     | buildAddressList |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| button  | New                                         | buildAddressList |      |       |                                                                                     |
-| icon    | Find                                        | render           |      |       |                                                                                     |
+| Kind    | Item                                        | Code             | Look | Works | Notes |
+| ------- | ------------------------------------------- | ---------------- | ---- | ----- | ----- |
+| screen  | Title tab "Address"                         | tab              |      |       |       |
+| trigger | Category                                    | buildAddressList |      |       |       |
+| button  | Name row: opens Address View                | addressRow       |      |       |       |
+| icon    | Phone number & label letter                 | addressRow       |      |       |       |
+| icon    | Note icon                                   | noteIcon         |      |       |       |
+| icon    | Gray bar of a masked record: Private Record | revealAsk        |      |       |       |
+| field   | Look Up                                     | buildAddressList |      |       |       |
+| button  | New                                         | buildAddressList |      |       |       |
+| icon    | Find                                        | render           |      |       |       |
 
 ### Address View
 
@@ -448,17 +448,17 @@ Palm reference: Address Book: Address View. Code: `buildAddressView`.
 
 Palm reference: Address Book: Address Edit. Code: `buildAddressEdit`.
 
-| Kind    | Item                                                   | Code             | Look | Works | Notes                                                                               |
-| ------- | ------------------------------------------------------ | ---------------- | ---- | ----- | ----------------------------------------------------------------------------------- |
-| screen  | Title tab "Address Edit"                               | tab              |      |       |                                                                                     |
-| trigger | Category                                               | buildAddressEdit |      |       |                                                                                     |
-| field   | Name, Title & Company fields                           | addressField     |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| trigger | Phone label of each of the five phone fields           | buildAddressEdit |      |       |                                                                                     |
-| field   | Address, City, State, Zip Code, Country, Custom 1 to 4 | addressField     |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| button  | Done                                                   | buildAddressEdit |      |       |                                                                                     |
-| button  | Details...                                             | buildAddressEdit |      |       |                                                                                     |
-| button  | Note                                                   | buildAddressEdit |      |       |                                                                                     |
-| icon    | Find                                                   | render           |      |       |                                                                                     |
+| Kind    | Item                                                   | Code             | Look | Works | Notes |
+| ------- | ------------------------------------------------------ | ---------------- | ---- | ----- | ----- |
+| screen  | Title tab "Address Edit"                               | tab              |      |       |       |
+| trigger | Category                                               | buildAddressEdit |      |       |       |
+| field   | Name, Title & Company fields                           | addressField     |      |       |       |
+| trigger | Phone label of each of the five phone fields           | buildAddressEdit |      |       |       |
+| field   | Address, City, State, Zip Code, Country, Custom 1 to 4 | addressField     |      |       |       |
+| button  | Done                                                   | buildAddressEdit |      |       |       |
+| button  | Details...                                             | buildAddressEdit |      |       |       |
+| button  | Note                                                   | buildAddressEdit |      |       |       |
+| icon    | Find                                                   | render           |      |       |       |
 
 ### Address Entry Details
 
@@ -502,24 +502,24 @@ Palm reference: Palm form 2000. Code: `showAddressPreferences`.
 
 Palm reference: Palm form 1900. Code: `showRenameCustomFields`.
 
-| Kind   | Item                   | Code                   | Look | Works | Notes                                                                               |
-| ------ | ---------------------- | ---------------------- | ---- | ----- | ----------------------------------------------------------------------------------- |
-| dialog | "Rename Custom Fields" | showRenameCustomFields |      |       |                                                                                     |
-| field  | Four field names       | showRenameCustomFields |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| button | OK                     | showRenameCustomFields |      |       |                                                                                     |
-| button | Cancel                 | showRenameCustomFields |      |       |                                                                                     |
+| Kind   | Item                   | Code                   | Look | Works | Notes |
+| ------ | ---------------------- | ---------------------- | ---- | ----- | ----- |
+| dialog | "Rename Custom Fields" | showRenameCustomFields |      |       |       |
+| field  | Four field names       | showRenameCustomFields |      |       |       |
+| button | OK                     | showRenameCustomFields |      |       |       |
+| button | Cancel                 | showRenameCustomFields |      |       |       |
 
 ### Phone Number Lookup
 
 Palm reference: Palm form 2100, manual page 72. Code: `showPhoneLookup`.
 
-| Kind   | Item                   | Code            | Look | Works | Notes                                                                               |
-| ------ | ---------------------- | --------------- | ---- | ----- | ----------------------------------------------------------------------------------- |
-| dialog | "Phone Number Lookup:" | showPhoneLookup |      |       |                                                                                     |
-| button | List row               | showPhoneLookup |      |       |                                                                                     |
-| field  | Look Up                | showPhoneLookup |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| button | Add                    | showPhoneLookup |      |       |                                                                                     |
-| button | Cancel                 | showPhoneLookup |      |       |                                                                                     |
+| Kind   | Item                   | Code            | Look | Works | Notes |
+| ------ | ---------------------- | --------------- | ---- | ----- | ----- |
+| dialog | "Phone Number Lookup:" | showPhoneLookup |      |       |       |
+| button | List row               | showPhoneLookup |      |       |       |
+| field  | Look Up                | showPhoneLookup |      |       |       |
+| button | Add                    | showPhoneLookup |      |       |       |
+| button | Cancel                 | showPhoneLookup |      |       |       |
 
 ### Address Book sharing
 
@@ -629,36 +629,36 @@ Palm reference: Palm: Security. Code: `showSecurity`.
 
 Palm reference: Palm: ShortCuts. Code: `showShortCuts`.
 
-| Kind   | Item             | Code          | Look | Works | Notes                                                                               |
-| ------ | ---------------- | ------------- | ---- | ----- | ----------------------------------------------------------------------------------- |
-| dialog | "ShortCuts"      | showShortCuts |      |       |                                                                                     |
-| button | List row         | showShortCuts |      |       |                                                                                     |
-| button | Done             | showShortCuts |      |       |                                                                                     |
-| button | New              | showShortCuts |      |       |                                                                                     |
-| dialog | "ShortCut Entry" | editShortCut  |      |       |                                                                                     |
-| field  | ShortCut Name    | editShortCut  |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| field  | ShortCut Text    | editShortCut  |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| button | OK               | editShortCut  |      |       |                                                                                     |
-| button | Cancel           | editShortCut  |      |       |                                                                                     |
-| button | Delete           | editShortCut  |      |       |                                                                                     |
+| Kind   | Item             | Code          | Look | Works | Notes |
+| ------ | ---------------- | ------------- | ---- | ----- | ----- |
+| dialog | "ShortCuts"      | showShortCuts |      |       |       |
+| button | List row         | showShortCuts |      |       |       |
+| button | Done             | showShortCuts |      |       |       |
+| button | New              | showShortCuts |      |       |       |
+| dialog | "ShortCut Entry" | editShortCut  |      |       |       |
+| field  | ShortCut Name    | editShortCut  |      |       |       |
+| field  | ShortCut Text    | editShortCut  |      |       |       |
+| button | OK               | editShortCut  |      |       |       |
+| button | Cancel           | editShortCut  |      |       |       |
+| button | Delete           | editShortCut  |      |       |       |
 
 ### Edit Categories
 
 Palm reference: Palm: Edit Categories. Code: `editCategories`.
 
-| Kind   | Item              | Code           | Look | Works | Notes                                                                               |
-| ------ | ----------------- | -------------- | ---- | ----- | ----------------------------------------------------------------------------------- |
-| dialog | "Edit Categories" | editCategories |      |       |                                                                                     |
-| button | List row          | editCategories |      |       |                                                                                     |
-| button | OK                | editCategories |      |       |                                                                                     |
-| button | New               | editCategories |      |       |                                                                                     |
-| button | Rename            | editCategories |      |       |                                                                                     |
-| button | Delete            | editCategories |      |       |                                                                                     |
-| alert  | "Delete Category" | editCategories |      |       |                                                                                     |
-| field  | Name form: field  | editCategories |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| button | Name form: OK     | editCategories |      |       |                                                                                     |
-| button | Name form: Cancel | editCategories |      |       |                                                                                     |
-| alert  | Name in use       | editCategories |      |       |                                                                                     |
+| Kind   | Item              | Code           | Look | Works | Notes |
+| ------ | ----------------- | -------------- | ---- | ----- | ----- |
+| dialog | "Edit Categories" | editCategories |      |       |       |
+| button | List row          | editCategories |      |       |       |
+| button | OK                | editCategories |      |       |       |
+| button | New               | editCategories |      |       |       |
+| button | Rename            | editCategories |      |       |       |
+| button | Delete            | editCategories |      |       |       |
+| alert  | "Delete Category" | editCategories |      |       |       |
+| field  | Name form: field  | editCategories |      |       |       |
+| button | Name form: OK     | editCategories |      |       |       |
+| button | Name form: Cancel | editCategories |      |       |       |
+| alert  | Name in use       | editCategories |      |       |       |
 
 ### Category pop-up
 
@@ -672,30 +672,30 @@ Palm reference: Palm category trigger. Code: `pickCategory`.
 
 Palm reference: Palm: Find. Code: `showFind`.
 
-| Kind   | Item                         | Code            | Look | Works | Notes                                                                               |
-| ------ | ---------------------------- | --------------- | ---- | ----- | ----------------------------------------------------------------------------------- |
-| dialog | "Find"                       | showFind        |      |       |                                                                                     |
-| field  | Find text                    | showFind        |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| button | OK                           | showFind        |      |       |                                                                                     |
-| button | Cancel                       | showFind        |      |       |                                                                                     |
-| dialog | "Find" results               | showFindResults |      |       |                                                                                     |
-| button | Result row: opens the record | showFindResults |      |       |                                                                                     |
-| button | Done                         | showFindResults |      |       |                                                                                     |
+| Kind   | Item                         | Code            | Look | Works | Notes |
+| ------ | ---------------------------- | --------------- | ---- | ----- | ----- |
+| dialog | "Find"                       | showFind        |      |       |       |
+| field  | Find text                    | showFind        |      |       |       |
+| button | OK                           | showFind        |      |       |       |
+| button | Cancel                       | showFind        |      |       |       |
+| dialog | "Find" results               | showFindResults |      |       |       |
+| button | Result row: opens the record | showFindResults |      |       |       |
+| button | Done                         | showFindResults |      |       |       |
 
 ### Sync
 
 Palm reference: palmsync. Code: `showSync`.
 
-| Kind   | Item       | Code     | Look | Works | Notes                                                                               |
-| ------ | ---------- | -------- | ---- | ----- | ----------------------------------------------------------------------------------- |
-| dialog | "Sync"     | showSync |      |       |                                                                                     |
-| field  | Server     | showSync |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| field  | Token      | showSync |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| field  | Passphrase | showSync |      |       | Solid gray Android underline (palm-ui field); the Palm field has a dotted underline |
-| button | OK         | showSync |      |       |                                                                                     |
-| button | Sync Now   | showSync |      |       |                                                                                     |
-| button | Turn Off   | showSync |      |       |                                                                                     |
-| button | Cancel     | showSync |      |       |                                                                                     |
+| Kind   | Item       | Code     | Look | Works | Notes |
+| ------ | ---------- | -------- | ---- | ----- | ----- |
+| dialog | "Sync"     | showSync |      |       |       |
+| field  | Server     | showSync |      |       |       |
+| field  | Token      | showSync |      |       |       |
+| field  | Passphrase | showSync |      |       |       |
+| button | OK         | showSync |      |       |       |
+| button | Sync Now   | showSync |      |       |       |
+| button | Turn Off   | showSync |      |       |       |
+| button | Cancel     | showSync |      |       |       |
 
 ### Import & Export
 
@@ -781,21 +781,21 @@ Actions with no control of their own.
 
 A record feature belongs in every view that shows its records. Check a whole row when one cell changes. `-` means the feature does not apply to that view.
 
-| Feature                                    | Day | Week | Month | Agenda | To Do | Memo List | Memo view | Address List | Address View | Address Edit | Helper                                     |
-| ------------------------------------------ | --- | ---- | ----- | ------ | ----- | --------- | --------- | ------------ | ------------ | ------------ | ------------------------------------------ |
-| Note icon, tap opens the note              | yes | -    | -     | yes    | yes   | -         | -         | yes          | -            | -            | noteIcon                                   |
-| Note view (Done, Delete...)                | yes | -    | -     | yes    | yes   | -         | -         | yes          | yes          | yes          | openNoteView                               |
-| Private masking (gray bar, Private Record) | yes | yes  | -     | yes    | yes   | yes       | -         | yes          | yes          | -            | isMasked, revealAsk                        |
-| Category trigger                           | -   | -    | -     | yes    | yes   | yes       | yes       | yes          | -            | yes          | pickCategory                               |
-| Lined page with Palm scroll bar            | -   | -    | -     | -      | -     | yes       | yes       | -            | -            | -            | linedPage, withScrollBar                   |
-| Dotted line under each text line           | yes | -    | -     | -      | yes   | -         | yes       | -            | -            | no           | LinedBackground; Address Edit uses field() |
-| Delete with Save archive copy on PC        | yes | yes  | yes   | yes    | yes   | -         | yes       | -            | yes          | yes          | palmAlert                                  |
-| Find icon                                  | yes | yes  | yes   | yes    | yes   | yes       | yes       | yes          | yes          | yes          | render                                     |
-| Title tab opens the menus                  | yes | yes  | yes   | yes    | yes   | yes       | yes       | yes          | yes          | yes          | tab                                        |
+| Feature                                    | Day | Week | Month | Agenda | To Do | Memo List | Memo view | Address List | Address View | Address Edit | Helper                   |
+| ------------------------------------------ | --- | ---- | ----- | ------ | ----- | --------- | --------- | ------------ | ------------ | ------------ | ------------------------ |
+| Note icon, tap opens the note              | yes | -    | -     | yes    | yes   | -         | -         | yes          | -            | -            | noteIcon                 |
+| Note view (Done, Delete...)                | yes | -    | -     | yes    | yes   | -         | -         | yes          | yes          | yes          | openNoteView             |
+| Private masking (gray bar, Private Record) | yes | yes  | -     | yes    | yes   | yes       | -         | yes          | yes          | -            | isMasked, revealAsk      |
+| Category trigger                           | -   | -    | -     | yes    | yes   | yes       | yes       | yes          | -            | yes          | pickCategory             |
+| Lined page with Palm scroll bar            | -   | -    | -     | -      | -     | yes       | yes       | -            | -            | -            | linedPage, withScrollBar |
+| Dotted line under each text line           | yes | -    | -     | -      | yes   | -         | yes       | -            | -            | yes          | LinedBackground          |
+| Delete with Save archive copy on PC        | yes | yes  | yes   | yes    | yes   | -         | yes       | -            | yes          | yes          | palmAlert                |
+| Find icon                                  | yes | yes  | yes   | yes    | yes   | yes       | yes       | yes          | yes          | yes          | render                   |
+| Title tab opens the menus                  | yes | yes  | yes   | yes    | yes   | yes       | yes       | yes          | yes          | yes          | tab                      |
 
 ## Rules found from faults
 
 | Date       | Fault                                                                                                                                          | Rule                                                                                                                                                  |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-10-30 | The note page was a full-screen dialog: a gray field underline across the page, and Done did not work. Notes had an icon only in the Day view. | A full-page text editor is a screen of the activity built with linedPage, never a dialog. A record feature is checked across its whole row in Parity. |
-| 2026-10-30 | Found while building this file: field() in palm-ui keeps the Android underline, solid gray, in Address Edit and every dialog field.            | Text fields draw the Palm dotted underline. Open: see the field rows.                                                                                 |
+| 2026-10-30 | Found while building this file: field() in palm-ui keeps the Android underline, solid gray, in Address Edit and every dialog field.            | Every text field draws the Palm dotted underline: field() takes LinedBackground, which moved into palm-ui. Fixed the same day.                        |

@@ -239,13 +239,56 @@ fun Context.field(text: String, hint: String = "", multiLine: Boolean = false): 
 		typeface = Palm.typeface(context, false)
 		minHeight = 0
 		minimumHeight = 0
+		// The Palm field underline: a dotted line under each text line, in place of the Android one.
+		background = LinedBackground(this@field, this)
 		setPadding(pp(1), 0, pp(1), 0)
-		backgroundTintList = ColorStateList.valueOf(Palm.GRAY)
 		inputType = if (multiLine)
 			InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
 		else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
 		palmShortCuts()
 	}
+
+/**
+ * Palm dotted underlines: one under each text line of [ed]. As the background of a row it
+ * spans the row; as the background of [ed] itself it spans the field. With no editor (a
+ * masked record), one line at the bottom. With [fill], the lines continue to the bottom, as on a
+ * Memo Pad page.
+ */
+class LinedBackground(ctx: Context, private val ed: TextView?, private val fill: Boolean = false) : Drawable() {
+	private val p = Paint().apply {
+		color = Palm.INK; strokeWidth = ctx.ppf(1f)
+		pathEffect = android.graphics.DashPathEffect(floatArrayOf(ctx.ppf(1f), ctx.ppf(1f)), 0f)
+	}
+
+	override fun draw(c: Canvas) {
+		val b = bounds
+		val h = p.strokeWidth / 2
+		val layout = ed?.layout
+		if (ed == null || layout == null) {
+			c.drawLine(b.left.toFloat(), b.bottom - h, b.right.toFloat(), b.bottom - h, p)
+			return
+		}
+		val off = if (ed.background === this) 0 else ed.top
+		for (i in 0 until layout.lineCount) {
+			val y = b.top + off + ed.paddingTop + layout.getLineBottom(i) - h
+			c.drawLine(b.left.toFloat(), y, b.right.toFloat(), y, p)
+		}
+		if (fill) {
+			// Lines below the text, one per editor line height, down to the bottom of the bounds.
+			val step = ed.lineHeight.toFloat()
+			var y = b.top + off + ed.paddingTop + layout.getLineBottom(layout.lineCount - 1) - h + step
+			while (step > 0 && y <= b.bottom) {
+				c.drawLine(b.left.toFloat(), y, b.right.toFloat(), y, p)
+				y += step
+			}
+		}
+	}
+
+	override fun setAlpha(alpha: Int) {}
+	override fun setColorFilter(colorFilter: ColorFilter?) {}
+	@Deprecated("Deprecated in Java")
+	override fun getOpacity() = PixelFormat.TRANSLUCENT
+}
 
 fun Context.numberField(value: Int): EditText = field(value.toString()).apply {
 	inputType = InputType.TYPE_CLASS_NUMBER
