@@ -17,6 +17,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # Every screen, dialog and control of the Android apps needs its row in INVENTORY.md. The check
+      # runs first, so a missing row fails the build before Gradle starts.
+      - name: Check UI inventory
+        run: python3 tools/ui_inventory.py --check
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:

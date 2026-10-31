@@ -30,9 +30,10 @@ Run Gradle from the repository root. Keep the indentation style of the file you 
 - The repository has no Gradle wrapper. Use Gradle 8.7, as CI does: `gradle assembleRelease` (the shipped APKs), `gradle testDebugUnitTest`, and `gradle :datebook:app:testDebugUnitTest --tests <class>` for one test class.
 - This Windows machine has no Gradle on PATH and no Android SDK, so you cannot build or test locally. Do not try, and do not report it. Verify by code review. CI builds and tests each push. A report ends with the changes ready to commit and push.
 - Each `app/debug.keystore` is committed on purpose and signs both build types, so a new build installs over the old one and keeps the user's data. Do not remove it or change the signing config.
-- CI (`.github/workflows/build-apk.yml`) builds and tests both apps on each push and uploads `handheld.apk` and `palm-launcher.apk`. A tag `handheld-v*` or `launcher-v*` attaches that one app's APK to the GitHub Release of the tag.
+- CI (`.github/workflows/build-apk.yml`) checks `INVENTORY.md`, builds and tests both apps on each push, and uploads `handheld.apk` and `palm-launcher.apk`. A tag `handheld-v*` or `launcher-v*` attaches that one app's APK to the GitHub Release of the tag.
 - Code that both apps use belongs in `palm-ui`. Do not copy it into an app.
 - User-facing text follows Palm OS wording.
+- `INVENTORY.md` lists every screen, dialog, control, menu command and behavior of the Android apps, with the date and method of its last check against the Palm reference, a parity table of the record features across the views, and the rules found from faults. A UI change updates its rows in the same change, a fault found in one view is checked across its parity row, and `python3 tools/ui_inventory.py --check` must list no control. The CI build job runs that check first and fails on any missing row.
 
 ## palm-ui
 
