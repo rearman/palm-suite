@@ -124,6 +124,7 @@ private fun MainActivity.addressRow(a: Address, byCompany: Boolean): AddressRow 
         row.addView(phone, LP(WRAP, WRAP))
         texts += phone
     }
+    if (a.note.isNotEmpty()) row.addView(noteIcon { openAddressNote(a) }, lp().apply { marginEnd = pp(3) })
     row.setOnClickListener { endEdit(); addressLookup = ""; addressOpen = a; render() }
     return AddressRow(row, name, texts)
 }

@@ -82,6 +82,8 @@ open class MainActivity : Activity() {
     internal var addressOpen: Address? = null
     /** The working copy in the Address Edit, or null when not editing. */
     internal var addressEditing: Address? = null
+    /** The Note view over the current screen, or null when no note is open. */
+    internal var noteOpen: NoteEdit? = null
     /** The Look Up text of the Address List. */
     internal var addressLookup: String = ""
     /** Private records the user chose to see while records are masked ("e12", "t5"). */
@@ -233,6 +235,7 @@ open class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         val m = memoOpen
+        noteOpen?.let { closeNote(it.text); return }
         when (mode) {
             MEMO -> if (m != null) closeMemo(m) else super.onBackPressed()
             ADDRESS -> when {
@@ -251,7 +254,7 @@ open class MainActivity : Activity() {
     private val swipe by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
-                if (e1 == null || mode == TODO || mode == MEMO || mode == ADDRESS) return false
+                if (e1 == null || noteOpen != null || mode == TODO || mode == MEMO || mode == ADDRESS) return false
                 val dx = e2.x - e1.x
                 val dy = e2.y - e1.y
                 if (abs(dx) < dp(SWIPE_MIN_DP) || abs(dx) < 2 * abs(dy) || abs(vx) < dp(SWIPE_MIN_SPEED_DP)) return false
@@ -322,7 +325,7 @@ open class MainActivity : Activity() {
         if (event.action == KeyEvent.ACTION_DOWN && event.isCtrlPressed && event.repeatCount == 0) {
             commandKey(event.keyCode)?.let { k -> menus().command(k) }?.let { it.action(); return true }
         }
-        if (currentFocus !is EditText) {
+        if (noteOpen == null && currentFocus !is EditText) {
             val typed = when (event.action) {
                 // A held key repeats; only its first press starts a record.
                 KeyEvent.ACTION_DOWN -> if (event.repeatCount > 0) null else event.unicodeChar.takeIf { it != 0 }?.let { String(Character.toChars(it)) }
@@ -468,11 +471,8 @@ open class MainActivity : Activity() {
 
     fun openNote(o: Occ) {
         val e = o.event
-        NoteDialog(
-            this, "Note: " + e.title.ifBlank { "(no description)" }.take(24), e.note,
-            { t -> e.note = t; store.save(e); render() },
-            if (e.note.isNotEmpty()) ({ e.note = ""; store.save(e); render() }) else null
-        ).show()
+        // The store copy at Done: the row edit can save a new description while the note is open.
+        openNoteView(e.title, e.note) { t -> store.event(e.id)?.let { it.note = t; store.save(it) } }
     }
 
     fun saveTodo(t: Todo) { store.save(t); selectedTodo = t; render() }
@@ -485,11 +485,9 @@ open class MainActivity : Activity() {
     }
 
     fun openTodoNote(t: Todo) {
-        NoteDialog(
-            this, "Note: " + t.title.ifBlank { "(no description)" }.take(24), t.note,
-            { s -> t.note = s; store.save(t); render() },
-            if (t.note.isNotEmpty()) ({ t.note = ""; store.save(t); render() }) else null
-        ).show()
+        openNoteView(t.title, t.note) { s ->
+            store.todos.firstOrNull { it.id == t.id }?.let { it.note = s; store.save(it) }
+        }
     }
 
     /** Switches to the To Do List app, as the Palm To Do button does. */
@@ -591,7 +589,7 @@ open class MainActivity : Activity() {
         val cmds = hbox()
         val bottom = hbox().apply { setPadding(pp(1), 0, pp(1), 0) }
 
-        when (mode) {
+        if (noteOpen != null) buildNote(header, content, cmds) else when (mode) {
             DAY -> buildDay(header, content, cmds)
             WEEK -> buildWeek(header, content, cmds)
             MONTH -> buildMonth(header, content, cmds)
@@ -609,10 +607,11 @@ open class MainActivity : Activity() {
         root.addView(View(this).apply { setBackgroundColor(Palm.INK) }, LP(MATCH, pp(2)))
         // Palm content areas start at 18 (Day, Agenda, To Do, Memo) and 15 (Week, Month).
         // The title line ends at 15. The content ends 1 px above the bottom row at 147.
-        val (spaceTop, spaceBottom) = when (mode) { WEEK, MONTH -> 0 to 1; else -> 3 to 1 }
+        val (spaceTop, spaceBottom) = if (noteOpen == null && (mode == WEEK || mode == MONTH)) 0 to 1 else 3 to 1
         root.addView(content, LP(MATCH, 0, 1f).apply { topMargin = pp(spaceTop); bottomMargin = pp(spaceBottom) })
         bottom.addView(cmds, LP(0, WRAP, 1f))
-        bottom.addView(ViewIcon(this, 5, false) { endEdit(); showFind() })
+        // The Note view has no Find: a found record would open under the note.
+        if (noteOpen == null) bottom.addView(ViewIcon(this, 5, false) { endEdit(); showFind() })
         fitButtons(bottom)
         root.addView(bottom, lp(MATCH))
         if (keepKeyboard && currentFocus?.onCheckIsTextEditor() != true) showKeyboard()
@@ -776,9 +775,7 @@ open class MainActivity : Activity() {
                 if (key == focusKey) focusView = ed
                 if (e != null && occ != null) {
                     val icons = hbox().apply { setPadding(0, pp(1.5f), pp(1), 0) }
-                    if (e.note.isNotEmpty()) icons.addView(IconView(this, IconView.NOTE).apply {
-                        setOnClickListener { endEdit(); openNote(occ) }
-                    }, lp().apply { marginStart = pp(1) })
+                    if (e.note.isNotEmpty()) icons.addView(noteIcon { openNote(occ) }, lp().apply { marginStart = pp(1) })
                     if (e.alarm) icons.addView(IconView(this, IconView.ALARM).apply {
                         setOnClickListener { endEdit(); editEvent(occ) }
                     }, lp().apply { marginStart = pp(1) })
@@ -809,6 +806,11 @@ open class MainActivity : Activity() {
             }
         }
         cmd(cmds, "Go To") { endEdit(); DateDialog(this, "Go to Date", day) { d -> day = d; selected = null; render() }.show() }
+    }
+
+    /** The Palm note icon after a record that has a note. A tap ends the edit and opens the note. */
+    internal fun noteIcon(onClick: () -> Unit): IconView = IconView(this, IconView.NOTE).apply {
+        setOnClickListener { endEdit(); onClick() }
     }
 
     /** A row text field. With [multiLine], Enter adds a new line (To Do items); without it, Enter ends the edit. */
@@ -898,7 +900,8 @@ open class MainActivity : Activity() {
             return
         }
         val e = store.event(o.event.id) ?: return
-        if (text.isEmpty() && e.note.isEmpty() && !e.repeats) {
+        // An empty event stays while the Note view opened over it is up: the note can still fill it.
+        if (text.isEmpty() && e.note.isEmpty() && !e.repeats && noteOpen == null) {
             store.delete(e); if (selected?.event?.id == e.id) selected = null
             root.post { changed() }
             return
@@ -1042,7 +1045,10 @@ open class MainActivity : Activity() {
             }, LP(timeW, WRAP))
             if (isMasked(o.event)) r.addView(label("").apply { background = box(Palm.LIGHT, Palm.LIGHT, 0f, 1f) },
                 LP(0, pp(7), 1f))
-            else r.addView(label(o.event.title.ifBlank { "(no description)" }), LP(0, WRAP, 1f))
+            else {
+                r.addView(label(o.event.title.ifBlank { "(no description)" }), LP(0, WRAP, 1f))
+                if (o.event.note.isNotEmpty()) r.addView(noteIcon { openNote(o) }, lp().apply { topMargin = pp(1.5f); marginStart = pp(1) })
+            }
             col.addView(r, LP(MATCH, pp(11)).apply { marginEnd = pp(7) })
         }
 
@@ -1074,13 +1080,16 @@ open class MainActivity : Activity() {
             if (isMasked(t)) r.addView(label("").apply {
                 background = box(Palm.LIGHT, Palm.LIGHT, 0f, 1f); setOnClickListener { revealAsk(t) }
             }, LP(0, pp(7), 1f).apply { topMargin = textTop + pp(2); marginEnd = pp(3) })
-            else r.addView(label(t.title.ifBlank { "(no description)" }).apply {
-                // Only the first line, with an ellipsis when the text is cut.
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                setPadding(pp(1), 0, pp(1), 0)
-                setOnClickListener { openTodoApp(t.id) }
-            }, LP(0, WRAP, 1f).apply { topMargin = textTop })
+            else {
+                r.addView(label(t.title.ifBlank { "(no description)" }).apply {
+                    // Only the first line, with an ellipsis when the text is cut.
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    setPadding(pp(1), 0, pp(1), 0)
+                    setOnClickListener { openTodoApp(t.id) }
+                }, LP(0, WRAP, 1f).apply { topMargin = textTop })
+                if (t.note.isNotEmpty()) r.addView(noteIcon { openTodoNote(t) }, lp().apply { topMargin = textTop + pp(1.5f); marginStart = pp(1) })
+            }
             if (prefs.showDueDates) r.addView(todoDueLabel(t, day), lp().apply { topMargin = textTop })
             if (prefs.showCategories) r.addView(todoCategoryLabel(t), lp().apply { topMargin = textTop })
             todoCol.addView(r, lp(MATCH))
@@ -1223,6 +1232,7 @@ open class MainActivity : Activity() {
                 }
                 if (key == focusKey) focusView = ed
                 r.addView(ed, LP(0, WRAP, 1f).apply { topMargin = textTop })
+                if (t.note.isNotEmpty()) r.addView(noteIcon { openTodoNote(t) }, lp().apply { topMargin = textTop + pp(1.5f); marginStart = pp(1) })
             }
             if (prefs.showDueDates) r.addView(todoDueLabel(t, today), lp().apply { topMargin = textTop })
             if (prefs.showCategories) r.addView(todoCategoryLabel(t), lp().apply { topMargin = textTop })
@@ -1260,7 +1270,8 @@ open class MainActivity : Activity() {
 
     private fun commitTodo(t: Todo, raw: String) {
         val text = raw.trim()
-        if (text.isEmpty() && t.note.isEmpty()) {
+        // An empty item stays while the Note view opened over it is up: the note can still fill it.
+        if (text.isEmpty() && t.note.isEmpty() && noteOpen == null) {
             store.delete(t); if (selectedTodo?.id == t.id) selectedTodo = null
             root.post { render() }
             return
@@ -1388,6 +1399,8 @@ open class MainActivity : Activity() {
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About Date Book") { showAbout(false) }
         )
+        // The Palm Note view has only the Edit and Options menus, and Options holds only Font.
+        if (noteOpen != null) return listOf("Edit" to edit, "Options" to listOf(MenuItem("Font...", 'F') { showFont() }))
         return listOf("Record" to record, "Edit" to edit, "Options" to options)
     }
 

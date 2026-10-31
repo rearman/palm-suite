@@ -440,24 +440,3 @@ class RepeatDialog(
         summary.text = if (ev.repeat == Repeat.NONE) "" else Recur.describe(ev)
     }
 }
-
-/** Palm Note view: a full page of text for one record. */
-class NoteDialog(
-    ctx: Context,
-    title: String,
-    text: String,
-    onDone: (String) -> Unit,
-    onDelete: (() -> Unit)?
-) : PalmDialog(ctx, title, height = 160) {
-    init {
-        val f = ctx.field(text, "Write a note", multiLine = true).apply {
-            minLines = 8
-            gravity = Gravity.TOP or Gravity.START
-        }
-        add(f)
-        button("Done") { dismiss(); onDone(f.text.toString()) }
-        if (onDelete != null) button("Delete...") {
-            ctx.ask("Delete Note", "Delete this note?", "Yes" to { dismiss(); onDelete() }, "No" to {})
-        }
-    }
-}

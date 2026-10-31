@@ -119,35 +119,11 @@ internal fun MainActivity.buildMemoEdit(h: LinearLayout, content: FrameLayout, c
     })
 
     val done = { closeMemo(m) }
-    val ed = BackEdit(this).apply {
-        onEmptyBack = done // Backspace in an empty memo closes and deletes it.
-        typeface = Palm.typeface(context, false)
-        setTextSize(TypedValue.COMPLEX_UNIT_PX, ppf(Palm.text))
-        includeFontPadding = false
-        setTextColor(Palm.INK)
-        background = LinedBackground(this@buildMemoEdit, this, fill = true)
-        setPadding(pp(2), 0, pp(2), 0)
-        gravity = Gravity.TOP or Gravity.START
-        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
-            InputType.TYPE_TEXT_FLAG_MULTI_LINE
-        setText(m.text)
-        addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                m.text = s?.toString() ?: ""
-                if (m.id != 0L || m.text.isNotBlank()) store.save(m)
-            }
-        })
+    val ed = linedPage(content, m.text) { s ->
+        m.text = s
+        if (m.id != 0L || m.text.isNotBlank()) store.save(m)
     }
-    lastEdit = ed
-    // WRAP height: the field grows with the text, so the scroll bar has a range to show.
-    withScrollBar(content, ScrollView(this).apply {
-        addView(ed, LP(MATCH, WRAP))
-        isFillViewport = true
-        isVerticalScrollBarEnabled = false
-    })
-    ed.post { ed.requestFocus(); ed.setSelection(ed.text.length) }
+    ed.onEmptyBack = done // Backspace in an empty memo closes and deletes it.
     if (m.id == 0L) showKeyboardSoon()
 
     cmd(cmds, "Done", gap = 0, onClick = done)
@@ -227,6 +203,39 @@ internal fun MainActivity.showMemoPreferences() {
 /** Memo Pad About box. */
 internal fun MainActivity.showMemoAbout() {
     ask("About Memo Pad", "Memo Pad, after the Palm OS 3.5 Memo Pad.", "OK" to {})
+}
+
+/**
+ * The page of the Memo and Note views: one multi-line field on lined paper that fills [content],
+ * with a Palm scroll bar. The field takes the focus. [onChange] gets the text after each change.
+ */
+internal fun MainActivity.linedPage(content: FrameLayout, text: String, onChange: (String) -> Unit): BackEdit {
+    val ed = BackEdit(this).apply {
+        typeface = Palm.typeface(context, false)
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, ppf(Palm.text))
+        includeFontPadding = false
+        setTextColor(Palm.INK)
+        background = LinedBackground(this@linedPage, this, fill = true)
+        setPadding(pp(2), 0, pp(2), 0)
+        gravity = Gravity.TOP or Gravity.START
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+            InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        setText(text)
+        addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) { onChange(s?.toString() ?: "") }
+        })
+    }
+    lastEdit = ed
+    // WRAP height: the field grows with the text, so the scroll bar has a range to show.
+    withScrollBar(content, ScrollView(this).apply {
+        addView(ed, LP(MATCH, WRAP))
+        isFillViewport = true
+        isVerticalScrollBarEnabled = false
+    })
+    ed.post { ed.requestFocus(); ed.setSelection(ed.text.length) }
+    return ed
 }
 
 /** Puts [sv] in the content area with a Palm scroll bar on its right. The bar is 7 px wide. */

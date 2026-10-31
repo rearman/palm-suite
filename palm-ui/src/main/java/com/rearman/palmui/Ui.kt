@@ -526,7 +526,7 @@ fun Context.palmAlert(
 
 fun Context.toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
-/** Small drawn icons: note, alarm and repeat for the Day view, and the 16 px confirmation icon. */
+/** Small drawn icons: note, alarm and repeat for the record lists, and the 16 px confirmation icon. */
 class IconView(ctx: Context, private val kind: Int) : View(ctx) {
 	companion object { const val NOTE = 0; const val ALARM = 1; const val REPEAT = 2; const val CONFIRM = 3 }
 	private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
@@ -558,9 +558,17 @@ class IconView(ctx: Context, private val kind: Int) : View(ctx) {
 				c.drawText("?", s / 2, s / 2 - (fm.ascent + fm.descent) / 2, query)
 			}
 			NOTE -> {
-				c.drawRect(m, m, s - m, s - m, paint)
-				c.drawLine(m * 2, s * 0.4f, s - m * 2, s * 0.4f, paint)
-				c.drawLine(m * 2, s * 0.6f, s - m * 2, s * 0.6f, paint)
+				// Palm note symbol on an 8 px grid: a page with its top right corner folded, and two
+				// lines of text. Each stroke runs through the center of its Palm pixel.
+				val u = s / 8
+				val page = android.graphics.Path().apply {
+					moveTo(0.5f * u, 0.5f * u); lineTo(5.5f * u, 0.5f * u); lineTo(7.5f * u, 2.5f * u)
+					lineTo(7.5f * u, 7.5f * u); lineTo(0.5f * u, 7.5f * u); close()
+					moveTo(5.5f * u, 0.5f * u); lineTo(5.5f * u, 2.5f * u); lineTo(7.5f * u, 2.5f * u)
+				}
+				c.drawPath(page, paint)
+				c.drawLine(2f * u, 3.5f * u, 5f * u, 3.5f * u, paint)
+				c.drawLine(2f * u, 5.5f * u, 6f * u, 5.5f * u, paint)
 			}
 			ALARM -> {
 				val cx = s / 2; val cy = s / 2 + m / 3

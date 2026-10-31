@@ -64,16 +64,10 @@ internal fun MainActivity.deleteAddressAsk(a: Address) {
 
 /** Note for [a], as in To Do. A record in Address Edit is saved by its OK, not here. */
 internal fun MainActivity.openAddressNote(a: Address) {
-    fun saveNote(text: String) {
-        a.note = text
+    openNoteView(a.listName(prefs.addressListBy == 1), a.note) { t ->
+        a.note = t
         if (a.id != 0L && a !== addressEditing) store.save(a)
-        render()
     }
-    NoteDialog(
-        this, "Note: " + a.listName(prefs.addressListBy == 1).take(24), a.note,
-        { t -> saveNote(t) },
-        if (a.note.isNotEmpty()) ({ saveNote("") }) else null
-    ).show()
 }
 
 /**

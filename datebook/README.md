@@ -78,6 +78,7 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - A tap on the title tab opens the Record, Edit and Options menus, as on the Palm III. Tap outside the menus to close them. With the menus open, type a command letter (shown at the right of a command) to run that command. At any time, press Ctrl and the command letter on a keyboard.
 - Tap outside a line in edit to save it and end the edit. Tap another line to edit that line.
 - The apps hide the Android status bar. Swipe down from the top edge of the screen to show it for a moment.
+- Notes: select Record > Attach Note, or tap Note in Details, to open the Note view. It shows the record description in the title tab and a full page of dotted lines. Tap Done to save the note, or Delete... to delete it. Back also saves the note. A record with a note shows the note icon (a page with a folded corner) in the Day view, the Agenda view, the To Do List and the Address List. Tap the icon to open the note.
 - **Find** (the magnifier icon at the bottom right) searches the descriptions and notes of all records and the addresses.
 - Font, Security (show, mask or hide private records) and Purge. The screen is always the Green LCD color.
 - All screens use the proportions of the Palm IIIxe: the screen width is 160 Palm pixels, and the Font option selects the Palm small, normal or large font size. Select Font shows three A buttons (small, normal and large) and no sample text. All text uses the Palm OS font.
