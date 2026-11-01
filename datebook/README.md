@@ -1,6 +1,6 @@
 # Date Book, To Do List and Memo Pad
 
-Four Android apps after the Palm OS 3.5 Date Book, To Do List, Memo Pad and Address Book. One APK installs all four apps. Each app has its own icon. The Date Book and To Do List apps use the same records, so the Date Book Agenda view shows your To Do items. All four apps keep their records in one file on the phone.
+Four Android apps after the Palm OS 3.5 Date Book, To Do List, Memo Pad and Address Book, and the Prefs app for the ShortCuts. One APK installs all five apps. Each app has its own icon. The Date Book and To Do List apps use the same records, so the Date Book Agenda view shows your To Do items. All four apps keep their records in one file on the phone.
 
 ## Build the APK with GitHub
 
@@ -15,12 +15,12 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 
 ### Date Book
 
-- Day view: time lines from the start time to the end time, time bars for overlapping events, untimed events at the top, and note, alarm and repeat icons. Tap a line and type to make an event. With Show Time Bars, an event that ends between hours gets an empty line at its end time.
-- Week view: a seven-day time grid. Tap an event to see its description. Tap it again to open its day. Touch and hold an event to edit it.
+- Day view: time lines from the start time to the end time, time bars for overlapping events, untimed events at the top with a diamond, and note, alarm and repeat icons. Tap a line and type to make an event. With Show Time Bars, an event that ends between hours gets an empty line at its end time.
+- Week view: a seven-day time grid. Tap an event to see its description. Tap it again to open its day. Drag an event to move it to a different time or day. Tap a blank time to open that day with that hour selected for a new event.
 - Month view: marks for timed events, untimed events (+) and daily repeating events (dashed line).
 - Agenda view: the events for one day, plus all open To Do items.
 - Swipe left for the next day, week or month. Swipe right for the previous one. In Day view, a swipe moves one day and the arrows move one week.
-- Event Details: time, date, alarm, repeat, private and note.
+- Event Details: time, date, alarm, repeat, private and note. In Set Time, All Day sets the start and end times of the Preferences.
 - Repeat: daily, weekly (on selected days), monthly by day or by date, yearly, with an optional end date. For changes or deletions of a repeating event, select Current, Future or All. Future applies to this and all later occurrences. Earlier occurrences stay.
 - Alarms ring while the app is closed. Preferences set the alarm preset, the number of reminders and the interval. Snooze adds 5 minutes.
 - In the Day view, type a character when no event is selected to start a new event. The event starts at the next hour (today) or at the Day Start time, and the text you type is its description.
@@ -44,10 +44,10 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Sort: manual or alphabetic. Select Options, then Preferences to set the sort order.
 - Manual sort: touch and hold a memo, then drag it to move it.
 - Memo view shows "Memo N of M". The page has a full page of dotted lines.
-- Memo view has the Done and Details buttons.
+- Memo view has the Done and Details buttons. Options > Go to Top of Page and Go to Bottom of Page move the cursor.
 - Details: Category, Private and Delete.
 - The text is saved as you type. An empty memo is deleted.
-- Memo Pad has its own categories. Select Edit Categories in Options. The Edit Categories form has OK, New, Rename and Delete buttons. Tap a name to select it.
+- Memo Pad has its own categories. Select Edit Categories... in a category pop-up. The Edit Categories form has OK, New, Rename and Delete buttons. Tap a name to select it.
 - Find searches the memos.
 - Export Backup and Import Backup include the memos.
 - In the Memo List, type a character to start a new memo with that text.
@@ -61,14 +61,15 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Look Up field: type a name to go to the first match.
 - Address View: tap a number to call it, tap Msg to send a text message, tap an e-mail address to write an e-mail, and tap the address to open the map. The phone's own apps do these actions, as the stock Contacts app does.
 - Touch and hold a value in Address View to copy it.
-- Address Edit has these fields: Last name, First name, Title and Company.
+- Address Edit has these fields: Last name, First name, Title and Company. Title, Company, City and State fill in the first match from the other entries as you type.
 - Address Edit has five phone fields. Each has a label: Work, Home, Fax, Other, E-mail, Main, Pager or Mobile.
 - Address Edit has these fields: Address, City, State, Zip Code and Country.
 - Address Edit has four custom fields. Select Options > Rename Custom Fields to change their names.
 - Details: Show in List, Category and Private. Show in List sets which phone number the list shows. Each record has a note.
 - Share Address, Share Category and Share Business Card send a vCard (.vcf) file through the Android share sheet. They replace the Palm Beam commands. Select Record > Select Business Card to choose your card.
 - Import vCard and Export vCard in the Record menu read and write .vcf files. Opening a .vcf file with Address imports it. Duplicate records are skipped.
-- Phone Lookup in the Edit menu (Ctrl+L) inserts a name and a number. It works in all four apps.
+- Duplicate Address in the Record menu (Ctrl+T) opens a copy of the entry in Address Edit. In the Address List, it copies the entry that Look Up selects.
+- Phone Lookup in the Options menu (Ctrl+L) inserts a name and a number. It works in Date Book, To Do List and the Memo view.
 - Address Book has its own categories.
 - Address Book records and their categories sync like the other records.
 
@@ -79,13 +80,15 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Tap outside a line in edit to save it and end the edit. Tap another line to edit that line.
 - The apps hide the Android status bar. Swipe down from the top edge of the screen to show it for a moment.
 - Notes: select Record > Attach Note, or tap Note in Details, to open the Note view. It shows the record description in the title tab and a full page of dotted lines. Tap Done to save the note, or Delete... to delete it. Back also saves the note. A record with a note shows the note icon (a page with a folded corner) in the Day view, the Agenda view, the To Do List and the Address List. Tap the icon to open the note.
-- **Find** (the magnifier icon at the bottom right) searches the descriptions and notes of all records and the addresses.
+- **Find** (the magnifier icon at the bottom right) searches the descriptions and notes of all records and the addresses. The matches show under Datebook, Addresses, To Do Items and Memos, with the current app first. Find More shows the next page.
 - Font, Security (show, mask or hide private records) and Purge. The screen is always the Green LCD color.
-- All screens use the proportions of the Palm IIIxe: the screen width is 160 Palm pixels, and the Font option selects the Palm small, normal or large font size. Select Font shows three A buttons (small, normal and large) and no sample text. All text uses the Palm OS font.
+- Security: Mask Records and Hide Records ask first. A masked record shows a gray bar with a lock. Tap it to show the record. Tap Password to set a password. With a password, you must enter it to show private records.
+- Many forms have a Tips icon (i) at the right of the title. Tap it to read a tip.
+- All screens use the proportions of the Palm IIIxe: the screen width is 160 Palm pixels, and the Font option selects the Palm small, bold or large font. Select Font shows three A buttons (small, bold and large) and no sample text. All text uses the Palm OS font.
 - On a screen that is taller than it is wide, the keyboard stays open below the app, and the app uses the area above the keyboard. On a square screen, the keyboard opens only when you select a line of text.
 - Export Backup and Import Backup save and load all records, including addresses, as a JSON file. Import skips a record that is the same as a record on the device.
 - Delete Event, Delete To Do and Delete Memo have a Save archive copy on PC check box. When it is set, the app saves a backup file of the record before it deletes the record.
-- ShortCuts: type ^ or press Ctrl+Space, then a ShortCut name. When the letters after ^ match a full name, the ^ and the name change to the ShortCut text. Options > ShortCuts... edits the list. Export Backup does not include ShortCuts.
+- ShortCuts: type ^ or press Ctrl+Space, then a ShortCut name. When the letters after ^ match a full name, the ^ and the name change to the ShortCut text. The Prefs app edits the list: New, Edit... and Delete.... Export Backup does not include ShortCuts.
 - Sync: Options > Sync... connects the apps to your own palmsync server (see sync-server/README.md). Enter the server address, the device token and the sync passphrase. Use the same passphrase on every device. The apps sync when they open, about 1 second after a change and every hour, and Sync Now syncs at once. The server stores only encrypted records. When the same record changed on two devices, the apps keep both copies, as Palm HotSync did.
 
 ## Limits

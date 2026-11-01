@@ -14,67 +14,68 @@ Every screen, dialog, control, menu command, and gesture of the Android apps (Da
 
 Palm reference: Handbook p.83 to 86. Code: `MainActivity.buildDay`.
 
-| Kind   | Item                                        | Code       | Look         | Works | Notes                                                                                               |
-| ------ | ------------------------------------------- | ---------- | ------------ | ----- | --------------------------------------------------------------------------------------------------- |
-| screen | Title tab: date (tap opens the menus)       | tab        | 2026-10-30 M |       |                                                                                                     |
-| button | Week arrows ◀ ▶                             | buildDay   | 2026-10-30 M |       |                                                                                                     |
-| button | Day buttons S M T W T F S                   | buildDay   | 2026-10-30 M |       |                                                                                                     |
-| field  | Event line: tap & type a description        | rowEdit    | 2026-10-30 M |       |                                                                                                     |
-| icon   | Untimed event mark                          | buildDay   |              |       | Open: the Palm marks an untimed event with a diamond (p.83, 86); the app shows "•"                  |
-| button | Time of a line: Set Time, or new event      | timeTapped | 2026-10-30 M |       |                                                                                                     |
-| icon   | Note icon                                   | noteIcon   |              |       | Open: the Palm icon is a 7 by 9 page with its corner folded at the bottom right and no lines (p.81) |
-| icon   | Alarm icon: Event Details                   | buildDay   |              |       |                                                                                                     |
-| icon   | Repeat icon: Event Details                  | buildDay   |              |       |                                                                                                     |
-| icon   | Gray bar of a masked record: Private Record | revealAsk  |              |       | Open: the Palm fills the bar with the 50% dither and puts a lock icon at its right (p.79)           |
-| icon   | View icons: Day, Week, Month, Agenda        | viewIcons  |              |       |                                                                                                     |
-| button | New                                         | buildDay   | 2026-10-30 M |       |                                                                                                     |
-| button | Details                                     | buildDay   | 2026-10-30 M |       |                                                                                                     |
-| alert  | Select Event (Details with no event)        | buildDay   |              |       |                                                                                                     |
-| button | Go To: Go to Date                           | buildDay   |              |       | Open: the Palm label is "Go to" (p.84 to 93)                                                        |
-| icon   | Find                                        | render     |              |       |                                                                                                     |
+| Kind   | Item                                                           | Code        | Look         | Works | Notes |
+| ------ | -------------------------------------------------------------- | ----------- | ------------ | ----- | ----- |
+| screen | Title tab: date (tap opens the menus)                          | tab         | 2026-10-30 M |       |       |
+| button | Week arrows ◀ ▶                                                | buildDay    | 2026-10-30 M |       |       |
+| button | Day buttons S M T W T F S                                      | buildDay    | 2026-10-30 M |       |       |
+| field  | Event line: tap & type a description                           | rowEdit     | 2026-10-30 M |       |       |
+| icon   | Untimed event mark: the 7 px diamond                           | untimedMark | 2026-10-31 M |       |       |
+| button | Time of a line: Set Time, or new event                         | timeTapped  | 2026-10-30 M |       |       |
+| icon   | Note icon                                                      | noteIcon    | 2026-10-31 M |       |       |
+| icon   | Alarm icon: Event Details                                      | buildDay    |              |       |       |
+| icon   | Repeat icon: Event Details                                     | buildDay    |              |       |       |
+| icon   | Masked record: 50% gray bar with the lock icon; a tap shows it | maskedBar   | 2026-10-31 M |       |       |
+| icon   | View icons: Day, Week, Month, Agenda                           | viewIcons   |              |       |       |
+| button | New                                                            | buildDay    | 2026-10-30 M |       |       |
+| button | Details                                                        | buildDay    | 2026-10-30 M |       |       |
+| alert  | Select Event (Details with no event)                           | buildDay    |              |       |       |
+| button | Go to: Go to Date                                              | buildDay    | 2026-10-31 M |       |       |
+| icon   | Find                                                           | render      |              |       |       |
 
 ### Week view
 
 Palm reference: Handbook p.91 to 92. Code: `MainActivity.buildWeek`.
 
-| Kind   | Item                                                           | Code      | Look         | Works | Notes                                                                                                                  |
-| ------ | -------------------------------------------------------------- | --------- | ------------ | ----- | ---------------------------------------------------------------------------------------------------------------------- |
-| screen | Title tab: month & year                                        | tab       |              |       |                                                                                                                        |
-| button | Week arrows ◀ ▶                                                | buildWeek | 2026-10-30 M |       |                                                                                                                        |
-| button | Day heading: opens the Day view                                | buildWeek | 2026-10-30 M |       |                                                                                                                        |
-| icon   | Event bar: tap shows the description, second tap opens the day | WeekGrid  | 2026-10-30 M |       |                                                                                                                        |
-| icon   | Event bar: touch & hold opens Event Details                    | WeekGrid  |              |       | Open: the Palm drags an event to reschedule it, and a tap on a blank time opens that day with the time selected (p.92) |
-| icon   | View icons                                                     | viewIcons |              |       |                                                                                                                        |
-| button | Go To                                                          | buildWeek |              |       | Open: the Palm label is "Go to" (p.84 to 93)                                                                           |
+| Kind   | Item                                                                   | Code      | Look         | Works | Notes |
+| ------ | ---------------------------------------------------------------------- | --------- | ------------ | ----- | ----- |
+| screen | Title tab: month & year                                                | tab       |              |       |       |
+| button | Week arrows ◀ ▶                                                        | buildWeek | 2026-10-30 M |       |       |
+| button | Day heading: opens the Day view                                        | buildWeek | 2026-10-30 M |       |       |
+| icon   | Event bar: tap shows the description, second tap opens the day         | WeekGrid  | 2026-10-30 M |       |       |
+| icon   | Event bar: drag to another time or day moves it, in 15 minute steps    | WeekGrid  | 2026-10-31 M |       |       |
+| icon   | Blank time: opens that day with the hour line selected for a new event | WeekGrid  | 2026-10-31 M |       |       |
+| icon   | View icons                                                             | viewIcons |              |       |       |
+| button | Go to                                                                  | buildWeek | 2026-10-31 M |       |       |
 
 ### Month view
 
 Palm reference: Handbook p.93. Code: `MainActivity.buildMonth`.
 
-| Kind   | Item                                                            | Code       | Look         | Works | Notes                                                                       |
-| ------ | --------------------------------------------------------------- | ---------- | ------------ | ----- | --------------------------------------------------------------------------- |
-| screen | Title tab: month & year                                         | tab        |              |       | Open: the Palm title is "Jul 2002"; the app spells the month in full (p.93) |
-| button | Month arrows ◀ ▶                                                | buildMonth | 2026-10-30 M |       |                                                                             |
-| icon   | Day cell: marks for timed, untimed (+) & daily repeating events | MonthGrid  | 2026-10-30 M |       |                                                                             |
-| button | Day cell: opens the Day view                                    | MonthGrid  | 2026-10-30 M |       |                                                                             |
-| icon   | View icons                                                      | viewIcons  |              |       |                                                                             |
-| button | Go To                                                           | buildMonth |              |       | Open: the Palm label is "Go to" (p.84 to 93)                                |
+| Kind   | Item                                                            | Code       | Look         | Works | Notes |
+| ------ | --------------------------------------------------------------- | ---------- | ------------ | ----- | ----- |
+| screen | Title tab: month & year ("Jul 2002")                            | tab        | 2026-10-31 M |       |       |
+| button | Month arrows ◀ ▶                                                | buildMonth | 2026-10-30 M |       |       |
+| icon   | Day cell: marks for timed, untimed (+) & daily repeating events | MonthGrid  | 2026-10-30 M |       |       |
+| button | Day cell: opens the Day view                                    | MonthGrid  | 2026-10-30 M |       |       |
+| icon   | View icons                                                      | viewIcons  |              |       |       |
+| button | Go to                                                           | buildMonth | 2026-10-31 M |       |       |
 
 ### Agenda view
 
 Palm reference: Handbook p.93 to 94. Code: `MainActivity.buildAgenda`.
 
-| Kind    | Item                                                     | Code         | Look         | Works | Notes                                        |
-| ------- | -------------------------------------------------------- | ------------ | ------------ | ----- | -------------------------------------------- |
-| screen  | Title tab, day arrows ◀ ▶, date (tap opens the Day view) | buildAgenda  | 2026-10-30 M |       |                                              |
-| button  | Appointment row: opens the Day view at the event         | buildAgenda  | 2026-10-30 M |       |                                              |
-| icon    | Appointment note icon                                    | noteIcon     |              |       | Open: see the Day view note icon             |
-| trigger | To Do category                                           | buildAgenda  | 2026-10-30 M |       |                                              |
-| check   | To Do check box                                          | completeTodo | 2026-10-30 M |       |                                              |
-| button  | To Do row: opens the To Do List at the item              | openTodoApp  | 2026-10-30 M |       |                                              |
-| icon    | To Do note icon                                          | noteIcon     |              |       | Open: see the Day view note icon             |
-| icon    | View icons                                               | viewIcons    |              |       |                                              |
-| button  | Go To                                                    | buildAgenda  |              |       | Open: the Palm label is "Go to" (p.84 to 93) |
+| Kind    | Item                                                     | Code         | Look         | Works | Notes |
+| ------- | -------------------------------------------------------- | ------------ | ------------ | ----- | ----- |
+| screen  | Title tab, day arrows ◀ ▶, date (tap opens the Day view) | buildAgenda  | 2026-10-30 M |       |       |
+| button  | Appointment row: opens the Day view at the event         | buildAgenda  | 2026-10-30 M |       |       |
+| icon    | Appointment note icon                                    | noteIcon     | 2026-10-31 M |       |       |
+| trigger | To Do category                                           | buildAgenda  | 2026-10-30 M |       |       |
+| check   | To Do check box                                          | completeTodo | 2026-10-30 M |       |       |
+| button  | To Do row: opens the To Do List at the item              | openTodoApp  | 2026-10-30 M |       |       |
+| icon    | To Do note icon                                          | noteIcon     | 2026-10-31 M |       |       |
+| icon    | View icons                                               | viewIcons    |              |       |       |
+| button  | Go to                                                    | buildAgenda  | 2026-10-31 M |       |       |
 
 ### Event Details
 
@@ -97,14 +98,14 @@ Palm reference: Handbook p.87, 89. Code: `EventDetails`.
 
 Palm reference: Handbook p.84, 86. Code: `TimeDialog`.
 
-| Kind   | Item                                        | Code       | Look         | Works | Notes                                                                                                 |
-| ------ | ------------------------------------------- | ---------- | ------------ | ----- | ----------------------------------------------------------------------------------------------------- |
-| dialog | "Set Time"                                  | TimeDialog | 2026-10-30 M |       |                                                                                                       |
-| field  | Start & end time boxes, hour & minute lists | TimeDialog | 2026-10-30 M |       |                                                                                                       |
-| button | No Time                                     | TimeDialog | 2026-10-30 M |       |                                                                                                       |
-| button | All Day (not in the app)                    | TimeDialog |              |       | Open: the Palm Set Time has All Day, which fills in the Start and End Times of the Preferences (p.84) |
-| button | OK                                          | TimeDialog | 2026-10-30 M |       |                                                                                                       |
-| button | Cancel                                      | TimeDialog | 2026-10-30 M |       |                                                                                                       |
+| Kind   | Item                                                | Code       | Look         | Works | Notes |
+| ------ | --------------------------------------------------- | ---------- | ------------ | ----- | ----- |
+| dialog | "Set Time"                                          | TimeDialog | 2026-10-30 M |       |       |
+| field  | Start & end time boxes, hour & minute lists         | TimeDialog | 2026-10-30 M |       |       |
+| button | No Time                                             | TimeDialog | 2026-10-30 M |       |       |
+| button | All Day: the Start and End Times of the Preferences | TimeDialog | 2026-10-31 M |       |       |
+| button | OK                                                  | TimeDialog | 2026-10-30 M |       |       |
+| button | Cancel                                              | TimeDialog | 2026-10-30 M |       |       |
 
 ### Date dialog (Go to Date, Ending On, Due Date)
 
@@ -123,17 +124,17 @@ Palm reference: Handbook p.85. Code: `DateDialog`.
 
 Palm reference: Handbook p.89. Code: `RepeatDialog`.
 
-| Kind    | Item                                | Code          | Look         | Works | Notes                                                                                                                                                         |
-| ------- | ----------------------------------- | ------------- | ------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| dialog  | "Change Repeat"                     | RepeatDialog  | 2026-10-30 M |       |                                                                                                                                                               |
-| push    | None, Day, Week, Month, Year        | RepeatDialog  | 2026-10-30 M |       |                                                                                                                                                               |
-| field   | Every                               | buildArea     | 2026-10-30 M |       |                                                                                                                                                               |
-| trigger | End on: No End Date, Choose Date... | buildArea     | 2026-10-30 M |       |                                                                                                                                                               |
-| push    | Repeat on: S M T W T F S (Week)     | buildArea     |              |       |                                                                                                                                                               |
-| push    | Repeat by: Day, Date (Month)        | buildArea     |              |       |                                                                                                                                                               |
-| icon    | Summary text                        | updateSummary |              |       | Open: with None the Palm shows "Tap one of the above buttons to set a repeat interval." over a framed "No Repeat" box (p.89); the app shows "No Repeat" alone |
-| button  | OK                                  | RepeatDialog  | 2026-10-30 M |       |                                                                                                                                                               |
-| button  | Cancel                              | RepeatDialog  | 2026-10-30 M |       |                                                                                                                                                               |
+| Kind    | Item                                                                              | Code          | Look         | Works | Notes |
+| ------- | --------------------------------------------------------------------------------- | ------------- | ------------ | ----- | ----- |
+| dialog  | "Change Repeat"                                                                   | RepeatDialog  | 2026-10-30 M |       |       |
+| push    | None, Day, Week, Month, Year                                                      | RepeatDialog  | 2026-10-30 M |       |       |
+| field   | Every                                                                             | buildArea     | 2026-10-30 M |       |       |
+| trigger | End on: No End Date, Choose Date...                                               | buildArea     | 2026-10-30 M |       |       |
+| push    | Repeat on: S M T W T F S (Week)                                                   | buildArea     |              |       |       |
+| push    | Repeat by: Day, Date (Month)                                                      | buildArea     |              |       |       |
+| icon    | Summary text in a framed box; with None, the instruction above it and "No Repeat" | updateSummary | 2026-10-31 M |       |       |
+| button  | OK                                                                                | RepeatDialog  | 2026-10-30 M |       |       |
+| button  | Cancel                                                                            | RepeatDialog  | 2026-10-30 M |       |       |
 
 ### Repeating record choice
 
@@ -193,39 +194,39 @@ Palm reference: Handbook p.96. Code: `showPreferences`.
 
 Palm reference: Handbook p.95. Code: `showDisplayOptions`.
 
-| Kind   | Item                        | Code               | Look         | Works | Notes                                                      |
-| ------ | --------------------------- | ------------------ | ------------ | ----- | ---------------------------------------------------------- |
-| dialog | "Display Options"           | showDisplayOptions | 2026-10-30 M |       |                                                            |
-| check  | Show Time Bars              | showDisplayOptions | 2026-10-30 M |       |                                                            |
-| check  | Compress Day View           | showDisplayOptions | 2026-10-30 M |       |                                                            |
-| check  | Show Timed Items            | showDisplayOptions |              |       | Open: the Palm label is "Show Timed Events" (p.95)         |
-| check  | Show Untimed Items          | showDisplayOptions |              |       | Open: the Palm label is "Show Untimed Events" (p.95)       |
-| check  | Show Daily Repeating Events | showDisplayOptions |              |       | Open: the Palm label is "Show Daily Repeating Evts" (p.95) |
-| button | OK                          | showDisplayOptions | 2026-10-30 M |       |                                                            |
-| button | Cancel                      | showDisplayOptions | 2026-10-30 M |       |                                                            |
+| Kind   | Item                      | Code               | Look         | Works | Notes |
+| ------ | ------------------------- | ------------------ | ------------ | ----- | ----- |
+| dialog | "Display Options"         | showDisplayOptions | 2026-10-30 M |       |       |
+| check  | Show Time Bars            | showDisplayOptions | 2026-10-30 M |       |       |
+| check  | Compress Day View         | showDisplayOptions | 2026-10-30 M |       |       |
+| check  | Show Timed Events         | showDisplayOptions | 2026-10-31 M |       |       |
+| check  | Show Untimed Events       | showDisplayOptions | 2026-10-31 M |       |       |
+| check  | Show Daily Repeating Evts | showDisplayOptions | 2026-10-31 M |       |       |
+| button | OK                        | showDisplayOptions | 2026-10-30 M |       |       |
+| button | Cancel                    | showDisplayOptions | 2026-10-30 M |       |       |
 
 ### Date Book menus
 
 Palm reference: Handbook p.94 to 95. Code: `MainActivity.menus`.
 
-| Kind | Item                        | Code  | Look         | Works | Notes                                                                               |
-| ---- | --------------------------- | ----- | ------------ | ----- | ----------------------------------------------------------------------------------- |
-| menu | Record: New Event           | menus | 2026-10-30 M |       |                                                                                     |
-| menu | Record: Delete Event...     | menus | 2026-10-30 M |       |                                                                                     |
-| menu | Record: Attach Note         | menus | 2026-10-30 M |       |                                                                                     |
-| menu | Record: Delete Note...      | menus | 2026-10-30 M |       |                                                                                     |
-| menu | Record: Purge...            | menus | 2026-10-30 M |       |                                                                                     |
-| menu | Record: Export Backup...    | menus |              |       | Kept: Export and Import replace Beam Event                                          |
-| menu | Record: Import Backup...    | menus |              |       |                                                                                     |
-| menu | Record: Export iCalendar... | menus |              |       |                                                                                     |
-| menu | Record: Import iCalendar... | menus |              |       |                                                                                     |
-| menu | Options: Font...            | menus | 2026-10-30 M |       |                                                                                     |
-| menu | Options: Preferences...     | menus | 2026-10-30 M |       |                                                                                     |
-| menu | Options: Display Options... | menus | 2026-10-30 M |       |                                                                                     |
-| menu | Options: Sync...            | menus |              |       |                                                                                     |
-| menu | Options: ShortCuts...       | menus |              |       | Open: not in the Palm menus; the Palm sets ShortCuts in the Preferences app (p.196) |
-| menu | Options: Security...        | menus | 2026-10-30 M |       |                                                                                     |
-| menu | Options: About Date Book    | menus | 2026-10-30 M |       |                                                                                     |
+| Kind | Item                        | Code  | Look         | Works | Notes                                      |
+| ---- | --------------------------- | ----- | ------------ | ----- | ------------------------------------------ |
+| menu | Record: New Event           | menus | 2026-10-30 M |       |                                            |
+| menu | Record: Delete Event...     | menus | 2026-10-30 M |       |                                            |
+| menu | Record: Attach Note         | menus | 2026-10-30 M |       |                                            |
+| menu | Record: Delete Note...      | menus | 2026-10-30 M |       |                                            |
+| menu | Record: Purge...            | menus | 2026-10-30 M |       |                                            |
+| menu | Record: Export Backup...    | menus |              |       | Kept: Export and Import replace Beam Event |
+| menu | Record: Import Backup...    | menus |              |       |                                            |
+| menu | Record: Export iCalendar... | menus |              |       |                                            |
+| menu | Record: Import iCalendar... | menus |              |       |                                            |
+| menu | Options: Font...            | menus | 2026-10-30 M |       |                                            |
+| menu | Options: Preferences...     | menus | 2026-10-30 M |       |                                            |
+| menu | Options: Display Options... | menus | 2026-10-30 M |       |                                            |
+| menu | Options: Phone Lookup       | menus | 2026-10-31 M |       |                                            |
+| menu | Options: Sync...            | menus |              |       |                                            |
+| menu | Options: Security...        | menus | 2026-10-30 M |       |                                            |
+| menu | Options: About Date Book    | menus | 2026-10-30 M |       |                                            |
 
 ## To Do List
 
@@ -233,22 +234,22 @@ Palm reference: Handbook p.94 to 95. Code: `MainActivity.menus`.
 
 Palm reference: Handbook p.102 to 105. Code: `MainActivity.buildTodo`.
 
-| Kind    | Item                                        | Code              | Look         | Works | Notes                                                                                     |
-| ------- | ------------------------------------------- | ----------------- | ------------ | ----- | ----------------------------------------------------------------------------------------- |
-| screen  | Title tab "To Do"                           | tab               | 2026-10-30 M |       |                                                                                           |
-| trigger | Category                                    | buildTodo         | 2026-10-30 M |       |                                                                                           |
-| check   | Check box: complete                         | completeTodo      | 2026-10-30 M |       |                                                                                           |
-| button  | Priority: tap to change                     | todoPriorityLabel | 2026-10-30 M |       |                                                                                           |
-| field   | Item line: tap & type                       | rowEdit           | 2026-10-30 M |       |                                                                                           |
-| icon    | Note icon                                   | noteIcon          |              |       | Open: see the Day view note icon                                                          |
-| button  | Due date: tap to change                     | todoDueLabel      | 2026-10-30 M |       |                                                                                           |
-| button  | Category column: tap to change              | todoCategoryLabel |              |       |                                                                                           |
-| icon    | Gray bar of a masked record: Private Record | revealAsk         |              |       | Open: the Palm fills the bar with the 50% dither and puts a lock icon at its right (p.79) |
-| button  | New                                         | buildTodo         | 2026-10-30 M |       |                                                                                           |
-| button  | Details...                                  | buildTodo         | 2026-10-30 M |       |                                                                                           |
-| alert   | Select Item (Details with no item)          | buildTodo         |              |       |                                                                                           |
-| button  | Show...                                     | buildTodo         | 2026-10-30 M |       |                                                                                           |
-| icon    | Find                                        | render            |              |       |                                                                                           |
+| Kind    | Item                                                           | Code              | Look         | Works | Notes |
+| ------- | -------------------------------------------------------------- | ----------------- | ------------ | ----- | ----- |
+| screen  | Title tab "To Do"                                              | tab               | 2026-10-30 M |       |       |
+| trigger | Category                                                       | buildTodo         | 2026-10-30 M |       |       |
+| check   | Check box: complete                                            | completeTodo      | 2026-10-30 M |       |       |
+| button  | Priority: tap to change                                        | todoPriorityLabel | 2026-10-30 M |       |       |
+| field   | Item line: tap & type                                          | rowEdit           | 2026-10-30 M |       |       |
+| icon    | Note icon                                                      | noteIcon          | 2026-10-31 M |       |       |
+| button  | Due date: tap to change                                        | todoDueLabel      | 2026-10-30 M |       |       |
+| button  | Category column: tap to change                                 | todoCategoryLabel |              |       |       |
+| icon    | Masked record: 50% gray bar with the lock icon; a tap shows it | maskedBar         | 2026-10-31 M |       |       |
+| button  | New                                                            | buildTodo         | 2026-10-30 M |       |       |
+| button  | Details...                                                     | buildTodo         | 2026-10-30 M |       |       |
+| alert   | Select Item (Details with no item)                             | buildTodo         |              |       |       |
+| button  | Show...                                                        | buildTodo         | 2026-10-30 M |       |       |
+| icon    | Find                                                           | render            |              |       |       |
 
 ### To Do Item Details
 
@@ -309,21 +310,19 @@ Palm reference: Handbook p.65. Code: `showPurgeTodos`.
 
 Palm reference: Handbook p.106. Code: `MainActivity.menus`.
 
-| Kind | Item                        | Code  | Look         | Works | Notes                                                                                         |
-| ---- | --------------------------- | ----- | ------------ | ----- | --------------------------------------------------------------------------------------------- |
-| menu | Record: New Item            | menus |              |       | Open: not in the Palm Record menu (p.106)                                                     |
-| menu | Record: Delete Item...      | menus | 2026-10-30 M |       |                                                                                               |
-| menu | Record: Attach Note         | menus | 2026-10-30 M |       |                                                                                               |
-| menu | Record: Delete Note...      | menus | 2026-10-30 M |       |                                                                                               |
-| menu | Record: Purge...            | menus | 2026-10-30 M |       |                                                                                               |
-| menu | Record: Export Backup...    | menus |              |       | Kept: Export and Import replace Beam Item and Beam Category                                   |
-| menu | Record: Import Backup...    | menus |              |       |                                                                                               |
-| menu | Options: Font...            | menus | 2026-10-30 M |       |                                                                                               |
-| menu | Options: Edit Categories... | menus |              |       | Open: not in the Palm menu; the Palm opens Edit Categories from the category pick list (p.71) |
-| menu | Options: Sync...            | menus |              |       |                                                                                               |
-| menu | Options: ShortCuts...       | menus |              |       | Open: not in the Palm menus; the Palm sets ShortCuts in the Preferences app (p.196)           |
-| menu | Options: Security...        | menus | 2026-10-30 M |       |                                                                                               |
-| menu | Options: About To Do List   | menus | 2026-10-30 M |       |                                                                                               |
+| Kind | Item                      | Code  | Look         | Works | Notes                                                       |
+| ---- | ------------------------- | ----- | ------------ | ----- | ----------------------------------------------------------- |
+| menu | Record: Delete Item...    | menus | 2026-10-30 M |       |                                                             |
+| menu | Record: Attach Note       | menus | 2026-10-30 M |       |                                                             |
+| menu | Record: Delete Note...    | menus | 2026-10-30 M |       |                                                             |
+| menu | Record: Purge...          | menus | 2026-10-30 M |       |                                                             |
+| menu | Record: Export Backup...  | menus |              |       | Kept: Export and Import replace Beam Item and Beam Category |
+| menu | Record: Import Backup...  | menus |              |       |                                                             |
+| menu | Options: Font...          | menus | 2026-10-30 M |       |                                                             |
+| menu | Options: Phone Lookup     | menus | 2026-10-31 M |       |                                                             |
+| menu | Options: Sync...          | menus |              |       |                                                             |
+| menu | Options: Security...      | menus | 2026-10-30 M |       |                                                             |
+| menu | Options: About To Do List | menus | 2026-10-30 M |       |                                                             |
 
 ## Memo Pad
 
@@ -331,30 +330,30 @@ Palm reference: Handbook p.106. Code: `MainActivity.menus`.
 
 Palm reference: Handbook p.107 to 108. Code: `buildMemoList`.
 
-| Kind    | Item                                                    | Code          | Look         | Works | Notes                                                                                     |
-| ------- | ------------------------------------------------------- | ------------- | ------------ | ----- | ----------------------------------------------------------------------------------------- |
-| screen  | Title tab "Memo"                                        | tab           | 2026-10-30 M |       |                                                                                           |
-| trigger | Category                                                | buildMemoList | 2026-10-30 M |       |                                                                                           |
-| button  | Memo row: opens the memo                                | buildMemoList | 2026-10-30 M |       |                                                                                           |
-| button  | Memo row: touch & hold, then drag to move (manual sort) | buildMemoList | 2026-10-30 M |       |                                                                                           |
-| icon    | Gray bar of a masked record: Private Record             | revealAsk     |              |       | Open: the Palm fills the bar with the 50% dither and puts a lock icon at its right (p.79) |
-| icon    | Scroll bar                                              | withScrollBar |              |       |                                                                                           |
-| button  | New                                                     | buildMemoList | 2026-10-30 M |       |                                                                                           |
-| icon    | Find                                                    | render        |              |       |                                                                                           |
+| Kind    | Item                                                           | Code          | Look         | Works | Notes |
+| ------- | -------------------------------------------------------------- | ------------- | ------------ | ----- | ----- |
+| screen  | Title tab "Memo"                                               | tab           | 2026-10-30 M |       |       |
+| trigger | Category                                                       | buildMemoList | 2026-10-30 M |       |       |
+| button  | Memo row: opens the memo                                       | buildMemoList | 2026-10-30 M |       |       |
+| button  | Memo row: touch & hold, then drag to move (manual sort)        | buildMemoList | 2026-10-30 M |       |       |
+| icon    | Masked record: 50% gray bar with the lock icon; a tap shows it | maskedBar     | 2026-10-31 M |       |       |
+| icon    | Scroll bar                                                     | withScrollBar |              |       |       |
+| button  | New                                                            | buildMemoList | 2026-10-30 M |       |       |
+| icon    | Find                                                           | render        |              |       |       |
 
 ### Memo view
 
 Palm reference: Handbook p.82, 107 to 108. Code: `buildMemoEdit`.
 
-| Kind    | Item                    | Code          | Look         | Works | Notes                                                                           |
-| ------- | ----------------------- | ------------- | ------------ | ----- | ------------------------------------------------------------------------------- |
-| screen  | Title tab "Memo N of M" | buildMemoEdit | 2026-10-30 M |       |                                                                                 |
-| trigger | Category                | buildMemoEdit |              |       | Open: the Palm shows the category in a dotted box with no arrow (p.82, 97, 107) |
-| field   | Lined page              | linedPage     | 2026-10-30 M |       |                                                                                 |
-| icon    | Scroll bar              | withScrollBar | 2026-10-30 M |       |                                                                                 |
-| button  | Done                    | buildMemoEdit | 2026-10-30 M |       |                                                                                 |
-| button  | Details                 | buildMemoEdit | 2026-10-30 M |       |                                                                                 |
-| icon    | Find                    | render        |              |       |                                                                                 |
+| Kind    | Item                                 | Code          | Look         | Works | Notes |
+| ------- | ------------------------------------ | ------------- | ------------ | ----- | ----- |
+| screen  | Title tab "Memo N of M"              | buildMemoEdit | 2026-10-30 M |       |       |
+| trigger | Category: a dotted box with no arrow | buildMemoEdit | 2026-10-31 M |       |       |
+| field   | Lined page                           | linedPage     | 2026-10-30 M |       |       |
+| icon    | Scroll bar                           | withScrollBar | 2026-10-30 M |       |       |
+| button  | Done                                 | buildMemoEdit | 2026-10-30 M |       |       |
+| button  | Details                              | buildMemoEdit | 2026-10-30 M |       |       |
+| icon    | Find                                 | render        |              |       |       |
 
 ### Memo Details
 
@@ -395,21 +394,20 @@ Palm reference: Handbook p.78. Code: `showMemoPreferences`.
 
 Palm reference: Handbook p.108 to 109. Code: `MainActivity.menus`.
 
-| Kind  | Item                                                              | Code          | Look         | Works | Notes                                                                                         |
-| ----- | ----------------------------------------------------------------- | ------------- | ------------ | ----- | --------------------------------------------------------------------------------------------- |
-| menu  | Record: New Memo                                                  | menus         |              |       | Open: the Palm has it on the Memo screen only (p.108)                                         |
-| menu  | Record: Delete Memo...                                            | menus         | 2026-10-30 M |       |                                                                                               |
-| menu  | Record: Export Backup...                                          | menus         |              |       | Kept: Export and Import replace Beam Memo and Beam Category                                   |
-| menu  | Record: Import Backup...                                          | menus         |              |       |                                                                                               |
-| menu  | Options: Font...                                                  | menus         | 2026-10-30 M |       |                                                                                               |
-| menu  | Options: Preferences...                                           | menus         |              |       | Open: the Palm has it on the Memo List only (p.108)                                           |
-| menu  | Options: Edit Categories...                                       | menus         |              |       | Open: not in the Palm menu; the Palm opens Edit Categories from the category pick list (p.71) |
-| menu  | Options: Sync...                                                  | menus         |              |       |                                                                                               |
-| menu  | Options: ShortCuts...                                             | menus         |              |       | Open: not in the Palm menus; the Palm sets ShortCuts in the Preferences app (p.196)           |
-| menu  | Options: Security...                                              | menus         |              |       | Open: the Palm has it on the Memo List only (p.108)                                           |
-| menu  | Options: About Memo Pad                                           | menus         | 2026-10-30 M |       |                                                                                               |
-| menu  | Options: Go to Top of Page, Go to Bottom of Page (not in the app) | menus         |              |       | Open: on the Palm Memo screen (p.109)                                                         |
-| alert | "About Memo Pad"                                                  | showMemoAbout |              |       |                                                                                               |
+| Kind  | Item                                                         | Code          | Look         | Works | Notes                                                       |
+| ----- | ------------------------------------------------------------ | ------------- | ------------ | ----- | ----------------------------------------------------------- |
+| menu  | Memo screen Record: New Memo                                 | menus         | 2026-10-31 M |       |                                                             |
+| menu  | Record: Delete Memo...                                       | menus         | 2026-10-30 M |       |                                                             |
+| menu  | Record: Export Backup...                                     | menus         |              |       | Kept: Export and Import replace Beam Memo and Beam Category |
+| menu  | Record: Import Backup...                                     | menus         |              |       |                                                             |
+| menu  | Options: Font...                                             | menus         | 2026-10-30 M |       |                                                             |
+| menu  | Memo List Options: Preferences...                            | menus         | 2026-10-31 M |       |                                                             |
+| menu  | Options: Sync...                                             | menus         |              |       |                                                             |
+| menu  | Memo List Options: Security...                               | menus         | 2026-10-31 M |       |                                                             |
+| menu  | Options: About Memo Pad                                      | menus         | 2026-10-30 M |       |                                                             |
+| menu  | Memo screen Options: Go to Top of Page, Go to Bottom of Page | menus         | 2026-10-31 M |       |                                                             |
+| menu  | Memo screen Options: Phone Lookup                            | menus         | 2026-10-31 M |       |                                                             |
+| alert | "About Memo Pad"                                             | showMemoAbout |              |       |                                                             |
 
 ## Address Book
 
@@ -417,17 +415,17 @@ Palm reference: Handbook p.108 to 109. Code: `MainActivity.menus`.
 
 Palm reference: Handbook p.71, 74, 97 (Palm form 1000). Code: `buildAddressList`.
 
-| Kind    | Item                                        | Code             | Look         | Works | Notes                                                                                     |
-| ------- | ------------------------------------------- | ---------------- | ------------ | ----- | ----------------------------------------------------------------------------------------- |
-| screen  | Title tab "Address"                         | tab              | 2026-10-30 M |       |                                                                                           |
-| trigger | Category                                    | buildAddressList | 2026-10-30 M |       |                                                                                           |
-| button  | Name row: opens Address View                | addressRow       | 2026-10-30 M |       |                                                                                           |
-| icon    | Phone number & label letter                 | addressRow       | 2026-10-30 M |       |                                                                                           |
-| icon    | Note icon                                   | noteIcon         |              |       | Open: see the Day view note icon                                                          |
-| icon    | Gray bar of a masked record: Private Record | revealAsk        |              |       | Open: the Palm fills the bar with the 50% dither and puts a lock icon at its right (p.79) |
-| field   | Look Up                                     | buildAddressList | 2026-10-30 M |       |                                                                                           |
-| button  | New                                         | buildAddressList | 2026-10-30 M |       |                                                                                           |
-| icon    | Find                                        | render           |              |       |                                                                                           |
+| Kind    | Item                                                           | Code             | Look         | Works | Notes |
+| ------- | -------------------------------------------------------------- | ---------------- | ------------ | ----- | ----- |
+| screen  | Title tab "Address"                                            | tab              | 2026-10-30 M |       |       |
+| trigger | Category                                                       | buildAddressList | 2026-10-30 M |       |       |
+| button  | Name row: opens Address View                                   | addressRow       | 2026-10-30 M |       |       |
+| icon    | Phone number & label letter                                    | addressRow       | 2026-10-30 M |       |       |
+| icon    | Note icon                                                      | noteIcon         | 2026-10-31 M |       |       |
+| icon    | Masked record: 50% gray bar with the lock icon; a tap shows it | maskedBar        | 2026-10-31 M |       |       |
+| field   | Look Up                                                        | buildAddressList | 2026-10-30 M |       |       |
+| button  | New                                                            | buildAddressList | 2026-10-30 M |       |       |
+| icon    | Find                                                           | render           |              |       |       |
 
 ### Address View
 
@@ -451,18 +449,18 @@ Palm reference: No picture in the handbook. Code: `buildAddressView`.
 
 Palm reference: Handbook p.97 to 99. Code: `buildAddressEdit`.
 
-| Kind    | Item                                                          | Code             | Look         | Works | Notes                                                                           |
-| ------- | ------------------------------------------------------------- | ---------------- | ------------ | ----- | ------------------------------------------------------------------------------- |
-| screen  | Title tab "Address Edit"                                      | tab              | 2026-10-30 M |       |                                                                                 |
-| trigger | Category                                                      | buildAddressEdit |              |       | Open: the Palm shows the category in a dotted box with no arrow (p.82, 97, 107) |
-| field   | Name, Title & Company fields                                  | addressField     | 2026-10-30 M |       |                                                                                 |
-| trigger | Phone label of each of the five phone fields                  | buildAddressEdit | 2026-10-30 M |       |                                                                                 |
-| field   | Address, City, State, Zip Code, Country, Custom 1 to 4        | addressField     | 2026-10-30 M |       |                                                                                 |
-| field   | Auto-fill of Title, Company, City, and State (not in the app) | addressField     |              |       | Open: the Palm fills in the first match from other entries as you type (p.98)   |
-| button  | Done                                                          | buildAddressEdit | 2026-10-30 M |       |                                                                                 |
-| button  | Details...                                                    | buildAddressEdit | 2026-10-30 M |       |                                                                                 |
-| button  | Note                                                          | buildAddressEdit | 2026-10-30 M |       |                                                                                 |
-| icon    | Find                                                          | render           |              |       |                                                                                 |
+| Kind    | Item                                                                | Code             | Look         | Works | Notes |
+| ------- | ------------------------------------------------------------------- | ---------------- | ------------ | ----- | ----- |
+| screen  | Title tab "Address Edit"                                            | tab              | 2026-10-30 M |       |       |
+| trigger | Category: a dotted box with no arrow                                | buildAddressEdit | 2026-10-31 M |       |       |
+| field   | Name, Title & Company fields                                        | addressField     | 2026-10-30 M |       |       |
+| trigger | Phone label of each of the five phone fields                        | buildAddressEdit | 2026-10-30 M |       |       |
+| field   | Address, City, State, Zip Code, Country, Custom 1 to 4              | addressField     | 2026-10-30 M |       |       |
+| field   | Auto-fill of Title, Company, City, and State from the other entries | autoFill         | 2026-10-31 M |       |       |
+| button  | Done                                                                | buildAddressEdit | 2026-10-30 M |       |       |
+| button  | Details...                                                          | buildAddressEdit | 2026-10-30 M |       |       |
+| button  | Note                                                                | buildAddressEdit | 2026-10-30 M |       |       |
+| icon    | Find                                                                | render           |              |       |       |
 
 ### Address Entry Details
 
@@ -540,32 +538,30 @@ Palm reference: Address Book: Beam (replaced). Code: `AddressShare.kt`.
 
 Palm reference: Handbook p.100 to 101. Code: `MainActivity.menus`.
 
-| Kind | Item                                                     | Code  | Look         | Works | Notes                                                                                         |
-| ---- | -------------------------------------------------------- | ----- | ------------ | ----- | --------------------------------------------------------------------------------------------- |
-| menu | List Record: Share Category                              | menus |              |       | Kept: replaces Beam Category                                                                  |
-| menu | List Record: Share Business Card                         | menus |              |       | Kept: replaces Beam Business Card                                                             |
-| menu | List Record: Import vCard...                             | menus |              |       |                                                                                               |
-| menu | List Record: Export vCard...                             | menus |              |       |                                                                                               |
-| menu | List Record: Export Backup...                            | menus |              |       |                                                                                               |
-| menu | List Record: Import Backup...                            | menus |              |       |                                                                                               |
-| menu | View/Edit Record: Delete Address...                      | menus | 2026-10-30 M |       |                                                                                               |
-| menu | View/Edit Record: Attach Note                            | menus | 2026-10-30 M |       |                                                                                               |
-| menu | View/Edit Record: Delete Note...                         | menus | 2026-10-30 M |       |                                                                                               |
-| menu | View/Edit Record: Share Address                          | menus |              |       | Kept: replaces Beam Address                                                                   |
-| menu | View/Edit Record: Select Business Card...                | menus | 2026-10-30 M |       |                                                                                               |
-| menu | View/Edit Record: Share Business Card                    | menus |              |       | Kept: replaces Beam Business Card                                                             |
-| menu | List and View Record: Duplicate Address (not in the app) | menus |              |       | Open: the Palm has Duplicate Address (/T) in both Record menus (p.100)                        |
-| menu | List Options: Font...                                    | menus | 2026-10-30 M |       |                                                                                               |
-| menu | List Options: Preferences...                             | menus | 2026-10-30 M |       |                                                                                               |
-| menu | List Options: Rename Custom Fields...                    | menus | 2026-10-30 M |       |                                                                                               |
-| menu | List Options: Edit Categories...                         | menus |              |       | Open: not in the Palm menu; the Palm opens Edit Categories from the category pick list (p.71) |
-| menu | List Options: Sync...                                    | menus |              |       |                                                                                               |
-| menu | List Options: ShortCuts...                               | menus |              |       | Open: not in the Palm menus; the Palm sets ShortCuts in the Preferences app (p.196)           |
-| menu | List Options: Security...                                | menus | 2026-10-30 M |       |                                                                                               |
-| menu | List Options: About Address Book                         | menus | 2026-10-30 M |       |                                                                                               |
-| menu | View/Edit Options: Font...                               | menus | 2026-10-30 M |       |                                                                                               |
-| menu | View/Edit Options: Rename Custom Fields...               | menus | 2026-10-30 M |       |                                                                                               |
-| menu | View/Edit Options: About Address Book                    | menus | 2026-10-30 M |       |                                                                                               |
+| Kind | Item                                         | Code                    | Look         | Works | Notes                             |
+| ---- | -------------------------------------------- | ----------------------- | ------------ | ----- | --------------------------------- |
+| menu | List Record: Share Category                  | menus                   |              |       | Kept: replaces Beam Category      |
+| menu | List Record: Share Business Card             | menus                   |              |       | Kept: replaces Beam Business Card |
+| menu | List Record: Import vCard...                 | menus                   |              |       |                                   |
+| menu | List Record: Export vCard...                 | menus                   |              |       |                                   |
+| menu | List Record: Export Backup...                | menus                   |              |       |                                   |
+| menu | List Record: Import Backup...                | menus                   |              |       |                                   |
+| menu | View/Edit Record: Delete Address...          | menus                   | 2026-10-30 M |       |                                   |
+| menu | View/Edit Record: Attach Note                | menus                   | 2026-10-30 M |       |                                   |
+| menu | View/Edit Record: Delete Note...             | menus                   | 2026-10-30 M |       |                                   |
+| menu | View/Edit Record: Share Address              | menus                   |              |       | Kept: replaces Beam Address       |
+| menu | View/Edit Record: Select Business Card...    | menus                   | 2026-10-30 M |       |                                   |
+| menu | View/Edit Record: Share Business Card        | menus                   |              |       | Kept: replaces Beam Business Card |
+| menu | List and View Record: Duplicate Address (/T) | menus, duplicateAddress | 2026-10-31 M |       |                                   |
+| menu | List Options: Font...                        | menus                   | 2026-10-30 M |       |                                   |
+| menu | List Options: Preferences...                 | menus                   | 2026-10-30 M |       |                                   |
+| menu | List Options: Rename Custom Fields...        | menus                   | 2026-10-30 M |       |                                   |
+| menu | List Options: Sync...                        | menus                   |              |       |                                   |
+| menu | List Options: Security...                    | menus                   | 2026-10-30 M |       |                                   |
+| menu | List Options: About Address Book             | menus                   | 2026-10-30 M |       |                                   |
+| menu | View/Edit Options: Font...                   | menus                   | 2026-10-30 M |       |                                   |
+| menu | View/Edit Options: Rename Custom Fields...   | menus                   | 2026-10-30 M |       |                                   |
+| menu | View/Edit Options: About Address Book        | menus                   | 2026-10-30 M |       |                                   |
 
 ## Shared by the four apps
 
@@ -588,16 +584,15 @@ Palm reference: Handbook p.80 to 81 (text only). Code: `buildNote`.
 
 Palm reference: Handbook p.63 to 64. Code: `MainActivity.menus`.
 
-| Kind | Item                            | Code  | Look         | Works | Notes                                                                                                          |
-| ---- | ------------------------------- | ----- | ------------ | ----- | -------------------------------------------------------------------------------------------------------------- |
-| menu | Undo                            | menus | 2026-10-30 M |       | Open: the Palm has no Edit menu on the Memo List or in Address View (p.100, 108)                               |
-| menu | Cut                             | menus | 2026-10-30 M |       |                                                                                                                |
-| menu | Copy                            | menus | 2026-10-30 M |       |                                                                                                                |
-| menu | Paste                           | menus | 2026-10-30 M |       |                                                                                                                |
-| menu | Select All                      | menus | 2026-10-30 M |       |                                                                                                                |
-| menu | Phone Lookup                    | menus |              |       | Open: the Palm puts Phone Lookup (/L) in Options in Date Book, To Do, and the Memo screen (p.75, 95, 106, 108) |
-| menu | Keyboard                        | menus | 2026-10-30 M |       |                                                                                                                |
-| menu | Graffiti Help (not in the apps) | menus |              |       | Kept: Graffiti is not included                                                                                 |
+| Kind | Item                                                    | Code  | Look         | Works | Notes                          |
+| ---- | ------------------------------------------------------- | ----- | ------------ | ----- | ------------------------------ |
+| menu | Undo (no Edit menu on the Memo List or in Address View) | menus | 2026-10-31 M |       |                                |
+| menu | Cut                                                     | menus | 2026-10-30 M |       |                                |
+| menu | Copy                                                    | menus | 2026-10-30 M |       |                                |
+| menu | Paste                                                   | menus | 2026-10-30 M |       |                                |
+| menu | Select All                                              | menus | 2026-10-30 M |       |                                |
+| menu | Keyboard                                                | menus | 2026-10-30 M |       |                                |
+| menu | Graffiti Help (not in the apps)                         | menus |              |       | Kept: Graffiti is not included |
 
 ### Menu bar
 
@@ -612,43 +607,58 @@ Palm reference: Handbook p.24 to 25. Code: `MenuBar`.
 
 Palm reference: Handbook p.82. Code: `showFont`.
 
-| Kind   | Item                                                            | Code       | Look         | Works | Notes                                                                                                      |
-| ------ | --------------------------------------------------------------- | ---------- | ------------ | ----- | ---------------------------------------------------------------------------------------------------------- |
-| dialog | "Select Font"                                                   | showFont   | 2026-10-30 M |       |                                                                                                            |
-| push   | A A A                                                           | showFont   |              |       | Open: the Palm offers small, bold, and large; the app offers small, normal, and large, with no bold (p.82) |
-| button | OK                                                              | showFont   | 2026-10-30 M |       |                                                                                                            |
-| button | Cancel                                                          | showFont   | 2026-10-30 M |       |                                                                                                            |
-| icon   | Tips icon (i) at the right of the dialog title (not in the app) | PalmDialog |              |       | Open: most Palm dialogs have it; a tap shows a tip (p.26)                                                  |
+| Kind   | Item                                                                   | Code       | Look         | Works | Notes |
+| ------ | ---------------------------------------------------------------------- | ---------- | ------------ | ----- | ----- |
+| dialog | "Select Font"                                                          | showFont   | 2026-10-30 M |       |       |
+| push   | A A A: small, bold, and large                                          | showFont   | 2026-10-31 M |       |       |
+| button | OK                                                                     | showFont   | 2026-10-30 M |       |       |
+| button | Cancel                                                                 | showFont   | 2026-10-30 M |       |       |
+| icon   | Tips icon (i) at the right of the title of the Palm forms that have it | PalmDialog | 2026-10-31 M |       |       |
+| dialog | "Tips"                                                                 | showTips   | 2026-10-31 M |       |       |
+| button | Done                                                                   | showTips   | 2026-10-31 M |       |       |
 
 ### Change Security
 
 Palm reference: Handbook p.78 to 80. Code: `showSecurity`.
 
-| Kind    | Item                                                         | Code         | Look         | Works | Notes                                                                                                           |
-| ------- | ------------------------------------------------------------ | ------------ | ------------ | ----- | --------------------------------------------------------------------------------------------------------------- |
-| dialog  | "Change Security"                                            | showSecurity |              |       |                                                                                                                 |
-| trigger | Show, Mask or Hide Records                                   | showSecurity | 2026-10-30 M |       |                                                                                                                 |
-| button  | OK                                                           | showSecurity |              |       |                                                                                                                 |
-| button  | Cancel                                                       | showSecurity |              |       |                                                                                                                 |
-| alert   | "Private Record" (tap on a masked record)                    | revealAsk    |              |       | Open: with a password the Palm asks for it in "Show Private Records"; without one a tap shows the record (p.80) |
-| alert   | Hide Records and Mask Records confirmations (not in the app) | showSecurity |              |       | Open: the Palm confirms Hide and Mask with an explanation, OK, and Cancel (p.79)                                |
+| Kind    | Item                                                                              | Code            | Look         | Works | Notes |
+| ------- | --------------------------------------------------------------------------------- | --------------- | ------------ | ----- | ----- |
+| dialog  | "Change Security"                                                                 | showSecurity    |              |       |       |
+| trigger | Show, Mask or Hide Records                                                        | showSecurity    | 2026-10-30 M |       |       |
+| button  | OK                                                                                | showSecurity    |              |       |       |
+| button  | Cancel                                                                            | showSecurity    |              |       |       |
+| dialog  | "Show Private Records" (tap on a masked record, or Show Records, with a password) | askPassword     | 2026-10-31 M |       |       |
+| button  | OK                                                                                | askPassword     | 2026-10-31 M |       |       |
+| button  | Cancel                                                                            | askPassword     | 2026-10-31 M |       |       |
+| alert   | "Invalid Password"                                                                | invalidPassword | 2026-10-31 M |       |       |
+| trigger | Password: -Unassigned- or -Assigned-                                              | showSecurity    | 2026-10-31 M |       |       |
+| dialog  | "Password": Enter the current password                                            | editPassword    | 2026-10-31 M |       |       |
+| button  | OK: then a new password                                                           | editPassword    | 2026-10-31 M |       |       |
+| button  | Cancel                                                                            | editPassword    | 2026-10-31 M |       |       |
+| button  | Delete: removes the password                                                      | editPassword    | 2026-10-31 M |       |       |
+| dialog  | "Password": Enter a password, then "Verify"                                       | newPassword     | 2026-10-31 M |       |       |
+| button  | OK                                                                                | newPassword     | 2026-10-31 M |       |       |
+| button  | Cancel                                                                            | newPassword     | 2026-10-31 M |       |       |
+| alert   | "Invalid Password": the passwords do not match                                    | newPassword     | 2026-10-31 M |       |       |
+| alert   | "Hide Records" and "Mask Records" confirmations, OK and Cancel                    | showSecurity    | 2026-10-31 M |       |       |
 
-### ShortCuts
+### Prefs: ShortCuts
 
-Palm reference: Handbook p.196 to 197. Code: `showShortCuts`.
+Palm reference: Handbook p.196 to 197. Code: `PrefsApp.kt`.
 
-| Kind   | Item             | Code          | Look         | Works | Notes                                                                                                                   |
-| ------ | ---------------- | ------------- | ------------ | ----- | ----------------------------------------------------------------------------------------------------------------------- |
-| dialog | "ShortCuts"      | showShortCuts |              |       | Open: the Palm list has New, Edit, and Delete... buttons (p.196); the app has Done and New, and a tap on a row edits it |
-| button | List row         | showShortCuts | 2026-10-30 M |       |                                                                                                                         |
-| button | Done             | showShortCuts |              |       |                                                                                                                         |
-| button | New              | showShortCuts | 2026-10-30 M |       |                                                                                                                         |
-| dialog | "ShortCut Entry" | editShortCut  | 2026-10-30 M |       |                                                                                                                         |
-| field  | ShortCut Name    | editShortCut  | 2026-10-30 M |       |                                                                                                                         |
-| field  | ShortCut Text    | editShortCut  | 2026-10-30 M |       |                                                                                                                         |
-| button | OK               | editShortCut  | 2026-10-30 M |       |                                                                                                                         |
-| button | Cancel           | editShortCut  | 2026-10-30 M |       |                                                                                                                         |
-| button | Delete           | editShortCut  |              |       | Open: the Palm entry form has no Delete; Delete... sits under the list (p.196)                                          |
+| Kind   | Item                                                    | Code         | Look         | Works | Notes |
+| ------ | ------------------------------------------------------- | ------------ | ------------ | ----- | ----- |
+| screen | Prefs app: title "Prefs", the ShortCuts panel pick list | buildPrefs   | 2026-10-31 M |       |       |
+| button | List row: selects the ShortCut                          | buildPrefs   | 2026-10-31 M |       |       |
+| button | New                                                     | buildPrefs   | 2026-10-31 M |       |       |
+| button | Edit...                                                 | buildPrefs   | 2026-10-31 M |       |       |
+| button | Delete...                                               | buildPrefs   | 2026-10-31 M |       |       |
+| alert  | "Delete ShortCut", Yes and No                           | buildPrefs   | 2026-10-31 M |       |       |
+| dialog | "ShortCut Entry"                                        | editShortCut | 2026-10-30 M |       |       |
+| field  | ShortCut Name                                           | editShortCut | 2026-10-30 M |       |       |
+| field  | ShortCut Text                                           | editShortCut | 2026-10-30 M |       |       |
+| button | OK                                                      | editShortCut | 2026-10-30 M |       |       |
+| button | Cancel                                                  | editShortCut | 2026-10-30 M |       |       |
 
 ### Edit Categories
 
@@ -680,15 +690,17 @@ Palm reference: Handbook p.70. Code: `pickCategory`.
 
 Palm reference: Handbook p.74 to 75. Code: `showFind`.
 
-| Kind   | Item                         | Code            | Look         | Works | Notes                                                                                                                                                                                    |
-| ------ | ---------------------------- | --------------- | ------------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| dialog | "Find"                       | showFind        | 2026-10-30 M |       |                                                                                                                                                                                          |
-| field  | Find text                    | showFind        | 2026-10-30 M |       |                                                                                                                                                                                          |
-| button | OK                           | showFind        | 2026-10-30 M |       |                                                                                                                                                                                          |
-| button | Cancel                       | showFind        | 2026-10-30 M |       |                                                                                                                                                                                          |
-| dialog | "Find" results               | showFindResults |              |       | Open: the Palm lists the matches under "To Do Items", "Addresses", "Datebook", and "Memos", starting with the current app, with no "No matches" lines, and has Stop and Find More (p.75) |
-| button | Result row: opens the record | showFindResults | 2026-10-30 M |       |                                                                                                                                                                                          |
-| button | Done                         | showFindResults |              |       | Open: the Palm button is Cancel (p.75)                                                                                                                                                   |
+| Kind   | Item                                                                                                          | Code            | Look         | Works | Notes                                                                      |
+| ------ | ------------------------------------------------------------------------------------------------------------- | --------------- | ------------ | ----- | -------------------------------------------------------------------------- |
+| dialog | "Find"                                                                                                        | showFind        | 2026-10-30 M |       |                                                                            |
+| field  | Find text                                                                                                     | showFind        | 2026-10-30 M |       |                                                                            |
+| button | OK                                                                                                            | showFind        | 2026-10-30 M |       |                                                                            |
+| button | Cancel                                                                                                        | showFind        | 2026-10-30 M |       |                                                                            |
+| dialog | "Find" results: "Datebook", "Addresses", "To Do Items", and "Memos", the current app first; no empty headings | showFindResults | 2026-10-31 M |       |                                                                            |
+| button | Result row: opens the record                                                                                  | showFindResults | 2026-10-30 M |       |                                                                            |
+| button | Cancel                                                                                                        | showFindResults | 2026-10-31 M |       |                                                                            |
+| button | Find More: the next page of matches                                                                           | showFindResults | 2026-10-31 M |       |                                                                            |
+| button | Stop (not in the app)                                                                                         | showFindResults |              |       | Kept: the search ends before the form shows, so there is no search to stop |
 
 ### Sync
 
@@ -768,22 +780,22 @@ Palm reference: Palm III Applications. Code: `palm-launcher Dialogs.kt`.
 
 Actions with no control of their own.
 
-| Behavior                                                           | Where                                       | Code               | Look | Works | Notes |
-| ------------------------------------------------------------------ | ------------------------------------------- | ------------------ | ---- | ----- | ----- |
-| Swipe left or right: next or previous day, week, or month          | Date Book views                             | dispatchTouchEvent |      |       |       |
-| Tap outside a line in edit: saves it and ends the edit             | Day, To Do                                  | dispatchTouchEvent |      |       |       |
-| Type with no line selected: starts a new record                    | Day, To Do, Memo List, Address List         | dispatchKeyEvent   |      |       |       |
-| Backspace in an empty line: ends the edit, deletes an empty record | Day, To Do, Memo view                       | BackEdit           |      |       |       |
-| Back: Done in Memo view, Note view, Address View, Address Edit     | all apps                                    | onBackPressed      |      |       |       |
-| Ctrl and a command letter: runs the menu command                   | all apps                                    | dispatchKeyEvent   |      |       |       |
-| ^ and a ShortCut name, or Ctrl+Space: expands the ShortCut         | all text fields                             | palmShortCuts      |      |       |       |
-| Keyboard stays open on a tall screen                               | all apps                                    | keepKeyboard       |      |       |       |
-| Status bar hidden; swipe down shows it for a moment                | every window                                | hideStatusBar      |      |       |       |
-| Alarm notification: Snooze and OK                                  | Date Book                                   | AlarmReceiver      |      |       |       |
-| Sync on open, 1 s after a change, and hourly                       | all apps                                    | SyncEngine         |      |       |       |
-| Font option changes every screen and dialog                        | all apps                                    | render             |      |       |       |
-| Masked private record: gray bar; Hide removes it                   | every record list                           | isMasked           |      |       |       |
-| Empty list message                                                 | Day, Agenda, To Do, Memo List, Address List | build*             |      |       |       |
+| Behavior                                                           | Where                                       | Code                | Look | Works | Notes |
+| ------------------------------------------------------------------ | ------------------------------------------- | ------------------- | ---- | ----- | ----- |
+| Swipe left or right: next or previous day, week, or month          | Date Book views                             | dispatchTouchEvent  |      |       |       |
+| Tap outside a line in edit: saves it and ends the edit             | Day, To Do                                  | dispatchTouchEvent  |      |       |       |
+| Type with no line selected: starts a new record                    | Day, To Do, Memo List, Address List         | dispatchKeyEvent    |      |       |       |
+| Backspace in an empty line: ends the edit, deletes an empty record | Day, To Do, Memo view                       | BackEdit            |      |       |       |
+| Back: Done in Memo view, Note view, Address View, Address Edit     | all apps                                    | onBackPressed       |      |       |       |
+| Ctrl and a command letter: runs the menu command                   | all apps                                    | dispatchKeyEvent    |      |       |       |
+| ^ and a ShortCut name, or Ctrl+Space: expands the ShortCut         | all text fields                             | palmShortCuts       |      |       |       |
+| Keyboard stays open on a tall screen                               | all apps                                    | keepKeyboard        |      |       |       |
+| Status bar hidden; swipe down shows it for a moment                | every window                                | hideStatusBar       |      |       |       |
+| Alarm notification: Snooze and OK                                  | Date Book                                   | AlarmReceiver       |      |       |       |
+| Sync on open, 1 s after a change, and hourly                       | all apps                                    | SyncEngine          |      |       |       |
+| Font option changes every screen and dialog                        | all apps                                    | render              |      |       |       |
+| Masked private record: 50% gray bar with the lock; Hide removes it | every record list                           | isMasked, maskedBar |      |       |       |
+| Empty list message                                                 | Day, Agenda, To Do, Memo List, Address List | build*              |      |       |       |
 
 ## Parity
 
@@ -793,7 +805,7 @@ A record feature belongs in every view that shows its records. Check a whole row
 | ------------------------------------------ | --- | ---- | ----- | ------ | ----- | --------- | --------- | ------------ | ------------ | ------------ | ------------------------ |
 | Note icon, tap opens the note              | yes | -    | -     | yes    | yes   | -         | -         | yes          | -            | -            | noteIcon                 |
 | Note view (Done, Delete...)                | yes | -    | -     | yes    | yes   | -         | -         | yes          | yes          | yes          | openNoteView             |
-| Private masking (gray bar, Private Record) | yes | yes  | -     | yes    | yes   | yes       | -         | yes          | yes          | -            | isMasked, revealAsk      |
+| Private masking (masked bar, tap shows it) | yes | yes  | -     | yes    | yes   | yes       | -         | yes          | yes          | -            | isMasked, maskedBar      |
 | Category trigger                           | -   | -    | -     | yes    | yes   | yes       | yes       | yes          | -            | yes          | pickCategory             |
 | Lined page with Palm scroll bar            | -   | -    | -     | -      | -     | yes       | yes       | -            | -            | -            | linedPage, withScrollBar |
 | Dotted line under each text line           | yes | -    | -     | -      | yes   | -         | yes       | -            | -            | yes          | LinedBackground          |
@@ -803,8 +815,9 @@ A record feature belongs in every view that shows its records. Check a whole row
 
 ## Rules found from faults
 
-| Date       | Fault                                                                                                                                                                       | Rule                                                                                                                                                  |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-10-30 | The new note icon was drawn from memory: a page folded at the top right with two text lines. The handbook's icon is a 7 by 9 page folded at the bottom right with no lines. | A Palm drawing is copied from the handbook's own pixels, never from memory.                                                                           |
-| 2026-10-30 | The note page was a full-screen dialog: a gray field underline across the page, and Done did not work. Notes had an icon only in the Day view.                              | A full-page text editor is a screen of the activity built with linedPage, never a dialog. A record feature is checked across its whole row in Parity. |
-| 2026-10-30 | Found while building this file: field() in palm-ui keeps the Android underline, solid gray, in Address Edit and every dialog field.                                         | Every text field draws the Palm dotted underline: field() takes LinedBackground, which moved into palm-ui. Fixed the same day.                        |
+| Date       | Fault                                                                                                                                                                                            | Rule                                                                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-10-30 | The new note icon was drawn from memory: a page folded at the top right with two text lines. The handbook's icon is a 7 by 9 page folded at the bottom right with no lines.                      | A Palm drawing is copied from the handbook's own pixels, never from memory. Fixed 2026-10-31, with the lock, the untimed diamond, and the Tips icon copied the same way. |
+| 2026-10-30 | The note page was a full-screen dialog: a gray field underline across the page, and Done did not work. Notes had an icon only in the Day view.                                                   | A full-page text editor is a screen of the activity built with linedPage, never a dialog. A record feature is checked across its whole row in Parity.                    |
+| 2026-10-30 | Found while building this file: field() in palm-ui keeps the Android underline, solid gray, in Address Edit and every dialog field.                                                              | Every text field draws the Palm dotted underline: field() takes LinedBackground, which moved into palm-ui. Fixed the same day.                                           |
+| 2026-10-31 | The first check against the handbook used an older edition (archive.org, with no Agenda view). Its titles and title tap differ from the edition of the apps, so some of its findings were wrong. | Name the handbook edition and its source in the legend, and take each page number and picture from that edition.                                                         |

@@ -30,11 +30,8 @@ internal fun MainActivity.buildAddressView(h: LinearLayout, content: FrameLayout
     tab(h, "Address View")
     val col = vbox().apply { setPadding(pp(2), 0, pp(2), 0) }
     if (isMasked(a)) {
-        // A masked record shows a gray bar. A tap asks to show it, as in the list.
-        col.addView(label("").apply {
-            background = box(Palm.LIGHT, Palm.LIGHT, 0f, 1f)
-            setOnClickListener { revealAsk(a) }
-        }, LP(MATCH, pp(7)).apply { topMargin = pp(2) })
+        // A masked record shows the masked bar. A tap shows it, as in the list.
+        col.addView(maskedBar { revealAsk(a) }, LP(MATCH, pp(10)).apply { topMargin = pp(1) })
     } else {
         val sections = listOf(nameSection(a), phoneSection(a), addressSection(a), customSection(a), noteSection(a))
             .filter { it.childCount > 0 }

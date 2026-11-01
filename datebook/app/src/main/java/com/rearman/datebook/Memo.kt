@@ -61,15 +61,12 @@ internal fun MainActivity.buildMemoList(h: LinearLayout, content: FrameLayout, c
 }
 
 /**
- * One list row for [m], numbered [n]. A masked memo shows a gray bar; a tap asks to show
+ * One list row for [m], numbered [n]. A masked memo shows the masked bar; a tap shows
  * it. In manual sort, the row also takes a drag and a drop.
  */
 private fun MainActivity.memoRow(m: Memo, n: Int, manual: Boolean): View {
     val row: View = if (isMasked(m)) hbox().apply {
-        addView(label("").apply {
-            background = box(Palm.LIGHT, Palm.LIGHT, 0f, 1f)
-            setOnClickListener { revealAsk(m) }
-        }, LP(0, pp(7), 1f).apply { topMargin = pp(2); marginEnd = pp(3) })
+        addView(maskedBar { revealAsk(m) }, LP(0, pp(10), 1f).apply { marginStart = pp(1); marginEnd = pp(1) })
     } else label("$n. ${m.title}").apply {
         maxLines = 1
         ellipsize = TextUtils.TruncateAt.END
@@ -109,7 +106,8 @@ internal fun MainActivity.buildMemoEdit(h: LinearLayout, content: FrameLayout, c
     val n = if (idx < 0) list.size + 1 else idx + 1
     val total = if (idx < 0) list.size + 1 else list.size
     tab(h, "Memo $n of $total")
-    h.addView(popupTrigger(categoryLabel(m.category)) { tv ->
+    // Palm: the category in a dotted box, with no arrow.
+    h.addView(selector(categoryLabel(m.category)) { tv ->
         endEdit()
         pickCategory(tv, m.category, includeAll = false, app = 1) { id ->
             m.category = id
@@ -155,7 +153,8 @@ internal fun MainActivity.newMemo(initial: String = "") {
 private fun MainActivity.showMemoDetails(m: Memo) {
     var cat = m.category
     var priv = m.isPrivate
-    val d = PalmDialog(this, "Memo Details", height = 72)
+    val d = PalmDialog(this, "Memo Details", height = 72,
+        tips = "Tap Category to file the memo.\n\nCheck Private to hide or mask the memo with Security.")
     d.row("Category:", popupTrigger(categoryLabel(cat)) { tv ->
         pickCategory(tv, cat, includeAll = false, app = 1) { id -> cat = id; tv.setTrigger(categoryLabel(id)) }
     }, labelEnd = 52)

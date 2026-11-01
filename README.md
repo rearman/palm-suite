@@ -74,7 +74,8 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
 - Day view: time lines, time bars for overlapping events, untimed events at
   the top, and note, alarm and repeat icons. Tap a line and type to make an
   event.
-- Week view: a seven-day time grid with events in the Palm 50% gray.
+- Week view: a seven-day time grid with events in the Palm 50% gray. Drag an
+  event to move it. Tap a blank time to start an event at that hour.
 - Agenda view: the events for one day, plus all open To Do items.
 - Event Details: time, date, alarm, repeat, private and note.
 - Repeat: daily, weekly, monthly by day or by date, and yearly, with an
@@ -127,27 +128,32 @@ The forcing of the keyboard is to a. Go towards a square aspect ratio, and b. al
   Record > Select Business Card to choose your card.
 - Import vCard and Export vCard in the Record menu read and write .vcf files.
   Opening a .vcf file with Address imports it. Duplicate records are skipped.
-- Phone Lookup in the Edit menu (Ctrl+L) inserts a name and a number. It works
-  in all four apps.
+- Duplicate Address (Ctrl+T) opens a copy of an entry in Address Edit. Title,
+  Company, City and State fill in a match from the other entries as you type.
+- Phone Lookup in the Options menu (Ctrl+L) inserts a name and a number. It works
+  in Date Book, To Do List and the Memo view.
 - Address Book has its own categories.
 - Address Book records and their categories sync like the other records.
 
 ## All four apps
 
-- One APK, four icons. Date Book and To Do List use the same records.
+- One APK, five icons: the four apps and Prefs, which holds the ShortCuts.
+  Date Book and To Do List use the same records.
 - Type a character with nothing selected to start a new event, item or memo.
   Press Backspace in an empty one to delete it. In the Address List, the
   character goes to the Look Up field.
 - Find searches the descriptions and notes of all records and the addresses.
-- Font (small, normal and large Palm sizes), Security (show, mask or hide
-  private records) and Purge.
+  The matches show by app, the current app first. Find More shows more.
+- Font (the Palm small, bold and large fonts), Security (show, mask or hide
+  private records, with an optional password) and Purge. A masked record shows
+  a gray bar with a lock. Many forms have a Tips icon (i).
 - Export Backup and Import Backup save and load all records, including addresses, as a JSON file. Import skips a record that is the same as a record on the device.
   Delete can save an archive copy of the record first.
 - The Palm OS font and the Green LCD color on all screens. All screens use
   the proportions of the Palm IIIxe, 160 Palm pixels wide.
 - ShortCuts: type ^ or press Ctrl+Space, then a ShortCut name. When the
   letters after ^ match a full name, the ^ and the name change to the
-  ShortCut text. For example, ^me gives Meeting. Options > ShortCuts...
+  ShortCut text. For example, ^me gives Meeting. The Prefs app
   edits the list. Export Backup does not include ShortCuts.
 - The category pop-ups and Edit Categories list the categories in
   alphabetical order. All is first and Unfiled is last.

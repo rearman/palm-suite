@@ -76,16 +76,34 @@ class WeekGrid(
                 if (selected == hit) act.goDay(hit.day, hit)
                 else { selected = hit; onSelect(hit); invalidate() }
             } else {
+                // Palm: a tap on a blank time opens that day with the time selected for a new event.
                 val col = colAt(e.x)
-                if (col >= 0) act.goDay(days[col], null)
+                if (col >= 0) act.goDayAt(days[col], minAt(e.y))
             }
             return true
         }
-        override fun onLongPress(e: MotionEvent) {
-            val hit = boxes.lastOrNull { it.first.contains(e.x, e.y) }?.second ?: return
-            if (!act.isMasked(hit.event)) act.editEvent(hit)
-        }
-    })
+    }).apply { setIsLongpressEnabled(false) }
+
+    /** The event under the finger, which a drag moves (Palm: "tap and drag the event to a different time or day"). */
+    private var press: Occ? = null
+    private var dragging = false
+    private var downX = 0f
+    private var downY = 0f
+    private var dragX = 0f
+    private var dragY = 0f
+    private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
+
+    /** The minute at [y], held inside the start and end hours. */
+    private fun minAt(y: Float): Int = (h0 * 60 + ((y - y0) / hourH * 60).toInt()).coerceIn(h0 * 60, h1 * 60 - 1)
+
+    /** Where the drag puts [o]: the day under the finger, and the start moved by the drag, in 15 minute steps. */
+    private fun dropAt(o: Occ): Pair<Long, Int> {
+        val e = o.event
+        val col = ((dragX - gutter) / colW()).toInt().coerceIn(0, 6)
+        val moved = Math.round((dragY - downY) / hourH * 4) * 15
+        val len = maxOf(0, e.end - e.start)
+        return days[col] to (e.start + moved).coerceIn(0, 24 * 60 - 1 - len)
+    }
 
     private fun colW() = (width - gutter - mr) / 7f
     private fun colAt(x: Float): Int =
@@ -153,10 +171,47 @@ class WeekGrid(
                 boxes.add(r to o)
             }
         }
+        // The dragged event: a black box at the place where it would drop.
+        val o = press
+        if (dragging && o != null) {
+            val (d, s) = dropAt(o)
+            val col = days.indexOf(d)
+            val l = gutter + col * cw + context.ppf(1f)
+            val r = RectF(l, yOf(s) + 1, l + cw - context.ppf(2f) - 1, yOf(s + maxOf(o.event.end - o.event.start, 15)) - 1)
+            c.drawRect(r, fill.apply { color = Palm.INK })
+            c.drawRect(r, stroke)
+        }
     }
 
+    /**
+     * A drag that starts on an event moves it; the grid then keeps the touch from the scroll view.
+     * Any other touch goes to the tap handling.
+     */
     @SuppressLint("ClickableViewAccessibility")
-    override fun onTouchEvent(event: MotionEvent): Boolean = gd.onTouchEvent(event) || super.onTouchEvent(event)
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x; downY = event.y; dragX = event.x; dragY = event.y; dragging = false
+                press = boxes.lastOrNull { it.first.contains(event.x, event.y) }?.second?.takeIf { !act.isMasked(it.event) }
+                if (press != null) parent.requestDisallowInterceptTouchEvent(true)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                dragX = event.x; dragY = event.y
+                if (press != null && !dragging && (Math.abs(dragX - downX) > slop || Math.abs(dragY - downY) > slop)) dragging = true
+                if (dragging) { invalidate(); return true }
+            }
+            MotionEvent.ACTION_UP -> if (dragging) {
+                dragging = false
+                val o = press ?: return true
+                press = null
+                val (d, s) = dropAt(o)
+                if (d != o.day || s != o.event.start) act.moveEvent(o, d, s) else invalidate()
+                return true
+            }
+            MotionEvent.ACTION_CANCEL -> if (dragging) { dragging = false; press = null; invalidate(); return true }
+        }
+        return gd.onTouchEvent(event) || super.onTouchEvent(event)
+    }
 }
 
 /** The Month view: a calendar grid with Palm marks for timed, untimed and daily events. */

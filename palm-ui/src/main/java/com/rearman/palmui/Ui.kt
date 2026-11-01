@@ -58,20 +58,28 @@ object Palm {
 	 * font pixel per Palm pixel, with an 11 px line.
 	 */
 	var text = 16f
+	/**
+	 * True when the font option is bold or large: then the regular text also draws in the bold
+	 * Palm font, as the Palm bold and large fonts do. Each app sets it with [text].
+	 */
+	var textBold = false
 	/** True when the windows draw into the camera cutout ([hideStatusBar]). The launcher sets it. */
 	var intoCutout = false
 
 	private var regular: Typeface? = null
 	private var boldFace: Typeface? = null
 
-	/** The Palm OS font (Damien Guard's recreation, assets/fonts), loaded one time. */
-	fun typeface(ctx: Context, bold: Boolean): Typeface {
+	/**
+	 * The Palm OS font (Damien Guard's recreation, assets/fonts), loaded one time. [textBold] makes all text
+	 * bold, save with [exact], which gives the face asked for (the samples of the Select Font form).
+	 */
+	fun typeface(ctx: Context, bold: Boolean, exact: Boolean = false): Typeface {
 		if (regular == null) {
 			val a = ctx.applicationContext.assets
 			regular = Typeface.createFromAsset(a, "fonts/palm-os.ttf")
 			boldFace = Typeface.createFromAsset(a, "fonts/palm-os-bold.ttf")
 		}
-		return (if (bold) boldFace else regular)!!
+		return (if (bold || (textBold && !exact)) boldFace else regular)!!
 	}
 }
 
@@ -356,8 +364,9 @@ class PushGroup(
  * 156 px wide and sits 2 px above the bottom of the screen, as on the Palm. 0 fits the height
  * to the content (alerts). 160 fills the screen (Note view).
  * The button row sits 5 px in from the left edge and 5 px above the bottom edge of the form.
+ * With [tips], the Tips icon sits at the right of the title; a tap on it shows that text.
  */
-open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, height: Int = 0) : Dialog(ctx) {
+open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, height: Int = 0, tips: String? = null) : Dialog(ctx) {
 	val body: LinearLayout = ctx.vbox().apply { setPadding(ctx.pp(3), ctx.pp(2), ctx.pp(3), ctx.pp(1)) }
 	val buttons: LinearLayout = ctx.hbox().apply { setPadding(ctx.pp(4), ctx.pp(2), ctx.pp(4), ctx.pp(4)) }
 	private val c = ctx
@@ -374,7 +383,15 @@ open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, heigh
 			background = ctx.box(Palm.INK, Palm.INK, 0f, 1.5f)
 			setPadding(ctx.pp(2), ctx.pp(1), ctx.pp(2), ctx.pp(1))
 		}
-		frame.addView(bar, lp(MATCH))
+		if (tips == null) frame.addView(bar, lp(MATCH))
+		else frame.addView(FrameLayout(ctx).apply {
+			addView(bar, FrameLayout.LayoutParams(MATCH, WRAP))
+			// The Palm Tips icon: 10 px, 2 px in from the right end of the title bar.
+			addView(IconView(ctx, IconView.TIPS).apply {
+				contentDescription = "Tips"
+				setOnClickListener { showTips(ctx, tips) }
+			}, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = ctx.pp(2) })
+		}, lp(MATCH))
 		if (scroll) {
 			val sv = ScrollView(ctx).apply { isVerticalScrollBarEnabled = false }
 			sv.addView(body)
@@ -454,6 +471,14 @@ open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, heigh
 		ed.requestFocus()
 		return ed
 	}
+}
+
+/** The Palm Tips form: the tip text and Done. */
+private fun showTips(ctx: Context, text: String) {
+	val d = PalmDialog(ctx, "Tips", height = 156)
+	d.message(text)
+	d.button("Done", 37) { d.dismiss() }
+	d.show()
 }
 
 /**
@@ -546,9 +571,10 @@ fun Context.palmAlert(
 	archiveY: Int = 0,
 	archiveOn: Boolean = false,
 	okText: String = "OK",
+	tips: String? = null,
 	onOk: (archive: Boolean) -> Unit
 ) {
-	val d = PalmDialog(this, title, height = height)
+	val d = PalmDialog(this, title, height = height, tips = tips)
 	// Form coordinates. The body starts at form (4, 16), so each margin is the form value less that origin.
 	val area = FrameLayout(this)
 	fun place(v: View, formX: Int, formY: Int) =
@@ -569,9 +595,27 @@ fun Context.palmAlert(
 
 fun Context.toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
-/** Small drawn icons: note, alarm and repeat for the record lists, and the 16 px confirmation icon. */
+/**
+ * Small drawn icons: note, alarm and repeat for the record lists, the lock of a masked record, the
+ * untimed event mark, the Tips icon of a form title, and the 16 px confirmation icon.
+ */
 class IconView(ctx: Context, private val kind: Int) : View(ctx) {
-	companion object { const val NOTE = 0; const val ALARM = 1; const val REPEAT = 2; const val CONFIRM = 3 }
+	companion object {
+		const val NOTE = 0; const val ALARM = 1; const val REPEAT = 2; const val CONFIRM = 3
+		const val LOCK = 4; const val UNTIMED = 5; const val TIPS = 6
+
+		/**
+		 * Icons copied pixel for pixel from the screens of the Palm IIIxe handbook (p.26, 79, 81, 86).
+		 * "#" is an ink pixel; TIPS draws its "#" pixels in paper, for the black title bar.
+		 */
+		private val PIXELS = mapOf(
+			NOTE to listOf("#######", "#.....#", "#.....#", "#.....#", "#.....#", "#.....#", "#..####", "#..###.", "#####.."),
+			LOCK to listOf("..##..", ".#..#.", ".#..#.", "######", "######", "######", "######", "######"),
+			UNTIMED to listOf("...#...", "..###..", ".#####.", "#######", ".#####.", "..###..", "...#..."),
+			TIPS to listOf("..######..", ".###..###.", "####..####", "##########", "###...####",
+				"####..####", "####..####", "####..####", ".##....##.", "..######.."),
+		)
+	}
 	private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
 		color = Palm.INK; style = android.graphics.Paint.Style.STROKE; strokeWidth = ctx.ppf(1f)
 	}
@@ -586,11 +630,20 @@ class IconView(ctx: Context, private val kind: Int) : View(ctx) {
 	}
 
 	override fun onMeasure(w: Int, h: Int) {
+		val px = PIXELS[kind]
+		if (px != null) { setMeasuredDimension(context.pp(px[0].length), context.pp(px.size)); return }
 		val s = context.pp(if (kind == CONFIRM) 16 else 8)
 		setMeasuredDimension(s, s)
 	}
 
 	override fun onDraw(c: android.graphics.Canvas) {
+		val px = PIXELS[kind]
+		if (px != null) {
+			disc.color = if (kind == TIPS) Palm.paper else Palm.INK
+			val u = context.ppf(1f)
+			px.forEachIndexed { y, row -> row.forEachIndexed { x, ch -> if (ch == '#') c.drawRect(x * u, y * u, (x + 1) * u, (y + 1) * u, disc) } }
+			return
+		}
 		val s = width.toFloat()
 		val m = s * 0.15f
 		when (kind) {
@@ -599,19 +652,6 @@ class IconView(ctx: Context, private val kind: Int) : View(ctx) {
 				query.color = Palm.paper
 				val fm = query.fontMetrics
 				c.drawText("?", s / 2, s / 2 - (fm.ascent + fm.descent) / 2, query)
-			}
-			NOTE -> {
-				// Palm note symbol on an 8 px grid: a page with its top right corner folded, and two
-				// lines of text. Each stroke runs through the center of its Palm pixel.
-				val u = s / 8
-				val page = android.graphics.Path().apply {
-					moveTo(0.5f * u, 0.5f * u); lineTo(5.5f * u, 0.5f * u); lineTo(7.5f * u, 2.5f * u)
-					lineTo(7.5f * u, 7.5f * u); lineTo(0.5f * u, 7.5f * u); close()
-					moveTo(5.5f * u, 0.5f * u); lineTo(5.5f * u, 2.5f * u); lineTo(7.5f * u, 2.5f * u)
-				}
-				c.drawPath(page, paint)
-				c.drawLine(2f * u, 3.5f * u, 5f * u, 3.5f * u, paint)
-				c.drawLine(2f * u, 5.5f * u, 6f * u, 5.5f * u, paint)
 			}
 			ALARM -> {
 				val cx = s / 2; val cy = s / 2 + m / 3

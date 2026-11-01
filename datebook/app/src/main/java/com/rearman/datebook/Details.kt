@@ -18,7 +18,9 @@ class EventDetails(
     private val orig: Event,
     private val occDay: Long,
     private val isNew: Boolean
-) : PalmDialog(act, "Event Details", height = 119) {
+) : PalmDialog(act, "Event Details", height = 119,
+    tips = "Tap Time or Date to change it.\n\nCheck Alarm to be reminded before the event.\n\n" +
+        "Tap Repeat to make the event repeat.\n\nCheck Private to hide or mask the event with Security.") {
     private val work = orig.deepCopy().apply { date = occDay }
     private val adv = act.numberField(work.alarmAdvance)
 
@@ -26,7 +28,7 @@ class EventDetails(
         val area = act.formArea(this)
         act.rightLabel(area, "Time:", 51, 18)
         act.placeForm(area, act.selector(Fmt.range(work)) { tv ->
-            TimeDialog(act, work.untimed, work.start, work.end) { u, s, e ->
+            TimeDialog(act, work.untimed, work.start, work.end, act.prefs.dayStart..act.prefs.dayEnd) { u, s, e ->
                 work.untimed = u; work.start = s; work.end = e; tv.text = Fmt.range(work)
             }.show()
         }.apply { maxWidth = act.pp(156 - 56 - 4) }, 56, 18, WRAP, 11)
@@ -89,7 +91,9 @@ private fun LinearLayout.topPx(p: Int) {
 }
 
 /** Palm "To Do Item Details" form. */
-class TodoDetails(private val act: MainActivity, private val t: Todo) : PalmDialog(act, "To Do Item Details", height = 101) {
+class TodoDetails(private val act: MainActivity, private val t: Todo) : PalmDialog(act, "To Do Item Details", height = 101,
+    tips = "Tap a number to set the priority: 1 is the most important.\n\nTap Due Date to set when the item is due.\n\n" +
+        "Check Private to hide or mask the item with Security.") {
     private val work = t.copy()
 
     init {
@@ -139,7 +143,9 @@ internal fun Context.rightLabel(area: FrameLayout, text: String, right: Int, y: 
     placeForm(area, label(text, bold = true).apply { gravity = Gravity.END }, 4, y, right - 4, 11)
 
 fun MainActivity.showPreferences() {
-    val d = PalmDialog(this, "Preferences", height = 156)
+    val d = PalmDialog(this, "Preferences", height = 156,
+        tips = "Start Time and End Time set the hours of the Day and Week views.\n\n" +
+            "Alarm Preset sets an alarm on each new event.\n\nRemind Me and Play Every repeat the alarm.")
     val area = formArea(d)
     val hourNames = (0..24).map { if (it == 24) "Midnight" else Fmt.time(it * 60) }
     var start = prefs.dayStart
@@ -209,7 +215,9 @@ fun MainActivity.showPreferences() {
 }
 
 fun MainActivity.showDisplayOptions() {
-    val d = PalmDialog(this, "Display Options", height = 148)
+    val d = PalmDialog(this, "Display Options", height = 148,
+        tips = "Time bars show the length of each event and the events that overlap.\n\n" +
+            "Compress Day View shows only the times of your events.\n\nThe Month View check boxes choose the marks of the month.")
     val area = formArea(d)
     placeForm(area, label("Day View:", bold = true), 5, 18)
     val bars = checkBox("Show Time Bars", prefs.timeBars)
@@ -217,9 +225,9 @@ fun MainActivity.showDisplayOptions() {
     placeForm(area, bars, 2, 31, WRAP, 14)
     placeForm(area, comp, 2, 45, WRAP, 14)
     placeForm(area, label("Month View:", bold = true), 5, 70)
-    val timed = checkBox("Show Timed Items", prefs.monthTimed)
-    val untimed = checkBox("Show Untimed Items", prefs.monthUntimed)
-    val daily = checkBox("Show Daily Repeating Events", prefs.monthDaily)
+    val timed = checkBox("Show Timed Events", prefs.monthTimed)
+    val untimed = checkBox("Show Untimed Events", prefs.monthUntimed)
+    val daily = checkBox("Show Daily Repeating Evts", prefs.monthDaily)
     placeForm(area, timed, 2, 83, WRAP, 14)
     placeForm(area, untimed, 2, 97, WRAP, 14)
     placeForm(area, daily, 2, 111, WRAP, 14)
@@ -236,29 +244,17 @@ fun MainActivity.showFont() {
     val d = PalmDialog(this, "Select Font", height = 61)
     val area = FrameLayout(this)
     placeAt(area, label("Font:", bold = true), 5, 21)
-    // Each "A" is drawn larger than the one before it: Small, Normal, Large.
+    // Each "A" is drawn in its font: small (the standard font), bold, and large (the large bold font).
     val g = PushGroup(this, listOf("A", "A", "A"), prefs.font, height = 14, widths = listOf(14, 14, 14))
-    listOf(13f, 16f, 20f).forEachIndexed { i, s ->
-        (g.view.getChildAt(i) as TextView).setTextSize(TypedValue.COMPLEX_UNIT_PX, ppf(s))
+    listOf(16f to false, 16f to true, 20f to true).forEachIndexed { i, (s, bold) ->
+        (g.view.getChildAt(i) as TextView).apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, ppf(s))
+            typeface = Palm.typeface(context, bold, exact = true)
+        }
     }
     placeAt(area, g.view, 40, 20)
     d.add(area, 0)
     d.button("OK", 37) { prefs.font = g.selected; d.dismiss(); render() }
-    d.button("Cancel", 37) { d.dismiss() }
-    d.show()
-}
-
-fun MainActivity.showSecurity() {
-    val d = PalmDialog(this, "Change Security", height = 80)
-    val area = FrameLayout(this)
-    placeAt(area, label("Current Privacy:", bold = true), 13, 24)
-    val options = listOf("Show Records", "Mask Records", "Hide Records")
-    var pick = prefs.security
-    placeAt(area, popupTrigger(options[pick]) { tv ->
-        popupList(tv, options, pick) { i -> pick = i; tv.setTrigger(options[i]) }
-    }, 59, 35)
-    d.add(area, 0)
-    d.button("OK", 37) { prefs.security = pick; revealed.clear(); d.dismiss(); render() }
     d.button("Cancel", 37) { d.dismiss() }
     d.show()
 }
@@ -272,7 +268,8 @@ fun MainActivity.showAbout(todo: Boolean) {
 }
 
 fun MainActivity.showShowOptions() {
-    val d = PalmDialog(this, "To Do Preferences", height = 156)
+    val d = PalmDialog(this, "To Do Preferences", height = 156,
+        tips = "Sort by sets the order of the list.\n\nThe check boxes choose the items and the columns that the list shows.")
     val sorts = listOf("Priority, Due Date", "Due Date, Priority", "Category, Priority", "Category, Due Date")
     var sort = prefs.sortMode
     val area = FrameLayout(this)
@@ -316,53 +313,6 @@ fun MainActivity.showEditCategories(app: Int = 0) {
         },
         onClose = { render() },
     )
-}
-
-/** ShortCuts list, sorted by name. A tap opens the ShortCut Entry form. "New" starts a new one. */
-fun MainActivity.showShortCuts() {
-    val d = PalmDialog(this, "ShortCuts", height = 156)
-    val list = ShortCuts.list.sortedBy { it.name }
-    if (list.isEmpty()) d.message("No ShortCuts.")
-    for (sc in list) {
-        d.item("${sc.name}: ${sc.text}") { d.dismiss(); editShortCut(sc) }
-    }
-    d.button("Done", 37) { d.dismiss() }
-    d.button("New", 37) { d.dismiss(); editShortCut(null) }
-    d.show()
-}
-
-/** ShortCut Entry form. A null [sc] makes a new ShortCut. OK and Cancel return to the list. */
-private fun MainActivity.editShortCut(sc: ShortCut?) {
-    val d = PalmDialog(this, "ShortCut Entry", height = 84)
-    val nameField = field(sc?.name ?: "", "ShortCut name")
-    val textField = field(sc?.text ?: "", "ShortCut text")
-    d.row("ShortCut Name:", nameField, labelEnd = 64)
-    d.row("ShortCut Text:", textField, labelEnd = 64)
-    d.button("OK", 22) {
-        val name = nameField.text.toString().trim()
-        when {
-            name.isEmpty() -> toast("Enter a ShortCut name.")
-            name.any { it.isWhitespace() || it == '^' } -> toast("A ShortCut name has no spaces and no ^.")
-            ShortCuts.list.any { it.name == name && it != sc } -> toast("That ShortCut name is in use.")
-            else -> {
-                d.dismiss()
-                saveShortCuts(ShortCuts.list.filter { it != sc } + ShortCut(name, textField.text.toString()))
-                showShortCuts()
-            }
-        }
-    }
-    d.button("Cancel", 37) { d.dismiss(); showShortCuts() }
-    if (sc != null) d.button("Delete", 37) {
-        d.dismiss()
-        saveShortCuts(ShortCuts.list.filter { it != sc })
-        showShortCuts()
-    }
-    d.show()
-}
-
-private fun MainActivity.saveShortCuts(list: List<ShortCut>) {
-    prefs.shortCuts = list
-    ShortCuts.list = list
 }
 
 fun MainActivity.showPurgeEvents() {

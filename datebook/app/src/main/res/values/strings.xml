@@ -4,4 +4,5 @@
     <string name="todo_name">To Do List</string>
     <string name="memo_name">Memo Pad</string>
     <string name="address_name">Address</string>
+    <string name="prefs_name">Prefs</string>
 </resources>

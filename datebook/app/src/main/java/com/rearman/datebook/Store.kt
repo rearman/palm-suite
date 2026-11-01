@@ -811,10 +811,13 @@ class Prefs(ctx: Context) {
     var monthUntimed: Boolean get() = bool("monthUntimed", true); set(v) = setBool("monthUntimed", v)
     var monthDaily: Boolean get() = bool("monthDaily", true); set(v) = setBool("monthDaily", v)
 
-    // Font: 0 small, 1 normal, 2 large
-    var font: Int get() = int("font", 1); set(v) = setInt("font", v)
+    // Palm Font: 0 small (the standard font), 1 bold, 2 large. The old key "font" held 0 small (13 px),
+    // 1 normal and 2 large; normal is the Palm small font, so both 0 and 1 become 0.
+    var font: Int get() = int("palmFont", if (int("font", 1) == 2) 2 else 0); set(v) = setInt("palmFont", v)
     // Security: 0 show, 1 mask, 2 hide
     var security: Int get() = int("security", 1); set(v) = setInt("security", v)
+    // The Security password as "salt:hash" ([Password]), or "" when none is assigned. It stays on this phone.
+    var password: String get() = p.getString("password", "") ?: ""; set(v) = setStr("password", v)
 
     // To Do Show Options
     var sortMode: Int get() = int("sort", 0); set(v) = setInt("sort", v)

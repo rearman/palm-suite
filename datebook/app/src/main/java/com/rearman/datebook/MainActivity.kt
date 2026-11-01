@@ -58,6 +58,7 @@ open class MainActivity : Activity() {
         const val TODO = 4
         const val MEMO = 5
         const val ADDRESS = 6
+        const val PREFS = 7
         // A swipe must move this far and this fast to change the date.
         private const val SWIPE_MIN_DP = 80
         private const val SWIPE_MIN_SPEED_DP = 300 // per second
@@ -73,6 +74,8 @@ open class MainActivity : Activity() {
     protected open val isMemoApp = false
     /** True in the Address Book app. */
     protected open val isAddressApp = false
+    /** True in the Prefs app, which holds the ShortCuts. */
+    protected open val isPrefsApp = false
     /** The memo open in the Memo Pad memo view, or null for the Memo List. */
     internal var memoOpen: Memo? = null
     /** The record open in the Address View, or null for the Address List. */
@@ -83,6 +86,10 @@ open class MainActivity : Activity() {
     internal var noteOpen: NoteEdit? = null
     /** The Look Up text of the Address List. */
     internal var addressLookup: String = ""
+    /** The record the Look Up text matches, for Duplicate Address in the Address List. */
+    internal var addressMatch: Address? = null
+    /** The name of the ShortCut selected in the Prefs app. */
+    internal var shortCutSel: String? = null
     /** Private records the user chose to see while records are masked ("e12", "t5"). */
     val revealed = mutableSetOf<String>()
 
@@ -127,7 +134,7 @@ open class MainActivity : Activity() {
                 SyncEngine.requestSoon(app)
             }
         }
-        mode = if (isAddressApp) ADDRESS else if (isMemoApp) MEMO else if (isTodoApp) TODO else prefs.lastView
+        mode = if (isPrefsApp) PREFS else if (isAddressApp) ADDRESS else if (isMemoApp) MEMO else if (isTodoApp) TODO else prefs.lastView
         // Palm: without Remember last category, the Address Book opens on All.
         if (isAddressApp && !prefs.addressRemember) prefs.addressCategory = -1
         root = TypingRoot(this).apply {
@@ -240,7 +247,7 @@ open class MainActivity : Activity() {
                 addressOpen != null -> { addressOpen = null; render() }
                 else -> super.onBackPressed()
             }
-            TODO, DAY -> super.onBackPressed()
+            TODO, DAY, PREFS -> super.onBackPressed()
             else -> { mode = DAY; render() }
         }
     }
@@ -251,7 +258,7 @@ open class MainActivity : Activity() {
     private val swipe by lazy {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
-                if (e1 == null || noteOpen != null || mode == TODO || mode == MEMO || mode == ADDRESS) return false
+                if (e1 == null || noteOpen != null || mode == TODO || mode == MEMO || mode == ADDRESS || mode == PREFS) return false
                 val dx = e2.x - e1.x
                 val dy = e2.y - e1.y
                 if (abs(dx) < dp(SWIPE_MIN_DP) || abs(dx) < 2 * abs(dy) || abs(vx) < dp(SWIPE_MIN_SPEED_DP)) return false
@@ -366,21 +373,51 @@ open class MainActivity : Activity() {
     internal fun isMasked(m: Memo) = prefs.security == 1 && m.isPrivate && !revealed.contains("m${m.id}")
     internal fun isMasked(a: Address) = prefs.security == 1 && a.isPrivate && !revealed.contains("a${a.id}")
 
-    fun revealAsk(e: Event) =
-        ask("Private Record", "Show this private record?", "Show" to { revealed.add("e${e.id}"); render() }, "Cancel" to {})
+    fun revealAsk(e: Event) = reveal("e${e.id}")
+    private fun revealAsk(t: Todo) = reveal("t${t.id}")
+    internal fun revealAsk(m: Memo) = reveal("m${m.id}")
+    internal fun revealAsk(a: Address) = reveal("a${a.id}")
 
-    private fun revealAsk(t: Todo) =
-        ask("Private Record", "Show this private record?", "Show" to { revealed.add("t${t.id}"); render() }, "Cancel" to {})
+    /** Palm: a tap on a masked record shows it. With a password, Show Private Records asks for it first. */
+    private fun reveal(key: String) = askPassword { revealed.add(key); render() }
 
-    internal fun revealAsk(m: Memo) =
-        ask("Private Record", "Show this private record?", "Show" to { revealed.add("m${m.id}"); render() }, "Cancel" to {})
+    /**
+     * The Palm masked record: a bar of the 50% gray, 10 px high, with the lock icon 1 px after it.
+     * A tap runs [onClick].
+     */
+    internal fun maskedBar(onClick: () -> Unit): LinearLayout = hbox(Gravity.TOP).apply {
+        val dither = ditherPaint()
+        addView(object : View(this@MainActivity) {
+            override fun onDraw(c: Canvas) = c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dither)
+        }, LP(0, MATCH, 1f))
+        addView(IconView(this@MainActivity, IconView.LOCK), lp().apply { marginStart = pp(1); topMargin = pp(1) })
+        setOnClickListener { endEdit(); onClick() }
+    }
 
-    internal fun revealAsk(a: Address) =
-        ask("Private Record", "Show this private record?", "Show" to { revealed.add("a${a.id}"); render() }, "Cancel" to {})
+    /** The Palm untimed event mark, a 7 px diamond, at the right of a [width] px time column. A tap runs [onClick]. */
+    private fun untimedMark(width: Int, padEnd: Int, onClick: () -> Unit): LinearLayout = hbox(Gravity.END).apply {
+        addView(IconView(this@MainActivity, IconView.UNTIMED), lp().apply { topMargin = pp(2); marginEnd = padEnd })
+        minimumWidth = width
+        setOnClickListener { onClick() }
+    }
 
     fun goDay(d: Long, occ: Occ?) {
         day = d; mode = DAY; prefs.lastView = DAY; selected = occ
         render()
+    }
+
+    /** Palm Week view: a tap on a blank time shows that day with the line of that hour selected for a new event. */
+    fun goDayAt(d: Long, min: Int) {
+        focusKey = "s${min / 60 * 60}"
+        goDay(d, null)
+        showKeyboardSoon()
+    }
+
+    /** Palm Week view: an event dragged to [d] at [start] keeps its length. A repeating event asks Current, Future or All. */
+    fun moveEvent(o: Occ, d: Long, start: Int) {
+        val e = o.event
+        val work = e.deepCopy().apply { date = d; this.start = start; end = start + (e.end - e.start) }
+        saveEventEdit(e, o.day, work, false) {}
     }
 
     fun editEvent(o: Occ) = EventDetails(this, o.event, o.day, false).show()
@@ -569,8 +606,9 @@ open class MainActivity : Activity() {
 
     fun render() {
         eventBox?.dismiss(); eventBox = null
-        // The Font option: small, normal or large Palm text.
-        Palm.text = when (prefs.font) { 0 -> 13f; 2 -> 20f; else -> 16f }
+        // The Palm Font option: small (the standard font), bold, or large (the large bold font).
+        Palm.text = if (prefs.font == 2) 20f else 16f
+        Palm.textBold = prefs.font != 0
         Fmt.h24 = DateFormat.is24HourFormat(this)
         root.removeAllViews()
         root.setBackgroundColor(Palm.paper)
@@ -597,6 +635,7 @@ open class MainActivity : Activity() {
                 addressOpen != null -> buildAddressView(header, content, cmds)
                 else -> buildAddressList(header, content, cmds)
             }
+            PREFS -> buildPrefs(header, content, cmds)
             else -> buildTodo(header, content, cmds)
         }
 
@@ -738,11 +777,8 @@ open class MainActivity : Activity() {
             }
             val occ = row.occ
             val e = occ?.event
-            val timeText = when {
-                row.untimed -> "•"
-                else -> Fmt.timeShort(row.min)
-            }
-            r.addView(label(timeText, bold = true).apply {
+            if (row.untimed) r.addView(untimedMark(timeW, pp(2)) { endEdit(); timeTapped(row) }, LP(timeW, WRAP))
+            else r.addView(label(Fmt.timeShort(row.min), bold = true).apply {
                 gravity = Gravity.END
                 setPadding(0, 0, pp(2), 0)
                 setTextColor(Palm.INK)
@@ -755,10 +791,7 @@ open class MainActivity : Activity() {
             val slot = hbox(Gravity.TOP)
             var slotEd: TextView? = null
             if (e != null && isMasked(e)) {
-                slot.addView(label("").apply {
-                    background = box(Palm.LIGHT, Palm.LIGHT, 0f, 1f)
-                    setOnClickListener { revealAsk(e) }
-                }, LP(0, pp(7), 1f).apply { topMargin = pp(2); marginEnd = pp(3) })
+                slot.addView(maskedBar { revealAsk(e) }, LP(0, pp(10), 1f).apply { marginEnd = pp(1) })
             } else {
                 val ed = rowEdit(e?.title ?: "").apply { setPadding(pp(1), 0, pp(1), 0) }
                 slotEd = ed
@@ -802,7 +835,7 @@ open class MainActivity : Activity() {
                 else ask("Select Event", "Tap an event first, then tap Details.", "OK" to {})
             }
         }
-        cmd(cmds, "Go To") { endEdit(); DateDialog(this, "Go to Date", day) { d -> day = d; selected = null; render() }.show() }
+        cmd(cmds, "Go to") { endEdit(); DateDialog(this, "Go to Date", day) { d -> day = d; selected = null; render() }.show() }
     }
 
     /** The Palm note icon after a record that has a note. A tap ends the edit and opens the note. */
@@ -847,7 +880,7 @@ open class MainActivity : Activity() {
     /** Palm "New": choose a time, then type the description on the new line. */
     private fun newEvent(start: Int?) {
         val s = start ?: defaultStart()
-        TimeDialog(this, false, s, s + 60) { u, a, b ->
+        TimeDialog(this, false, s, s + 60, prefs.dayStart..prefs.dayEnd) { u, a, b ->
             val e = newEventAt(a, b, u)
             store.save(e)
             selected = Occ(e, day)
@@ -879,7 +912,7 @@ open class MainActivity : Activity() {
         if (o == null) { newEvent(row.min); return }
         if (isMasked(o.event)) { revealAsk(o.event); return }
         val e = o.event
-        TimeDialog(this, e.untimed, e.start, e.end) { u, s, en ->
+        TimeDialog(this, e.untimed, e.start, e.end, prefs.dayStart..prefs.dayEnd) { u, s, en ->
             val work = e.deepCopy().apply { date = o.day; untimed = u; start = s; end = en }
             saveEventEdit(e, o.day, work, false) {}
         }.show()
@@ -963,7 +996,7 @@ open class MainActivity : Activity() {
         content.addView(col)
 
         viewIcons(cmds)
-        cmd(cmds, "Go To") { DateDialog(this, "Go to Date", day) { d -> day = d; render() }.show() }
+        cmd(cmds, "Go to") { DateDialog(this, "Go to Date", day) { d -> day = d; render() }.show() }
     }
 
     // ---------------- Month view ----------------
@@ -994,13 +1027,14 @@ open class MainActivity : Activity() {
 
     private fun buildMonth(h: LinearLayout, content: FrameLayout, cmds: LinearLayout) {
         val d = Fmt.ld(day)
-        tab(h, "${d.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH)} ${d.year}")
+        // Palm: "Jul 2002".
+        tab(h, "${Fmt.monthShort[d.monthValue - 1]} ${d.year}")
         h.addView(arrow(true) { stepDate(-1) }.apply { gravity = Gravity.CENTER; layoutParams = LP(pp(14), pp(13)) })
         h.addView(arrow(false) { stepDate(1) }.apply { gravity = Gravity.CENTER; layoutParams = LP(pp(14), pp(13)) })
         content.addView(MonthGrid(this, this, d.year, d.monthValue),
             FrameLayout.LayoutParams(MATCH, WRAP))
         viewIcons(cmds)
-        cmd(cmds, "Go To") { DateDialog(this, "Go to Date", day) { x -> day = x; render() }.show() }
+        cmd(cmds, "Go to") { DateDialog(this, "Go to Date", day) { x -> day = x; render() }.show() }
     }
 
     // ---------------- Agenda view ----------------
@@ -1037,11 +1071,12 @@ open class MainActivity : Activity() {
             val r = hbox(Gravity.TOP).apply {
                 setOnClickListener { if (isMasked(o.event)) revealAsk(o.event) else goDay(day, o) }
             }
-            r.addView(label(if (o.event.untimed) "•" else Fmt.timeShort(o.event.start), bold = true).apply {
+            val tap = { if (isMasked(o.event)) revealAsk(o.event) else goDay(day, o) }
+            if (o.event.untimed) r.addView(untimedMark(timeW, pp(3), tap), LP(timeW, WRAP))
+            else r.addView(label(Fmt.timeShort(o.event.start), bold = true).apply {
                 gravity = Gravity.END; setPadding(0, 0, pp(3), 0); maxLines = 1
             }, LP(timeW, WRAP))
-            if (isMasked(o.event)) r.addView(label("").apply { background = box(Palm.LIGHT, Palm.LIGHT, 0f, 1f) },
-                LP(0, pp(7), 1f))
+            if (isMasked(o.event)) r.addView(maskedBar { revealAsk(o.event) }, LP(0, pp(10), 1f))
             else {
                 r.addView(label(o.event.title.ifBlank { "(no description)" }), LP(0, WRAP, 1f))
                 if (o.event.note.isNotEmpty()) r.addView(noteIcon { openNote(o) }, lp().apply { topMargin = pp(1.5f); marginStart = pp(1) })
@@ -1074,9 +1109,8 @@ open class MainActivity : Activity() {
             val r = hbox(Gravity.TOP).apply { isBaselineAligned = false }
             r.addView(checkBox("", t.done) { b -> completeTodo(t, b) }, lp().apply { topMargin = pp(1); marginStart = pp(2) })
             if (prefs.showPriorities) r.addView(todoPriorityLabel(t), lp().apply { topMargin = textTop })
-            if (isMasked(t)) r.addView(label("").apply {
-                background = box(Palm.LIGHT, Palm.LIGHT, 0f, 1f); setOnClickListener { revealAsk(t) }
-            }, LP(0, pp(7), 1f).apply { topMargin = textTop + pp(2); marginEnd = pp(3) })
+            if (isMasked(t)) r.addView(maskedBar { revealAsk(t) },
+                LP(0, pp(10), 1f).apply { topMargin = textTop; marginEnd = pp(1) })
             else {
                 r.addView(label(t.title.ifBlank { "(no description)" }).apply {
                     // Only the first line, with an ellipsis when the text is cut.
@@ -1102,7 +1136,7 @@ open class MainActivity : Activity() {
         page.addView(todoScroll, LP(MATCH, 0, 1f))
         content.addView(page, LP(MATCH, MATCH))
         viewIcons(cmds)
-        cmd(cmds, "Go To") { DateDialog(this, "Go to Date", day) { d -> day = d; render() }.show() }
+        cmd(cmds, "Go to") { DateDialog(this, "Go to Date", day) { d -> day = d; render() }.show() }
     }
 
     // ---------------- To Do List ----------------
@@ -1214,10 +1248,7 @@ open class MainActivity : Activity() {
             r.addView(checkBox("", t.done) { b -> endEdit(); completeTodo(t, b) }, lp().apply { topMargin = pp(1); marginStart = pp(2) })
             if (prefs.showPriorities) r.addView(todoPriorityLabel(t), lp().apply { topMargin = textTop })
             if (isMasked(t)) {
-                r.addView(label("").apply {
-                    background = box(Palm.LIGHT, Palm.LIGHT, 0f, 1f)
-                    setOnClickListener { revealAsk(t) }
-                }, LP(0, pp(7), 1f).apply { topMargin = textTop + pp(2); marginEnd = pp(3) })
+                r.addView(maskedBar { revealAsk(t) }, LP(0, pp(10), 1f).apply { topMargin = textTop; marginEnd = pp(1) })
             } else {
                 val ed = rowEdit(t.title, multiLine = true)
                 ed.background = LinedBackground(this, ed)
@@ -1286,12 +1317,22 @@ open class MainActivity : Activity() {
         val address = mode == ADDRESS
         // The record in Address View or Address Edit, or null for the Address List.
         val addrRec = addressEditing ?: addressOpen
-        val record: List<MenuItem> = if (memo) listOf(
-            MenuItem("New Memo", 'N') { newMemo() },
-            MenuItem("Delete Memo...", 'D') { memoOpen?.let { deleteMemoAsk(it) } ?: toast("Open a memo first.") },
+        // The Palm Memo screen (a memo open) and Address View have menus of their own.
+        val openMemo = memoOpen
+        val addressView = address && addressEditing == null && addressOpen != null
+        // The Prefs app has no menus.
+        if (mode == PREFS) return emptyList()
+        val phoneLookup = MenuItem("Phone Lookup", 'L') { lastEdit?.let { showPhoneLookup(it) } ?: toast("Tap a line of text first.") }
+        val record: List<MenuItem> = if (memo && openMemo != null) listOf(
+            MenuItem("New Memo", 'N') { closeMemo(openMemo); newMemo() },
+            MenuItem("Delete Memo...", 'D') { deleteMemoAsk(openMemo) },
+            MenuItem("Export Backup...") { exportFile("datebook-backup", store.exportJson()) },
+            MenuItem("Import Backup...") { importFile() }
+        ) else if (memo) listOf(
             MenuItem("Export Backup...") { exportFile("datebook-backup", store.exportJson()) },
             MenuItem("Import Backup...") { importFile() }
         ) else if (address && addrRec == null) listOf(
+            MenuItem("Duplicate Address", 'T') { addressMatch?.let { duplicateAddress(it) } ?: toast("Look up an entry first.") },
             MenuItem("Share Category") { shareAddresses(visibleAddresses().filter { !isMasked(it) }, categoryLabel(prefs.addressCategory)) },
             MenuItem("Share Business Card") { shareBusinessCard() },
             MenuItem("Import vCard...") { importFile() },
@@ -1300,6 +1341,10 @@ open class MainActivity : Activity() {
             MenuItem("Import Backup...") { importFile() }
         ) else if (addrRec != null) listOf(
             MenuItem("Delete Address...", 'D') { deleteAddressAsk(addrRec) },
+            // A new record is not stored yet, so it needs Done first.
+            MenuItem("Duplicate Address", 'T') {
+                store.address(addrRec.id)?.let { duplicateAddress(it) } ?: toast("Tap Done first.")
+            },
             MenuItem("Attach Note", 'A') { openAddressNote(addrRec) },
             MenuItem("Delete Note...", 'O') {
                 if (addrRec.note.isEmpty()) toast("This address has no note.")
@@ -1318,7 +1363,6 @@ open class MainActivity : Activity() {
             },
             MenuItem("Share Business Card") { shareBusinessCard() }
         ) else if (todo) listOf(
-            MenuItem("New Item", 'N') { newTodo() },
             MenuItem("Delete Item...", 'D') { selectedTodo?.let { deleteTodo(it) } ?: toast("Select an item first.") },
             MenuItem("Attach Note", 'A') { selectedTodo?.let { openTodoNote(it) } ?: toast("Select an item first.") },
             MenuItem("Delete Note...", 'O') {
@@ -1353,27 +1397,29 @@ open class MainActivity : Activity() {
             MenuItem("Copy", 'C') { textOp(ed, android.R.id.copy) },
             MenuItem("Paste", 'P') { textOp(ed, android.R.id.paste) },
             MenuItem("Select All", 'S') { textOp(ed, android.R.id.selectAll) },
-            MenuItem("Phone Lookup", 'L') { lastEdit?.let { showPhoneLookup(it) } ?: toast("Tap a line of text first.") },
             MenuItem("Keyboard", 'K') {
                 ed?.let { it.requestFocus(); getSystemService(InputMethodManager::class.java).showSoftInput(it, 0) }
                     ?: toast("Tap a line of text first.")
             }
         )
-        val options: List<MenuItem> = if (memo) listOf(
+        val options: List<MenuItem> = if (memo && openMemo != null) listOf(
+            MenuItem("Font...", 'F') { showFont() },
+            MenuItem("Go to Top of Page") { lastEdit?.let { it.requestFocus(); it.setSelection(0) } },
+            MenuItem("Go to Bottom of Page") { lastEdit?.let { it.requestFocus(); it.setSelection(it.text.length) } },
+            phoneLookup,
+            MenuItem("Sync...") { showSync() },
+            MenuItem("About Memo Pad") { showMemoAbout() }
+        ) else if (memo) listOf(
             MenuItem("Font...", 'F') { showFont() },
             MenuItem("Preferences...", 'R') { showMemoPreferences() },
-            MenuItem("Edit Categories...") { showEditCategories(1) },
             MenuItem("Sync...") { showSync() },
-            MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About Memo Pad") { showMemoAbout() }
         ) else if (address && addrRec == null) listOf(
             MenuItem("Font...", 'F') { showFont() },
             MenuItem("Preferences...", 'R') { showAddressPreferences() },
             MenuItem("Rename Custom Fields...") { showRenameCustomFields() },
-            MenuItem("Edit Categories...") { showEditCategories(2) },
             MenuItem("Sync...") { showSync() },
-            MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About Address Book") { showAddressAbout() }
         ) else if (address) listOf(
@@ -1382,27 +1428,28 @@ open class MainActivity : Activity() {
             MenuItem("About Address Book") { showAddressAbout() }
         ) else if (todo) listOf(
             MenuItem("Font...", 'F') { showFont() },
-            MenuItem("Edit Categories...") { showEditCategories() },
+            phoneLookup,
             MenuItem("Sync...") { showSync() },
-            MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About To Do List") { showAbout(true) }
         ) else listOf(
             MenuItem("Font...", 'F') { showFont() },
             MenuItem("Preferences...", 'R') { showPreferences() },
             MenuItem("Display Options...", 'Y') { showDisplayOptions() },
+            phoneLookup,
             MenuItem("Sync...") { showSync() },
-            MenuItem("ShortCuts...") { showShortCuts() },
             MenuItem("Security...", 'H') { showSecurity() },
             MenuItem("About Date Book") { showAbout(false) }
         )
         // The Palm Note view has only the Edit and Options menus, and Options holds only Font.
         if (noteOpen != null) return listOf("Edit" to edit, "Options" to listOf(MenuItem("Font...", 'F') { showFont() }))
+        // The Palm Memo List and Address View have no text to edit, so no Edit menu.
+        if ((memo && openMemo == null) || addressView) return listOf("Record" to record, "Options" to options)
         return listOf("Record" to record, "Edit" to edit, "Options" to options)
     }
 
-    /** The Palm menu bar of this screen. A tap on the title tab opens it. */
-    private fun showMenu() = MenuBar(this, menus()).show()
+    /** The Palm menu bar of this screen. A tap on the title tab opens it. A screen without menus opens none. */
+    private fun showMenu() = menus().takeIf { it.isNotEmpty() }?.let { MenuBar(this, it).show() }
 
     private fun textOp(ed: EditText?, id: Int) {
         if (ed == null) { toast("Tap a line of text first."); return }
@@ -1431,6 +1478,12 @@ open class MainActivity : Activity() {
         d.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
     }
 
+    /**
+     * Palm Find results: the matches under the heading of each app that has some, the current app
+     * first, then Datebook, Addresses, To Do Items and Memos. A page that fills the list ends with
+     * Find More, which shows the next page. The search ends before the form shows, so the Palm Stop
+     * button, which stops a search in progress, never shows.
+     */
     private fun showFindResults(q: String) {
         val d = PalmDialog(this, "Find", height = 156)
         // The body starts at form (2, 16) here, so each margin is the form value less that origin.
@@ -1441,55 +1494,69 @@ open class MainActivity : Activity() {
         area.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(list) },
             FrameLayout.LayoutParams(pp(152), pp(99)).apply { topMargin = pp(15) })
         d.add(area, 0)
-        fun addRow(v: View, top: Int) = list.addView(v, LP(MATCH, WRAP).apply { topMargin = pp(top) })
         val hideP = prefs.security != 0
-        val evs = store.events.filter {
+        val dateBookApp = !isTodoApp && !isMemoApp && !isAddressApp && !isPrefsApp
+        val events = store.events.filter {
             !(hideP && it.isPrivate) && (it.title.contains(q, true) || it.note.contains(q, true))
-        }.sortedBy { it.date }
-        val tds = store.todos.filter {
-            !(hideP && it.isPrivate) && (it.title.contains(q, true) || it.note.contains(q, true))
+        }.sortedBy { it.date }.map { e ->
+            val shown = nextOccurrence(e)
+            "${Fmt.shortDate(shown)}  ${e.title.ifBlank { "(no description)" }}" to {
+                if (dateBookApp) goDay(shown, Occ(e, shown)) else openDateBook(shown, e.id)
+            }
         }
-        val memos = store.memos.filter {
-            !(hideP && it.isPrivate) && it.text.contains(q, true)
+        val todos = store.todos.filter {
+            !(hideP && it.isPrivate) && (it.title.contains(q, true) || it.note.contains(q, true))
+        }.map { t ->
+            t.title.ifBlank { "(no description)" } to {
+                if (isTodoApp) { prefs.todoCategory = -1; selectedTodo = t; render() } else openTodoApp(t.id)
+            }
+        }
+        val memos = store.memos.filter { !(hideP && it.isPrivate) && it.text.contains(q, true) }.map { m ->
+            m.title.ifBlank { "(no description)" } to {
+                if (isMemoApp) { prefs.memoCategory = -1; memoOpen = m; render() } else openMemoApp(m.id)
+            }
         }
         val addrs = store.addresses.filter {
             !(hideP && it.isPrivate) && (listOf(it.lastName, it.firstName, it.title, it.company, it.address, it.city,
                 it.state, it.zip, it.country, it.note) + it.phones + it.custom).any { s -> s.contains(q, true) }
-        }
-        fun result(text: String, onClick: () -> Unit) =
-            addRow(label(text).apply { setPadding(pp(3), pp(3), pp(1.5f), pp(3)); setOnClickListener { d.dismiss(); onClick() } }, 0)
-        addRow(label("Date Book", bold = true).apply { setTextColor(Palm.GRAY) }, 10)
-        if (evs.isEmpty()) addRow(label("  No matches"), 0)
-        for (e in evs) {
-            val shown = nextOccurrence(e)
-            result("${Fmt.shortDate(shown)}  ${e.title.ifBlank { "(no description)" }}") {
-                if (isTodoApp || isMemoApp) openDateBook(shown, e.id) else goDay(shown, Occ(e, shown))
-            }
-        }
-        addRow(label("To Do List", bold = true).apply { setTextColor(Palm.GRAY) }, 10)
-        if (tds.isEmpty()) addRow(label("  No matches"), 0)
-        for (t in tds) {
-            result(t.title.ifBlank { "(no description)" }) {
-                if (isTodoApp) { prefs.todoCategory = -1; selectedTodo = t; render() } else openTodoApp(t.id)
-            }
-        }
-        addRow(label("Memo Pad", bold = true).apply { setTextColor(Palm.GRAY) }, 10)
-        if (memos.isEmpty()) addRow(label("  No matches"), 0)
-        for (m in memos) {
-            result(m.title.ifBlank { "(no description)" }) {
-                if (isMemoApp) { prefs.memoCategory = -1; memoOpen = m; render() } else openMemoApp(m.id)
-            }
-        }
-        addRow(label("Address Book", bold = true).apply { setTextColor(Palm.GRAY) }, 10)
-        if (addrs.isEmpty()) addRow(label("  No matches"), 0)
-        for (a in addrs) {
+        }.map { a ->
             val phone = a.listPhone()?.let { "${it.first} ${it.second}" } ?: ""
-            result("${a.listName(prefs.addressListBy == 1)}  $phone") {
+            "${a.listName(prefs.addressListBy == 1)}  $phone" to {
                 if (isAddressApp) { prefs.addressCategory = -1; addressEditing = null; addressOpen = a; render() }
                 else openAddressApp(a.id)
             }
         }
-        d.button("Done", 37) { d.dismiss() }
+        val groups = listOf("Datebook" to events, "Addresses" to addrs, "To Do Items" to todos, "Memos" to memos)
+        val current = when { isTodoApp -> "To Do Items"; isMemoApp -> "Memos"; isAddressApp -> "Addresses"; isPrefsApp -> ""; else -> "Datebook" }
+        // One line per heading and per match, in search order: the current app first.
+        val lines = groups.sortedBy { if (it.first == current) 0 else 1 }.filter { it.second.isNotEmpty() }
+            .flatMap { (head, matches) -> listOf<Pair<String, (() -> Unit)?>>(head to null) + matches }
+        // The lines that fit the 99 px list: a heading takes 11 px with its gap, a match 17 px.
+        val perPage = 6
+        var first = 0
+        lateinit var more: TextView
+        fun showPage() {
+            list.removeAllViews()
+            var used = 0
+            var i = first
+            while (i < lines.size && used < perPage) {
+                val (text, open) = lines[i]
+                if (open == null) list.addView(label(text, bold = true).apply { setTextColor(Palm.GRAY) },
+                    LP(MATCH, WRAP).apply { topMargin = pp(if (i == first) 0 else 4) })
+                else {
+                    list.addView(label(text).apply {
+                        setPadding(pp(3), pp(3), pp(1.5f), pp(3)); setOnClickListener { d.dismiss(); open() }
+                    }, LP(MATCH, WRAP))
+                    used++
+                }
+                i++
+            }
+            first = i
+            more.visibility = if (first < lines.size) View.VISIBLE else View.GONE
+        }
+        d.button("Cancel", 37) { d.dismiss() }
+        more = d.button("Find More", 45) { showPage() }
+        showPage()
         d.show()
     }
 

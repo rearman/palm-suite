@@ -53,6 +53,7 @@ internal fun MainActivity.buildAddressList(h: LinearLayout, content: FrameLayout
         val text = addressLookup.lowercase()
         val hit = if (text.isEmpty()) null else rows.firstOrNull { r -> r.name?.lowercase()?.startsWith(text) == true }
         rows.forEach { r -> r.setInverted(r === hit) }
+        addressMatch = hit?.let { items[rows.indexOf(it)] }
         if (text.isEmpty()) sv.scrollTo(0, 0)
         else if (hit != null) sv.scrollTo(0, hit.view.top)
     }
@@ -93,15 +94,13 @@ private class AddressRow(val view: LinearLayout, val name: String?, private val 
 }
 
 /**
- * One list row for [a]. A masked record shows a gray bar; a tap asks to show it. The phone
+ * One list row for [a]. A masked record shows the masked bar; a tap shows it. The phone
  * number is cut at its left when it is too wide, so its letter always shows.
  */
 private fun MainActivity.addressRow(a: Address, byCompany: Boolean): AddressRow {
     if (isMasked(a)) {
         val row = hbox().apply {
-            addView(label("").apply { background = box(Palm.LIGHT, Palm.LIGHT, 0f, 1f) },
-                LP(0, pp(7), 1f).apply { topMargin = pp(2); marginEnd = pp(3) })
-            setOnClickListener { revealAsk(a) }
+            addView(maskedBar { revealAsk(a) }, LP(0, pp(10), 1f).apply { marginStart = pp(1); marginEnd = pp(1) })
         }
         return AddressRow(row, null, emptyList())
     }

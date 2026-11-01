@@ -115,8 +115,9 @@ class DateDialog(
 }
 
 /**
- * Palm "Set Time" form. The start and end boxes and No Time are at the left. The hour list
+ * Palm "Set Time" form. The start and end boxes, All Day and No Time are at the left. The hour list
  * (24 hours, with a line under 11 am in 12-hour mode) and the minute list are at the right.
+ * All Day sets the times to [allDay], the start and end hours of the Preferences.
  * Positions are form coordinates. The content starts at form (4, 16).
  */
 class TimeDialog(
@@ -124,8 +125,14 @@ class TimeDialog(
     untimed: Boolean,
     start: Int,
     end: Int,
+    private val allDay: IntRange,
     private val onPick: (untimed: Boolean, start: Int, end: Int) -> Unit
-) : PalmDialog(ctx, "Set Time", scroll = false, height = 156) {
+) : PalmDialog(ctx, "Set Time", scroll = false, height = 156, tips = TIPS) {
+    companion object {
+        const val TIPS = "Tap Start Time or End Time, then tap an hour and a minute in the lists at the right.\n\n" +
+            "All Day sets the start and end times of the Preferences.\n\nNo Time makes an event with no time."
+    }
+
     private var s = if (untimed) 8 * 60 else start
     private var e = if (untimed) 9 * 60 else end
     private var editingEnd = false
@@ -148,6 +155,12 @@ class TimeDialog(
         place(startBox, 10, 30, 50, 13)
         place(ctx.label("End Time:", bold = true), 10, 48)
         place(endBox, 10, 61, 50, 13)
+        place(ctx.palmButton("All Day", 50) {
+            s = allDay.first * 60
+            e = minOf(allDay.last * 60, 24 * 60 - 1)
+            editingEnd = false
+            draw()
+        }.apply { typeface = Palm.typeface(ctx, true) }, 10, 96)
         place(ctx.palmButton("No Time", 50) { dismiss(); onPick(true, s, e) }
             .apply { typeface = Palm.typeface(ctx, true) }, 10, 115)
         place(hourList, 92, 16, 33, 134)
@@ -337,7 +350,9 @@ class RepeatDialog(
     private val ctx: Context,
     source: Event,
     private val onPick: (Event) -> Unit
-) : PalmDialog(ctx, "Change Repeat", scroll = false, height = 156) {
+) : PalmDialog(ctx, "Change Repeat", scroll = false, height = 156,
+    tips = "Tap Day, Week, Month or Year to repeat the event, then set how often it repeats and when it ends.\n\n" +
+        "The box at the bottom tells how the event repeats.\n\nTap None to stop the repeat.") {
     private val ev = source.deepCopy()
     private val tabs: PushGroup
     // Form origin (4, 16). The tabs and the summary sit in page. The controls for the repeat type sit in area.
@@ -361,11 +376,13 @@ class RepeatDialog(
         }
         page.clipChildren = false
         page.formAt(tabs.view, 7, 20)
+        // The Palm summary box: a 1 px frame at form (7, 97), 146 by 32, with the text 5 px in and 7 px down.
         val summaryBox = ctx.frame().apply {
-            addView(summary.apply { setPadding(ctx.pp(7), ctx.pp(10), ctx.pp(4), 0) },
+            background = ctx.box(Palm.paper, Palm.INK, 1f, 0f)
+            addView(summary.apply { setPadding(ctx.pp(5), ctx.pp(7), ctx.pp(4), 0) },
                 android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
         }
-        page.formAt(summaryBox, 3, 90, 150, 45)
+        page.formAt(summaryBox, 7, 97, 146, 32)
         page.addView(area, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
         body.addView(page, LP(MATCH, ctx.pp(120)))
         button("OK", 25) {
@@ -384,7 +401,8 @@ class RepeatDialog(
     private fun buildArea() {
         area.removeAllViews()
         if (ev.repeat == Repeat.NONE) {
-            area.formAt(ctx.label("No Repeat").apply { gravity = Gravity.CENTER }, 7, 38, 89, 33)
+            // Palm: the instruction in bold at form (9, 42), and "No Repeat" in the summary box.
+            area.formAt(ctx.label("Tap one of the above buttons to set a repeat interval.", bold = true), 9, 42, 140, 0)
             updateSummary(); return
         }
         area.formAt(ctx.label("Every:", bold = true).apply { gravity = Gravity.END }, 24, 38, 31, 11)
@@ -437,6 +455,6 @@ class RepeatDialog(
     }
 
     private fun updateSummary() {
-        summary.text = if (ev.repeat == Repeat.NONE) "" else Recur.describe(ev)
+        summary.text = if (ev.repeat == Repeat.NONE) "No Repeat" else Recur.describe(ev)
     }
 }

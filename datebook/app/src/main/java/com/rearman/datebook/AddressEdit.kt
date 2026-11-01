@@ -21,7 +21,8 @@ import android.widget.TextView
 internal fun MainActivity.buildAddressEdit(h: LinearLayout, content: FrameLayout, cmds: LinearLayout) {
     val e = addressEditing!!
     tab(h, "Address Edit")
-    h.addView(popupTrigger(categoryLabel(e.category)) { tv ->
+    // Palm: the category in a dotted box, with no arrow.
+    h.addView(selector(categoryLabel(e.category)) { tv ->
         endEdit()
         pickCategory(tv, e.category, includeAll = false, app = 2) { id ->
             addressEditing?.category = id
@@ -41,8 +42,10 @@ internal fun MainActivity.buildAddressEdit(h: LinearLayout, content: FrameLayout
     val lastName = addressField(e.lastName, words) { s -> addressEditing?.lastName = s }
     row(nameLabel("Last name:"), lastName)
     row(nameLabel("First name:"), addressField(e.firstName, words) { s -> addressEditing?.firstName = s })
-    row(nameLabel("Title:"), addressField(e.title, words) { s -> addressEditing?.title = s })
-    row(nameLabel("Company:"), addressField(e.company, words) { s -> addressEditing?.company = s })
+    // Palm: Title, Company, City and State fill in the first match from the other entries as you type.
+    fun others(f: (Address) -> String) = store.addresses.filter { it.id != e.id }.map(f).filter { it.isNotBlank() }.distinct().sorted()
+    row(nameLabel("Title:"), addressField(e.title, words) { s -> addressEditing?.title = s }.autoFill(others { it.title }))
+    row(nameLabel("Company:"), addressField(e.company, words) { s -> addressEditing?.company = s }.autoFill(others { it.company }))
 
     // Each phone row has a label pop-up. The label decides the input type, so a change of label re-renders.
     for (i in 0 until 5) {
@@ -63,8 +66,8 @@ internal fun MainActivity.buildAddressEdit(h: LinearLayout, content: FrameLayout
     }
 
     row(nameLabel("Address:"), addressField(e.address, words or InputType.TYPE_TEXT_FLAG_MULTI_LINE) { s -> addressEditing?.address = s })
-    row(nameLabel("City:"), addressField(e.city, words) { s -> addressEditing?.city = s })
-    row(nameLabel("State:"), addressField(e.state, words) { s -> addressEditing?.state = s })
+    row(nameLabel("City:"), addressField(e.city, words) { s -> addressEditing?.city = s }.autoFill(others { it.city }))
+    row(nameLabel("State:"), addressField(e.state, words) { s -> addressEditing?.state = s }.autoFill(others { it.state }))
     row(nameLabel("Zip Code:"), addressField(e.zip, words) { s -> addressEditing?.zip = s })
     row(nameLabel("Country:"), addressField(e.country, words) { s -> addressEditing?.country = s })
 
@@ -109,6 +112,39 @@ private fun MainActivity.addressField(text: String, type: Int, onChange: (String
             override fun afterTextChanged(s: Editable?) = onChange(s?.toString() ?: "")
         })
     }
+
+/**
+ * Palm auto-fill: when a letter typed at the end makes the text the start of one of [values], the
+ * rest of that value is added and selected, so the next letter replaces it. A deletion fills nothing.
+ */
+private fun EditText.autoFill(values: List<String>): EditText = apply {
+    var filling = false
+    var typedAtEnd = false
+    addTextChangedListener(object : TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+            typedAtEnd = !filling && count > before && s != null && start + count == s.length
+        }
+        override fun afterTextChanged(s: Editable?) {
+            if (!typedAtEnd || s == null) return
+            typedAtEnd = false
+            val typed = s.toString()
+            val hit = values.firstOrNull { it.length > typed.length && it.startsWith(typed, ignoreCase = true) } ?: return
+            filling = true
+            s.append(hit.substring(typed.length))
+            setSelection(typed.length, s.length)
+            filling = false
+        }
+    })
+}
+
+/** Palm Duplicate Address: a copy of [a], with its category and note, opens in Address Edit. Done stores it. */
+internal fun MainActivity.duplicateAddress(a: Address) {
+    endEdit()
+    addressEditing = a.copy(id = 0, uid = "")
+    addressOpen = null
+    render()
+}
 
 /** Starts a new address in the category shown in the list, then opens it for editing. [initial] fills Last name. */
 internal fun MainActivity.newAddress(initial: String = "") {

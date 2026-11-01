@@ -20,7 +20,9 @@ internal fun MainActivity.showAddressDetails() {
     var cat = e.category
     var priv = e.isPrivate
     val labels = (0..4).map { Address.LABELS[e.phoneLabels[it]] }
-    val d = PalmDialog(this, "Address Entry Details", height = 84)
+    val d = PalmDialog(this, "Address Entry Details", height = 84,
+        tips = "Show in List chooses the phone number that the Address list shows.\n\n" +
+            "Check Private to hide or mask the entry with Security.")
     fun commit() {
         e.showPhone = show
         e.category = cat
