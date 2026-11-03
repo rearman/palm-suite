@@ -11,3 +11,5 @@ AllowShortLoopsOnASingleLine: false
 NamespaceIndentation: None
 PointerAlignment: Left
 SortIncludes: CaseSensitive
+# A test's first line names the modules it links, and CMake reads only that line: never reflow it.
+CommentPragmas: '^ links:'
