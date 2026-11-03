@@ -54,6 +54,9 @@ std::string to_uppercase(std::string_view s);
 // Rust's str::split at a one-byte separator: every part, the empty ones too; an empty text gives one empty part.
 std::vector<std::string_view> split(std::string_view s, char sep);
 
+// Rust's str::split_whitespace: the non-White_Space runs of `s`, as views of it, split at the White_Space code points.
+std::vector<std::string_view> split_whitespace(std::string_view s);
+
 // Rust's String::from_utf8_lossy: bytes as UTF-8, each invalid sequence one U+FFFD (the maximal-subpart rule).
 std::string from_utf8_lossy(std::string_view bytes);
 

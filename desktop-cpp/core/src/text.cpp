@@ -217,6 +217,30 @@ std::vector<std::string_view> split(std::string_view s, char sep) {
 	return out;
 }
 
+// The non-whitespace runs of `s`, split at the White_Space code points as Rust's str::split_whitespace does.
+std::vector<std::string_view> split_whitespace(std::string_view s) {
+	std::vector<std::string_view> out;
+	std::size_t start = 0;
+	bool in_word = false;
+	for (std::size_t i = 0; i < s.size();) {
+		const Decoded d = decode_at(s, i);
+		if (is_white_space(d.cp)) {
+			if (in_word) {
+				out.push_back(s.substr(start, i - start));
+				in_word = false;
+			}
+		} else if (!in_word) {
+			start = i;
+			in_word = true;
+		}
+		i += d.len;
+	}
+	if (in_word) {
+		out.push_back(s.substr(start));
+	}
+	return out;
+}
+
 // Rust's String::from_utf8_lossy: the text of bytes as UTF-8, each invalid sequence one U+FFFD by the
 // maximal-subpart rule.
 std::string from_utf8_lossy(std::string_view bytes) {
