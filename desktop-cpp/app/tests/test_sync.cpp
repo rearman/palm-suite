@@ -22,7 +22,8 @@
 #endif
 
 namespace fs = std::filesystem;
-namespace sync = palm::sync;
+// Not "sync": POSIX declares ::sync() in <unistd.h>, which the Linux build includes.
+namespace psync = palm::sync;
 namespace settings = palm::settings;
 namespace store = palm::store;
 
@@ -53,28 +54,28 @@ TEST_CASE("sync_refusals_name_the_reason") {
 	store::DesktopStore desktop_store = std::move(*opened);
 	settings::Settings set = settings::Settings::open(dir);
 	auto channel = palm::msg::channel();
-	sync::DesktopSync desktop(channel.first, true);
+	psync::DesktopSync desktop(channel.first, true);
 
 	// Sync is off: a quiet run says nothing, the menu gets an alert, the dialog gets the text.
-	CHECK(desktop.sync_now(desktop_store, set, sync::Report::Quiet).empty());
-	CHECK(desktop.sync_now(desktop_store, set, sync::Report::Menu) ==
-	      std::vector<sync::Effect>{sync::Alert{"Sync is off."}});
-	CHECK(desktop.sync_now(desktop_store, set, sync::Report::Dialog) ==
-	      std::vector<sync::Effect>{sync::DialogDone{"Sync is off."}});
+	CHECK(desktop.sync_now(desktop_store, set, psync::Report::Quiet).empty());
+	CHECK(desktop.sync_now(desktop_store, set, psync::Report::Menu) ==
+	      std::vector<psync::Effect>{psync::Alert{"Sync is off."}});
+	CHECK(desktop.sync_now(desktop_store, set, psync::Report::Dialog) ==
+	      std::vector<psync::Effect>{psync::DialogDone{"Sync is off."}});
 	CHECK_FALSE(desktop.running());
 
 	// Sync is on with no key and no token, then with a key that is not base64.
 	REQUIRE(set.set_bool("syncOn", true).has_value());
-	CHECK(desktop.sync_now(desktop_store, set, sync::Report::Menu) ==
-	      std::vector<sync::Effect>{sync::Alert{"Set up sync again."}});
+	CHECK(desktop.sync_now(desktop_store, set, psync::Report::Menu) ==
+	      std::vector<psync::Effect>{psync::Alert{"Set up sync again."}});
 	REQUIRE(set.set("key", "not base64!").has_value());
-	CHECK(desktop.sync_now(desktop_store, set, sync::Report::Dialog) ==
-	      std::vector<sync::Effect>{sync::DialogDone{"Set up sync again."}});
+	CHECK(desktop.sync_now(desktop_store, set, psync::Report::Dialog) ==
+	      std::vector<psync::Effect>{psync::DialogDone{"Set up sync again."}});
 
 	// A good key with no token is refused the same way.
 	REQUIRE(set.set("key", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").has_value());
-	CHECK(desktop.sync_now(desktop_store, set, sync::Report::Menu) ==
-	      std::vector<sync::Effect>{sync::Alert{"Set up sync again."}});
+	CHECK(desktop.sync_now(desktop_store, set, psync::Report::Menu) ==
+	      std::vector<psync::Effect>{psync::Alert{"Set up sync again."}});
 	CHECK_FALSE(desktop.running());
 
 	// The automatic syncs do nothing while sync is off, and nothing is left running.
@@ -90,8 +91,8 @@ TEST_CASE("sync_turn_off_removes_token_and_key") {
 	REQUIRE(set.set_bool("syncOn", true).has_value());
 	REQUIRE(set.set("token", "t0ken").has_value());
 	REQUIRE(set.set("key", "AAAA").has_value());
-	REQUIRE(sync::DesktopSync::turn_off(set).has_value());
-	CHECK_FALSE(sync::DesktopSync::is_on(set));
+	REQUIRE(psync::DesktopSync::turn_off(set).has_value());
+	CHECK_FALSE(psync::DesktopSync::is_on(set));
 	CHECK(set.get("token", "") == "");
 	CHECK(set.get("key", "") == "");
 	fs::remove_all(dir);
@@ -104,15 +105,15 @@ TEST_CASE("sync_finish_set_up_reports_failures") {
 	store::DesktopStore desktop_store = std::move(*opened);
 	settings::Settings set = settings::Settings::open(dir);
 	auto channel = palm::msg::channel();
-	sync::DesktopSync desktop(channel.first, true);
+	psync::DesktopSync desktop(channel.first, true);
 
 	// An error of the call is shown as it is; a wrong passphrase gives no key.
 	CHECK(desktop.finish_set_up(desktop_store, set, std::unexpected(std::string("Server is down.")),
 	                            "https://sync.example.com",
-	                            "t0ken") == std::vector<sync::Effect>{sync::DialogDone{"Server is down."}});
+	                            "t0ken") == std::vector<psync::Effect>{psync::DialogDone{"Server is down."}});
 	CHECK(desktop.finish_set_up(desktop_store, set, std::optional<std::vector<std::uint8_t>>{},
 	                            "https://sync.example.com",
-	                            "t0ken") == std::vector<sync::Effect>{sync::DialogDone{"Wrong passphrase."}});
-	CHECK_FALSE(sync::DesktopSync::is_on(set));
+	                            "t0ken") == std::vector<psync::Effect>{psync::DialogDone{"Wrong passphrase."}});
+	CHECK_FALSE(psync::DesktopSync::is_on(set));
 	fs::remove_all(dir);
 }
