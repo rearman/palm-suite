@@ -4,22 +4,18 @@ The port moves the Rust desktop app in `desktop-rs/` to C++23 and FLTK in `deskt
 
 ## Done
 
-| Phase | Work                                                                                                                                                                                                                                                                                 |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| core  | `core/`: the port of `desktop-rs/core` (the port of sync-core), one static library per module, tested against the vectors of `sync-core/testdata` and a real palmsync                                                                                                                |
-| 3     | `app/`: the store (`desktop-data.json`, the lock file), the settings (`desktop.properties`), and `platform` (today, the 24-hour setting, the local zone with the CLDR Windows table, OS error texts); checked against the fixture of `desktop-rs/app/tests` and copies of real files |
+| Phase  | Work                                                                                                                                                                                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| core   | `core/`: the port of `desktop-rs/core` (the port of sync-core), one static library per module, tested against the vectors of `sync-core/testdata` and a real palmsync                                                                                                                |
+| 3      | `app/`: the store (`desktop-data.json`, the lock file), the settings (`desktop.properties`), and `platform` (today, the 24-hour setting, the local zone with the CLDR Windows table, OS error texts); checked against the fixture of `desktop-rs/app/tests` and copies of real files |
+| 4 to 9 | `app/`: the shell (window, menus, toolbar, launcher, status bar, classic edges, sync, Sync Options), the Memo Pad, Address Book, To Do List, and Date Book views, their dialogs, Find, Import and Export, Print, and Options; FLTK 1.4.5 from CMake; screenshot checks still to do   |
 
 ## Still to do
 
-| Phase | Work                                                                                                        | Rust source                                                    |
-| ----- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| 4     | The shell: window, menus, toolbar, launcher, status bar, classic edges in device pixels, sync               | `main.rs`, `window.rs`, `draw.rs`, `sync.rs`, `sync_dialog.rs` |
-| 5     | The Memo Pad and the shared parts: split, categories, record clipboard, text-field menu, dialogs, mnemonics | `memo.rs`, `split.rs`, `category.rs`, `records.rs`, &c         |
-| 6     | The Address Book                                                                                            | `address.rs`, `address_dialog.rs`                              |
-| 7     | The To Do List, the date dialog, and the Note Editor                                                        | `todo.rs`, `date_picker.rs`, `note_dialog.rs`                  |
-| 8     | The Date Book: Day, Week, and Month views, Edit Event                                                       | `date.rs`, `week.rs`, `month.rs`, `event_dialog.rs`, &c        |
-| 9     | Find, Import and Export, Print, and Options                                                                 | `find.rs`, `transfer.rs`, `printing.rs`, `options.rs`          |
-| 10    | Packaging and the cutover, as in `desktop-rs/PLAN.md`                                                       | none                                                           |
+| Phase  | Work                                                                                                                                                                       |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4 to 9 | Screenshot checks: `palm-desktop --shot` at FLTK_SCALING_FACTOR 1, 1.25, and 1.5 against the Rust app, on copies of the data, and the CI upload of the binary and shots    |
+| 10     | Packaging and the cutover, as in `desktop-rs/PLAN.md`                                                                                                                      |
 
 ## Build
 
@@ -40,4 +36,10 @@ The port moves the Rust desktop app in `desktop-rs/` to C++23 and FLTK in `deskt
 - `json::dump` writes every JSON text; it replaces invalid UTF-8 with U+FFFD, so a save never throws. OS errors read as Rust shows them, through `platform::os_error_text`.
 - The client follows no redirect, and on Windows it takes the system certificate store (`CURLSSLOPT_NATIVE_CA`).
 - Date arithmetic on stored values wraps (`days::wrapping_add` &c), as the Rust release build and Kotlin's `Long` do; signed overflow is undefined in C++.
+- UI modules (app/src, linked with FLTK 1.4.5) port fltk-rs line by line to the FLTK C++ API: `fltk::button::Button` is `Fl_Button`, `window::Window` is `Fl_Double_Window` (fltk-rs makes `Window` an alias of `DoubleWindow`, so every Rust window is double-buffered), `menu::Choice` is `Fl_Choice`, and so on. A group owns and deletes its children, so code keeps raw pointers to child widgets; a label that is built at run time goes through `copy_label`/`copy_tooltip`.
+- Every widget callback, timer and worker thread sends a `Msg` through `msg::Sender` (a mutex-guarded queue and `Fl::awake`), and the main loop handles it; no callback touches the app state, as in Rust.
+- A Rust `handle` closure becomes a subclass that overrides `handle(int)`. fltk-rs runs FLTK's own handler first and then the closure, unless the Rust calls `super_handle_first(false)`; the override keeps that order. Mouse buttons compare `Fl::event_button()` with `FL_LEFT_MOUSE` and `FL_RIGHT_MOUSE`. A Rust `draw` closure becomes an overridden `draw()`.
+- Custom drawing goes through `draw::Dev` (FLTK's `fl_override_scale`) and clips through `draw::Clip`, as in Rust. The 3.1.1 bitmaps come from `assets::png(name)` as an `Fl_PNG_Image` built from the bytes.
+- Rust code that adds a handler to an existing widget becomes a subclass that the caller builds in its place: a Choice given `combo::drop_below` is a `palm::combo::Choice`; a text field given the text-field menu (`text_edit::attach_menu`) is a `palm::text_edit::Editor` (Fl_Text_Editor) or `palm::text_edit::Input` (Fl_Input). `text_edit::Field` is `std::variant<Fl_Text_Editor*, Fl_Input*>`. A record list (a Rust `TableRow` passed to `records::list_event`) is a `palm::records::RecordTable`, an `Fl_Table_Row` that can find the cell under the mouse.
+- UI modules keep their Rust tests that need no display, in `app/tests/test_<module>.cpp`.
 - Known limits: a float read as text prints as nlohmann does ("1e+20"), where Rust prints "1e20" and Kotlin "1.0E20". libstdc++ 14.2 under MinGW misreads negative LMT offsets, so a TZID time before a zone's standard time (c. 1883 in the U.S.) lands off by up to two hours; seen on Windows; Linux, whose libstdc++ reads the same tzdata.zi text form, is unchecked. A POSIX rule in `TZ` ("EST5EDT,M3.2.0,M11.1.0") falls back to UTC, where jiff applies it. Find and the sorts fold case only through Latin Extended-A. A data file with a UTF-8 byte-order mark opens, where Rust refuses it.
