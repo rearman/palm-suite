@@ -200,7 +200,7 @@ std::string write(const Content& c, const std::function<std::string(std::int32_t
 	                           })},
 	};
 	// org.json's toString(1): one space for each level.
-	return root.dump(1);
+	return json::dump(root, 1);
 }
 
 std::expected<Content, std::string>

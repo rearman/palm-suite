@@ -204,6 +204,10 @@ std::vector<std::uint8_t> new_salt() {
 	return random(SALT_BYTES);
 }
 
+std::vector<std::uint8_t> random_bytes(std::size_t n) {
+	return random(n);
+}
+
 // The 32-byte key of a passphrase. Java's PBEKeySpec feeds the passphrase as UTF-8.
 std::vector<std::uint8_t> derive_key(std::string_view passphrase, std::span<const std::uint8_t> salt,
                                      std::uint32_t rounds) {

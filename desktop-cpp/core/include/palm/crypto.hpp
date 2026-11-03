@@ -26,6 +26,9 @@ std::expected<std::vector<std::uint8_t>, std::string> unb64(std::string_view tex
 // The 16-byte salt of a new passphrase.
 std::vector<std::uint8_t> new_salt();
 
+// n bytes from the system random source (OpenSSL RAND_bytes); a failed source throws std::runtime_error.
+std::vector<std::uint8_t> random_bytes(std::size_t n);
+
 // The 32-byte key of a passphrase. Java's PBEKeySpec feeds the passphrase as UTF-8.
 std::vector<std::uint8_t> derive_key(std::string_view passphrase, std::span<const std::uint8_t> salt,
                                      std::uint32_t rounds);

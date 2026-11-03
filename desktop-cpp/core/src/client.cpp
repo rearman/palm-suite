@@ -122,7 +122,7 @@ std::string push_body(std::int64_t since, std::span<const PushItem> push) {
 		                               {"deleted", p.deleted},
 		                               {"blob", p.deleted ? std::string() : p.blob}});
 	}
-	return nlohmann::json{{"since", since}, {"push", items}}.dump();
+	return json::dump(nlohmann::json{{"since", since}, {"push", items}});
 }
 
 // Reads the body of a 200 answer from POST /v1/sync.
@@ -301,7 +301,7 @@ std::expected<SyncMeta, SyncError> SyncClient::get_meta() const {
 
 // Sets the setup values. True on 204, false on 409 (already set).
 std::expected<bool, SyncError> SyncClient::put_meta(const SyncMeta& m) const {
-	const std::string body = nlohmann::json{{"salt", m.salt}, {"check", m.check}}.dump();
+	const std::string body = json::dump(nlohmann::json{{"salt", m.salt}, {"check", m.check}});
 	auto answer = call("PUT", "/v1/meta", std::string_view(body));
 	if (!answer) {
 		return std::unexpected(answer.error());

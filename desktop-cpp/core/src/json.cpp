@@ -28,7 +28,7 @@ std::string text_of(const nlohmann::json& v) {
 	if (v.is_string()) {
 		return v.get<std::string>();
 	}
-	return v.dump();
+	return dump(v);
 }
 
 // The value of a float, truncated toward zero and saturated to the int64 range, as Rust's `as` cast does.
@@ -245,20 +245,30 @@ std::expected<std::string, std::string> get_str(const Obj& o, std::string_view k
 }
 
 // The JSON object of a text, or an error when the text is not one.
-std::expected<Obj, std::string> parse_obj(std::string_view text) {
+std::string dump(const nlohmann::json& v, int indent) {
+	return v.dump(indent, ' ', false, nlohmann::json::error_handler_t::replace);
+}
+
+std::expected<nlohmann::json, std::string> parse_value(std::string_view text) {
 	if (too_deep(text)) {
 		return std::unexpected(std::string("recursion limit exceeded"));
 	}
-	nlohmann::json v;
 	try {
-		v = nlohmann::json::parse(text.begin(), text.end());
+		return nlohmann::json::parse(text.begin(), text.end());
 	} catch (const nlohmann::json::exception& e) {
 		return std::unexpected(std::string(e.what()));
 	}
-	if (!v.is_object()) {
+}
+
+std::expected<Obj, std::string> parse_obj(std::string_view text) {
+	auto v = parse_value(text);
+	if (!v) {
+		return std::unexpected(v.error());
+	}
+	if (!v->is_object()) {
 		return std::unexpected(std::string("A JSONObject text must begin with '{'."));
 	}
-	return v;
+	return *std::move(v);
 }
 
 } // namespace palm::json

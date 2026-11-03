@@ -49,6 +49,15 @@ std::expected<std::int64_t, std::string> get_i64(const Obj& o, std::string_view 
 // getString(key): a string, else an error.
 std::expected<std::string, std::string> get_str(const Obj& o, std::string_view key);
 
+// The JSON value of a text, as serde_json::from_str::<Value>: an error past 128 levels of nesting (serde's
+// recursion limit, checked before parsing) or on a text that does not parse.
+std::expected<nlohmann::json, std::string> parse_value(std::string_view text);
+
+// The JSON text of a value, as serde_json writes it: raw UTF-8, `indent` spaces per level (-1 for one line).
+// A string that holds invalid UTF-8 (which a Rust String cannot) gets U+FFFD in place of each bad byte, so a
+// save never throws.
+std::string dump(const nlohmann::json& v, int indent = -1);
+
 // The JSON object of a text, or an error when the text is not one.
 std::expected<Obj, std::string> parse_obj(std::string_view text);
 

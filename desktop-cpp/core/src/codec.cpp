@@ -54,7 +54,7 @@ json::Obj kinded(std::string_view k) {
 
 // The compact JSON text of an object.
 std::string dump_text(const json::Obj& o) {
-	return o.dump();
+	return json::dump(o);
 }
 
 // The long kind name of a short kind, or "" when the kind is unknown.
