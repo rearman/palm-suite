@@ -39,15 +39,12 @@ bool is_white_space(char32_t c);
 std::string_view trim(std::string_view s);
 
 // The single-code-point upper and lower case of a code point as Rust's char::to_uppercase and to_lowercase
-// give them, or the code point itself when the mapping yields several. They cover ASCII, Latin-1 Supplement,
-// and Latin Extended-A; other code points keep their case, which is the known limit. The upgrade path is
-// ICU's simple case mapping (u_toupper and u_tolower).
+// give them, or the code point itself when the mapping yields several. The tables (core/src/text_case.inc) are
+// generated from Rust's standard library by tools/gen_case.
 char32_t upper_one(char32_t c);
 char32_t lower_one(char32_t c);
 
-// Rust's str::to_lowercase and str::to_uppercase over the characters of lower_one and upper_one, with the
-// multi-code-point cases U+0130 (lowercase "i" and U+0307), U+00DF (uppercase "SS"), and U+0149 (uppercase
-// U+02BC and "N").
+// Rust's str::to_lowercase (with the final sigma) and str::to_uppercase, over all of Unicode.
 std::string to_lowercase(std::string_view s);
 std::string to_uppercase(std::string_view s);
 

@@ -1,0 +1,8 @@
+# Writes core/src/text_case.inc from the case mapping of the Rust standard library.
+[package]
+name = "gen_case"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]

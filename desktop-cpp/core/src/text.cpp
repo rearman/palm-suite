@@ -1,7 +1,11 @@
 #include "palm/text.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -67,92 +71,148 @@ bool is_white_space(char32_t c) {
 	       (c >= 0x2000 && c <= 0x200A) || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000;
 }
 
-// The single-code-point uppercase of `c` as Rust's char::to_uppercase gives it, or `c` itself when that
-// mapping yields several code points (U+00DF gives "SS" and U+0149 gives two). The known limit is the
-// characters beyond Latin Extended-A, which keep their case; the upgrade path is ICU's simple case mapping (u_toupper
-// and u_tolower).
-char32_t upper_one(char32_t c) {
-	if (c < 0x80) {
-		return (c >= 'a' && c <= 'z') ? c - 0x20 : c;
-	}
-	if (c >= 0xE0 && c <= 0xFE && c != 0xF7) {
-		return c - 0x20;
-	}
-	if (c == 0xFF) {
-		return 0x178;
-	}
-	if (c == 0xB5) {
-		return 0x39C;
-	}
-	if (c == 0x131) {
-		return 'I';
-	}
-	if (c == 0x17F) {
-		return 'S';
-	}
-	if (c < 0x100 || c > 0x17F) {
+namespace {
+
+// Code points first to last, `step` apart, that map to themselves plus `delta`.
+struct CaseRun {
+	char32_t first;
+	char32_t last;
+	std::uint32_t step;
+	std::int32_t delta;
+};
+
+// A code point whose mapping is several code points, as UTF-8.
+struct CaseMulti {
+	char32_t cp;
+	const char* utf8;
+};
+
+// An inclusive range of code points.
+struct CpRange {
+	char32_t first;
+	char32_t last;
+};
+
+// LOWER_RUNS, UPPER_RUNS, LOWER_MULTI, UPPER_MULTI, CASE_IGNORABLE, and CASED, generated from Rust's standard library.
+#include "text_case.inc"
+
+// The single-code-point mapping of `c` in the runs, or `c` when it has none.
+template <std::size_t N> char32_t map_one(const std::array<CaseRun, N>& runs, char32_t c) {
+	const auto it = std::ranges::upper_bound(runs, c, {}, &CaseRun::first);
+	if (it == runs.begin()) {
 		return c;
 	}
-	// Latin Extended-A: the odd code point is the lowercase of its pair in 0100 to 0137 and 014A to 0177,
-	// the even one in 0139 to 0148 and 0179 to 017E. 0130, 0138, 0149 and 0178 have no pair.
-	bool odd_lower = (c <= 0x137) || (c >= 0x14A && c <= 0x177);
-	bool even_lower = (c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17E);
-	if (odd_lower && c % 2 == 1) {
-		return c - 1;
+	const CaseRun& r = *std::prev(it);
+	if (c > r.last || (c - r.first) % r.step != 0) {
+		return c;
 	}
-	if (even_lower && c % 2 == 0) {
-		return c - 1;
-	}
-	return c;
+	return static_cast<char32_t>(static_cast<std::int64_t>(c) + r.delta);
 }
 
-// The single-code-point lowercase of `c` as Rust's char::to_lowercase gives it, or `c` itself when that
-// mapping yields several code points (U+0130 gives "i" and U+0307). The known limit is as in upper_one.
-char32_t lower_one(char32_t c) {
-	if (c < 0x80) {
-		return (c >= 'A' && c <= 'Z') ? c + 0x20 : c;
-	}
-	if (c >= 0xC0 && c <= 0xDE && c != 0xD7) {
-		return c + 0x20;
-	}
-	if (c == 0x178) {
-		return 0xFF;
-	}
-	if (c < 0x100 || c > 0x17F) {
-		return c;
-	}
-	if (c == 0x130 || c == 0x131 || c == 0x138 || c == 0x149 || c == 0x17F) {
-		return c;
-	}
-	// The even code point is the uppercase of its pair in 0100 to 0137 and 014A to 0177, the odd one in
-	// 0139 to 0148 and 0179 to 017E.
-	bool even_upper = (c <= 0x137) || (c >= 0x14A && c <= 0x177);
-	bool odd_upper = (c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17E);
-	if (even_upper && c % 2 == 0) {
-		return c + 1;
-	}
-	if (odd_upper && c % 2 == 1) {
-		return c + 1;
-	}
-	return c;
+// The several-code-point mapping of `c`, or nullptr when it has none.
+template <std::size_t N> const char* map_multi(const std::array<CaseMulti, N>& list, char32_t c) {
+	const auto it = std::ranges::lower_bound(list, c, {}, &CaseMulti::cp);
+	return it != list.end() && it->cp == c ? it->utf8 : nullptr;
 }
 
-// The lowercase of a whole string, as Rust's str::to_lowercase gives it for the same characters. The Greek
-// final-sigma rule is not reproduced, since Greek is beyond the mapping (see upper_one).
-std::string to_lowercase(std::string_view s) {
-	std::string out;
-	std::size_t i = 0;
-	while (i < s.size()) {
-		Decoded d = decode_at(s, i);
-		i += d.len;
-		if (d.cp == 0x130) {
-			out += 'i';
-			append_utf8(out, 0x307);
-		} else {
-			append_utf8(out, lower_one(d.cp));
+template <std::size_t N> bool in_ranges(const std::array<CpRange, N>& ranges, char32_t c) {
+	const auto it = std::ranges::upper_bound(ranges, c, {}, &CpRange::first);
+	return it != ranges.begin() && c <= std::prev(it)->last;
+}
+
+// Rust's case_ignorable_then_cased over the code points of `s` that `next` yields: the first one that is not
+// Case_Ignorable is Cased.
+template <typename Next> bool case_ignorable_then_cased(Next next) {
+	while (const std::optional<char32_t> c = next()) {
+		if (!in_ranges(CASE_IGNORABLE, *c)) {
+			return in_ranges(CASED, *c);
 		}
 	}
+	return false;
+}
+
+// The start of the code point that ends at byte `end` (above `floor`), found by stepping back over continuation
+// bytes, no further than `floor`.
+std::size_t start_before(std::string_view s, std::size_t end, std::size_t floor) {
+	std::size_t start = end - 1;
+	while (start > floor && (static_cast<unsigned char>(s[start]) & 0xC0) == 0x80) {
+		--start;
+	}
+	return start;
+}
+
+// Rust's map_uppercase_sigma: U+03A3 at byte `at` of `s` lowercases to the final sigma when a cased letter comes
+// before it and none after it, case-ignorable code points skipped on both sides.
+bool final_sigma(std::string_view s, std::size_t at) {
+	std::size_t back = at;
+	const bool before = case_ignorable_then_cased([&]() -> std::optional<char32_t> {
+		if (back == 0) {
+			return std::nullopt;
+		}
+		std::size_t start = start_before(s, back, 0);
+		Decoded d = decode_at(s, start);
+		// A malformed tail reads as its last byte.
+		if (start + d.len != back) {
+			start = back - 1;
+			d = decode_at(s, start);
+		}
+		back = start;
+		return d.cp;
+	});
+	std::size_t ahead = at + 2;
+	const bool after = case_ignorable_then_cased([&]() -> std::optional<char32_t> {
+		if (ahead >= s.size()) {
+			return std::nullopt;
+		}
+		const Decoded d = decode_at(s, ahead);
+		ahead += d.len;
+		return d.cp;
+	});
+	return before && !after;
+}
+
+// Rust's str::to_lowercase or to_uppercase. A byte that is not UTF-8 (which a Rust str cannot hold) passes through.
+template <typename Map> std::string map_case(std::string_view s, Map map) {
+	std::string out;
+	out.reserve(s.size());
+	std::size_t i = 0;
+	while (i < s.size()) {
+		const Decoded d = decode_at(s, i);
+		if (d.len == 1 && d.cp >= 0x80) {
+			out += s[i];
+		} else {
+			map(out, d.cp, i);
+		}
+		i += d.len;
+	}
 	return out;
+}
+
+} // namespace
+
+// The single-code-point uppercase of `c` as Rust's char::to_uppercase gives it, or `c` itself when that mapping
+// yields several code points.
+char32_t upper_one(char32_t c) {
+	return map_one(UPPER_RUNS, c);
+}
+
+// The single-code-point lowercase of `c` as Rust's char::to_lowercase gives it, or `c` itself when that mapping
+// yields several code points (U+0130 gives "i" and U+0307).
+char32_t lower_one(char32_t c) {
+	return map_one(LOWER_RUNS, c);
+}
+
+// Rust's str::to_lowercase, with its final-sigma rule.
+std::string to_lowercase(std::string_view s) {
+	return map_case(s, [s](std::string& out, char32_t cp, std::size_t at) {
+		if (cp == 0x3A3) {
+			append_utf8(out, final_sigma(s, at) ? 0x3C2 : 0x3C3);
+		} else if (const char* multi = map_multi(LOWER_MULTI, cp)) {
+			out += multi;
+		} else {
+			append_utf8(out, lower_one(cp));
+		}
+	});
 }
 
 // Rust's str::trim: the text trimmed of White_Space code points at both ends.
@@ -167,10 +227,7 @@ std::string_view trim(std::string_view s) {
 	}
 	std::size_t e = s.size();
 	while (e > b) {
-		std::size_t start = e - 1;
-		while (start > b && (static_cast<unsigned char>(s[start]) & 0xC0) == 0x80) {
-			--start;
-		}
+		const std::size_t start = start_before(s, e, b);
 		if (!is_white_space(decode_at(s, start).cp)) {
 			break;
 		}
@@ -179,25 +236,15 @@ std::string_view trim(std::string_view s) {
 	return s.substr(b, e - b);
 }
 
-// Rust's str::to_uppercase over the characters of upper_one. U+00DF gives "SS" and U+0149 gives U+02BC U+004E, as in
-// Rust.
+// Rust's str::to_uppercase.
 std::string to_uppercase(std::string_view s) {
-	std::string out;
-	std::size_t i = 0;
-	while (i < s.size()) {
-		Decoded d = decode_at(s, i);
-		i += d.len;
-		if (d.cp == 0xDF) {
-			out += "SS";
-		} else if (d.cp == 0x149) {
-			// U+0149 uppercases to U+02BC U+004E in Rust.
-			append_utf8(out, 0x2BC);
-			out += 'N';
+	return map_case(s, [](std::string& out, char32_t cp, std::size_t) {
+		if (const char* multi = map_multi(UPPER_MULTI, cp)) {
+			out += multi;
 		} else {
-			append_utf8(out, upper_one(d.cp));
+			append_utf8(out, upper_one(cp));
 		}
-	}
-	return out;
+	});
 }
 
 // Rust's str::split with a one-byte separator: always at least one piece, and an empty piece at each end
