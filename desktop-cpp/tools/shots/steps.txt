@@ -1,0 +1,74 @@
+# The states of the screenshot check (run.sh): name, start view, and the --shot-open steps, a dash for none.
+# Points are logical pixels from the top left of the main window, which opens at 1000 x 700. Menu bar titles:
+# File 16, Edit 50, View 86, Tools 127, Sync 167, Help 206, at y 9; menu items lie 22 apart from y 31.
+# Import, Export, Print, and Sync Now are left out: the first three open native OS dialogs, and Sync Now syncs.
+
+# The four views.
+date	date	-
+todo	todo	-
+memo	memo	-
+address	address	-
+week	date	click:978,135
+month	date	click:978,190
+
+# The menu bar, in the Date view and where a view changes the Edit menu.
+menu-file	date	click:16,9
+menu-edit	date	click:50,9;move:80,163
+menu-view	date	click:86,9
+menu-tools	date	click:127,9
+menu-sync	date	click:167,9
+menu-help	date	click:206,9
+menu-edit-memo	memo	click:50,9
+menu-edit-todo	todo	click:50,9
+menu-edit-address	address	click:50,9
+
+# Choice lists.
+list-memo-filter	memo	click:500,75
+list-memo-category	memo	click:900,623
+list-todo-filter	todo	click:670,75
+list-todo-category	todo	click:900,186
+list-address-filter	address	click:500,75
+list-day-todo-filter	date	click:905,270
+
+# Right-click menus and cell menus.
+menu-memo-list	memo	rclick:200,101
+menu-memo-text	memo	rclick:780,300
+menu-todo-list	todo	rclick:300,117
+menu-todo-due	todo	click:605,101
+menu-todo-category	todo	click:655,101
+menu-address-list	address	rclick:200,117
+menu-event	date	rclick:420,118
+menu-day-todo-due	date	click:888,292
+menu-month-cell	date	click:978,190;rclick:500,300
+
+# Dialogs from the menu bar.
+find	date	click:50,9;click:60,229
+options	date	click:127,9;click:130,119
+options-datebook	date	click:127,9;click:130,119;click:407,231
+options-startup	date	click:127,9;click:130,119;click:547,269
+sync-options	date	click:167,9;click:180,31
+about	date	click:206,9;click:230,31
+categories	memo	click:127,9;click:150,31
+custom-labels	address	click:127,9;click:150,53
+purge-events	date	click:127,9;click:150,75
+purge-todos	todo	click:127,9;click:150,97
+
+# Dialogs from the views' buttons.
+listby-memo	memo	click:432,649
+listby-address	address	click:350,649
+show-todo	todo	click:600,649
+new-event	date	click:675,643
+edit-event	date	rclick:420,118;click:440,194
+event-repeat	date	click:675,643;click:482,380
+event-time	date	click:675,643;click:606,288
+event-date	date	click:675,643;click:606,320
+event-note	date	click:675,643;click:606,348
+new-address	address	click:511,649
+edit-address	address	click:430,649
+address-tab-address	address	click:430,649;click:348,200
+address-tab-note	address	click:430,649;click:390,200
+address-label-list	address	click:430,649;click:430,346
+address-category-list	address	click:430,649;click:670,478
+todo-note	todo	click:970,215
+todo-due	todo	click:886,158
+todo-date-picker	todo	click:886,158;click:848,266

@@ -410,8 +410,8 @@ jobs:
           path: desktop-rs/shots
 
   # The C++ port of the desktop app (desktop-cpp/), core first: the modules and their doctest tests, built with
-  # CMake and run with CTest. Windows amd64 (MSYS2), Linux amd64 and arm64. Nothing is released yet, so no app
-  # binary is uploaded.
+  # CMake and run with CTest. Windows amd64 (MSYS2), Linux amd64 and arm64. Nothing is released yet; the Linux
+  # apps are uploaded for the desktop-shots job.
   desktop-cpp:
     strategy:
       fail-fast: false
@@ -496,3 +496,64 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+      # The Linux app for the screenshot check of the desktop-shots job. The Windows build needs the MSYS2
+      # runtime DLLs beside it, so it is not uploaded until packaging bundles them.
+      - name: Name the app
+        if: runner.os == 'Linux'
+        run: cp build/palm-desktop palm-desktop-cpp-${{ matrix.name }}
+
+      - name: Upload app
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          path: desktop-cpp/palm-desktop-cpp-${{ matrix.name }}
+          archive: false
+
+  # The screenshot check of the C++ port against the Rust app (desktop-cpp/tools/shots): every state of steps.txt
+  # in both Linux amd64 builds, at three scales, on a virtual X server. Uploads the pairs that differ and fails.
+  desktop-shots:
+    needs: [desktop-rs, desktop-cpp]
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: desktop-cpp
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev libssl-dev zlib1g-dev libx11-dev \
+            libxext-dev libxft-dev libxinerama-dev libxcursor-dev libxrender-dev libxfixes-dev libpango1.0-dev \
+            libcairo2-dev libwayland-dev libxkbcommon-dev libdbus-1-dev libgl1-mesa-dev libglu1-mesa-dev \
+            libegl1-mesa-dev xvfb
+
+      - name: Download the Rust app
+        uses: actions/download-artifact@v8
+        with:
+          name: palm-desktop-linux-amd64
+          path: ${{ runner.temp }}/apps
+
+      - name: Download the C++ app
+        uses: actions/download-artifact@v8
+        with:
+          name: palm-desktop-cpp-linux-amd64
+          path: ${{ runner.temp }}/apps
+
+      # The screen holds the window at 1.5 (1500 x 1050) with room for menus below it.
+      - name: Compare
+        run: |
+          chmod +x "$RUNNER_TEMP"/apps/*
+          PRUNE=1 xvfb-run -a -s "-screen 0 1920x1440x24" bash tools/shots/run.sh \
+            "$RUNNER_TEMP/apps/palm-desktop-linux-amd64" "$RUNNER_TEMP/apps/palm-desktop-cpp-linux-amd64" \
+            "$RUNNER_TEMP/shots"
+
+      - name: Upload differing shots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-shots-differ
+          path: ${{ runner.temp }}/shots/*.ppm
