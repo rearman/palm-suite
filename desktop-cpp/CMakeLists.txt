@@ -4,9 +4,6 @@ project(palm_desktop C CXX)
 # The C++ port of Palm Desktop. core/ ports desktop-rs/core (the port of sync-core) and app/ ports
 # desktop-rs/app: one static library per module, so each module and its tests build alone. A module whose
 # source is not written yet is skipped.
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 # compile_commands.json for clangd (.clangd names the build folder).
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if(NOT CMAKE_BUILD_TYPE)
@@ -19,16 +16,21 @@ find_package(CURL REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(doctest REQUIRED)
 
-# FLTK 1.4.5, the release fltk-rs 1.5.23 bundles, built as fltk-sys builds it: no OpenGL, no GDI+ (so 1 px
-# lines stay sharp), bundled libpng and libjpeg, the system zlib (crypto links it too), and on Linux Wayland
-# with Cairo and Pango, falling back to X11. For an offline build, point FETCHCONTENT_SOURCE_DIR_FLTK at a
-# copy of the 1.4.5 source, e.g. the one in ~/.cargo/registry/src/*/fltk-sys-1.5.23/cfltk/fltk.
+# FLTK 1.4.5, the release fltk-rs 1.5.23 bundles, built as fltk-sys builds it, so it draws the same pixels: no
+# OpenGL, GDI+ on Windows (antialiased lines and ovals, as fltk-sys gives without its no-gdiplus feature),
+# bundled libpng and libjpeg, the system zlib (crypto links it too), and on Linux Wayland with Cairo and Pango,
+# falling back to X11. FLTK is added before the C++ standard is set below, so it builds at the compiler's
+# default standard (gnu++17), as under fltk-sys; on arm64 that lets GCC fuse multiply-adds in FLTK as it does
+# there. Build Release for screenshots: fltk-sys builds FLTK at -O3. For an offline build, point
+# FETCHCONTENT_SOURCE_DIR_FLTK at a copy of the 1.4.5 source, e.g. the one in
+# ~/.cargo/registry/src/*/fltk-sys-1.5.23/cfltk/fltk.
 include(FetchContent)
 foreach(option FLTK_BUILD_TEST FLTK_BUILD_EXAMPLES FLTK_BUILD_FLUID FLTK_BUILD_FLTK_OPTIONS FLTK_BUILD_GL
-		FLTK_BUILD_HTML_DOCS FLTK_BUILD_PDF_DOCS FLTK_GRAPHICS_GDIPLUS FLTK_USE_SYSTEM_LIBPNG FLTK_USE_SYSTEM_LIBJPEG
+		FLTK_BUILD_HTML_DOCS FLTK_BUILD_PDF_DOCS FLTK_USE_SYSTEM_LIBPNG FLTK_USE_SYSTEM_LIBJPEG
 		FLTK_USE_LIBDECOR_GTK FLTK_USE_SYSTEM_LIBDECOR)
 	set(${option} OFF CACHE BOOL "" FORCE)
 endforeach()
+set(FLTK_GRAPHICS_GDIPLUS ON CACHE BOOL "" FORCE)
 set(FLTK_USE_SYSTEM_ZLIB ON CACHE BOOL "" FORCE)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	foreach(option FLTK_BACKEND_WAYLAND FLTK_GRAPHICS_CAIRO FLTK_USE_PANGO)
@@ -38,8 +40,14 @@ endif()
 FetchContent_Declare(fltk GIT_REPOSITORY https://github.com/fltk/fltk.git GIT_TAG release-1.4.5 GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(fltk)
 
+# Our code is ISO C++23, where GCC fuses no multiply-add (-ffp-contract=off), as Rust never does, so float
+# arithmetic rounds as in the Rust app on every target.
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Warnings are errors in our code only: FLTK is added above, so it does not inherit these options.
-add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+add_compile_options(-Wall -Wextra -Wpedantic -Werror -ffp-contract=off)
 
 # The modules in dependency order, each with the modules and libraries it links.
 set(PALM_MODULES text json days crypto logic model client codec backup ical vcard runner session)
