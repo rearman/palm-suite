@@ -590,6 +590,9 @@ fn main() {
 	let date = DateView::new(g.x(), g.y(), g.w(), g.h(), sender, &settings);
 	g.resizable(&date.root);
 	g.end();
+	// FLTK's end() makes the view panel current, and a dialog window built later (Window::default() takes a
+	// position, so FLTK keeps the current group) would become a child of it, drawn inside the main window.
+	fltk::group::Group::set_current(None::<&fltk::group::Group>);
 	mnemonics::install();
 	let show_private = settings.get_bool("showPrivate", false);
 	ui.set_private_hidden(!show_private);

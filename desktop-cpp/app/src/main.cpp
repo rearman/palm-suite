@@ -805,6 +805,9 @@ int main(int argc, char** argv) {
 	a.date = std::make_unique<palm::date::DateView>(g->x(), g->y(), g->w(), g->h(), sender, a.settings);
 	g->resizable(a.date->root);
 	g->end();
+	// FLTK's end() makes the view panel current. A window built with a size only clears the current group, so a dialog
+	// stays a top-level window; this keeps the state of the Rust app, whose windows take a position.
+	Fl_Group::current(nullptr);
 	palm::mnemonics::install();
 	a.ui.set_private_hidden(!a.show_private);
 
