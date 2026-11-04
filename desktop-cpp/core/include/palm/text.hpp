@@ -60,4 +60,7 @@ std::vector<std::string_view> split_whitespace(std::string_view s);
 // Rust's String::from_utf8_lossy: bytes as UTF-8, each invalid sequence one U+FFFD (the maximal-subpart rule).
 std::string from_utf8_lossy(std::string_view bytes);
 
+// Whether bytes are valid UTF-8, as Rust's str::from_utf8 and read_to_string require.
+bool is_utf8(std::string_view bytes);
+
 } // namespace palm::text

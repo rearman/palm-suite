@@ -77,8 +77,7 @@ std::expected<std::string, std::string> read_text(const fs::path& path) {
 		return std::unexpected(platform::last_os_error_text());
 	}
 	std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-	// from_utf8_lossy replaces every invalid byte, so its result equals the input only when the input is valid UTF-8.
-	if (text::from_utf8_lossy(bytes) != bytes) {
+	if (!text::is_utf8(bytes)) {
 		return std::unexpected(std::string("stream did not contain valid UTF-8"));
 	}
 	return bytes;

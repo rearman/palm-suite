@@ -265,8 +265,9 @@ SyncClient::call(std::string_view method, std::string_view path, std::optional<s
 		}
 		return std::pair{static_cast<std::uint16_t>(code), std::string{}};
 	}
-	// An over-limit body keeps the status and gives an empty text, as the Rust code's unwrap_or_default.
-	if (received.over) {
+	// An over-limit body, or one that is not UTF-8 (ureq's read_to_string fails on it), keeps the status and gives
+	// an empty text, as the Rust code's unwrap_or_default.
+	if (received.over || !text::is_utf8(received.text)) {
 		return std::pair{static_cast<std::uint16_t>(code), std::string{}};
 	}
 	return std::pair{static_cast<std::uint16_t>(code), std::move(received.text)};

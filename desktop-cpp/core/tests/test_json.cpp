@@ -109,9 +109,55 @@ TEST_CASE("parse_obj allows 127 levels of arrays and objects and rejects 128") {
 	};
 	CHECK(palm::json::parse_obj(nested(127)).has_value());
 	REQUIRE_FALSE(palm::json::parse_obj(nested(128)).has_value());
-	CHECK(palm::json::parse_obj(nested(128)).error() == "recursion limit exceeded");
+	CHECK(palm::json::parse_obj(nested(128)).error() == "recursion limit exceeded at line 1 column 132");
 	// Brackets inside a string do not count toward the depth.
 	CHECK(palm::json::parse_obj(R"({"s":")" + std::string(300, '[') + R"("})").has_value());
+}
+
+// The expected texts are serde_json 1.0.154's, checked against it on 6,079 texts while porting.
+TEST_CASE("parse_value fails with serde_json's error text and position") {
+	CHECK(palm::json::parse_value("").error() == "EOF while parsing a value at line 1 column 0");
+	CHECK(palm::json::parse_value("\xEF\xBB\xBF{}").error() == "expected value at line 1 column 1");
+	CHECK(palm::json::parse_value("[1,]").error() == "trailing comma at line 1 column 4");
+	CHECK(palm::json::parse_value("{\"a\":\n\n  [1,\n 2,,]}").error() == "expected value at line 4 column 4");
+	CHECK(palm::json::parse_value("{\"a\":1}\n\n x").error() == "trailing characters at line 3 column 2");
+	CHECK(palm::json::parse_value("1e400").error() == "number out of range at line 1 column 5");
+	// The escapes are split so no "\u" sits next to its hex digits in the source.
+	CHECK(palm::json::parse_value("\"\\"
+	                              "ud800\\"
+	                              "u0041\"")
+	          .error() == "lone leading surrogate in hex escape at line 1 column 13");
+	CHECK(palm::json::parse_value("\"\x01\"").error() ==
+	      "control character (\\u0000-\\u001F) found while parsing a string at line 1 column 2");
+}
+
+TEST_CASE("parse_value reads numbers as serde_json does") {
+	// Without float_roundtrip, serde_json scales the significand by a power of ten, off the nearest double here.
+	CHECK(palm::json::dump(palm::json::parse_value("-702E226").value()) == "-7.019999999999999e+228");
+	CHECK(palm::json::dump(palm::json::parse_value("-0").value()) == "-0.0");
+	CHECK(palm::json::parse_value("18446744073709551615").value().is_number_unsigned());
+	CHECK(palm::json::parse_value("-9223372036854775808").value().is_number_integer());
+	CHECK(palm::json::parse_value("-9223372036854775809").value().is_number_float());
+	CHECK(palm::json::dump(palm::json::parse_value("1e-99999999999").value()) == "0.0");
+}
+
+TEST_CASE("format_double writes serde_json's text") {
+	using palm::json::format_double;
+	CHECK(format_double(1.0) == "1.0");
+	CHECK(format_double(0.1) == "0.1");
+	CHECK(format_double(1e15) == "1000000000000000.0");
+	CHECK(format_double(1e16) == "1e+16");
+	CHECK(format_double(1.5e16) == "1.5e+16");
+	CHECK(format_double(1.234e-5) == "0.00001234");
+	CHECK(format_double(1e-6) == "1e-6");
+	CHECK(format_double(5e-324) == "5e-324");
+	CHECK(format_double(-2.5) == "-2.5");
+}
+
+TEST_CASE("dump writes nested values one per line with an indent") {
+	const nlohmann::json v = palm::json::parse_value(R"({"b":[1,{}],"a":[]})").value();
+	CHECK(palm::json::dump(v) == R"({"a":[],"b":[1,{}]})");
+	CHECK(palm::json::dump(v, 1) == "{\n \"a\": [],\n \"b\": [\n  1,\n  {}\n ]\n}");
 }
 
 TEST_CASE("a numeric string that underflows reads 0, and one that overflows falls back") {

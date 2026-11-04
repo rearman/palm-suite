@@ -305,4 +305,9 @@ std::string from_utf8_lossy(std::string_view bytes) {
 	return out;
 }
 
+// from_utf8_lossy replaces every invalid byte, so its result equals the input only when the input is valid UTF-8.
+bool is_utf8(std::string_view bytes) {
+	return from_utf8_lossy(bytes) == bytes;
+}
+
 } // namespace palm::text

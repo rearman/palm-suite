@@ -241,6 +241,10 @@ std::expected<DesktopStore, std::string> DesktopStore::open(const fs::path& file
 		return std::unexpected(std::format("{}: {}", file.string(), why));
 	}
 	const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+	// read_to_string refuses a file that is not UTF-8, with this io::Error text.
+	if (!text::is_utf8(text)) {
+		return std::unexpected(std::format("{}: stream did not contain valid UTF-8", file.string()));
+	}
 	if (auto r = store.load(text); !r) {
 		return std::unexpected(r.error());
 	}
