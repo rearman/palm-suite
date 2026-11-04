@@ -1,7 +1,8 @@
 // Palm Desktop for Windows and Linux, after Palm Desktop 3.1.1, as desktop-rs/app/src/main.rs.
 //
 // `--shot out.ppm` draws the window offscreen at the display scale (FLTK_SCALING_FACTOR sets it), saves it and exits.
-// It shows the device-pixel drawing on Windows only, as in the spike.
+// It shows the device-pixel drawing on Windows only, as in the spike. `--shot-open "click:X,Y;..."` first runs the
+// steps that open menus, lists and dialogs (shot.hpp), and the capture shows them.
 #include "palm/address.hpp"
 #include "palm/address_dialog.hpp"
 #include "palm/category.hpp"
@@ -68,9 +69,11 @@ struct Target {
 	std::optional<palm::text_edit::Field> field;
 };
 
-// The `--shot` capture: the window to draw and the file to write.
+// The `--shot` capture: the window to draw, the steps of `--shot-open`, the next step to run, and the file to write.
 struct ShotJob {
 	Fl_Window* win;
+	std::vector<palm::shot::Step> steps;
+	std::size_t next;
 	std::string out;
 };
 
@@ -91,13 +94,25 @@ void hourly_sync(void* data) {
 	Fl::repeat_timeout(HOUR, hourly_sync, data);
 }
 
-// The `--shot` timer: it saves the capture, then ends the program.
-void save_shot(void* data) {
+// The `--shot` timer: 1 s after the start and after each step, it runs the next step of `--shot-open`, or saves the
+// capture when no step is left and ends the program. A timer also runs inside the loop of a menu or dialog that an
+// earlier step opened, so a step can act in it.
+void shot_timer(void* data) {
 	auto* job = static_cast<ShotJob*>(data);
+	if (job->next < job->steps.size()) {
+		// Event times 2 s apart, so X11 takes no two steps for a double click.
+		palm::shot::post(*job->win, job->steps[job->next], 2000 * (static_cast<std::uint32_t>(job->next) + 1));
+		++job->next;
+		Fl::add_timeout(1.0, shot_timer, data);
+		return;
+	}
+	int code = 0;
 	if (auto r = palm::shot::save(*job->win, job->out); !r) {
 		std::cerr << "shot: " << r.error() << '\n';
+		code = 1;
 	}
-	Fl::hide_all_windows();
+	// A step can leave a menu or dialog open in a loop of its own, so the program ends here.
+	palm::shot::exit(code);
 }
 
 // The app state, as the App struct of main.rs. main() builds the views into it after the window exists.
@@ -716,6 +731,31 @@ void App::update_position() {
 
 int main(int argc, char** argv) {
 	const std::vector<std::string> args(argv, argv + argc);
+	std::optional<std::size_t> shot_at;
+	std::optional<std::size_t> open_at;
+	for (std::size_t i = 0; i < args.size(); ++i) {
+		if (args[i] == "--shot" && !shot_at) {
+			shot_at = i;
+		}
+		if (args[i] == "--shot-open" && !open_at) {
+			open_at = i;
+		}
+	}
+	// Wayland takes no posted events, so a shot run uses X11 on Linux, on every session alike.
+#ifdef __linux__
+	if (shot_at) {
+		setenv("FLTK_BACKEND", "x11", 1);
+	}
+#endif
+	std::vector<palm::shot::Step> steps;
+	if (open_at) {
+		auto parsed = palm::shot::parse_steps(*open_at + 1 < args.size() ? args[*open_at + 1] : std::string());
+		if (!parsed) {
+			std::cerr << "shot: " << parsed.error() << '\n';
+			std::exit(2);
+		}
+		steps = std::move(*parsed);
+	}
 	// Fl::lock() runs once, before any thread starts that sends a message.
 	Fl::lock();
 	palm::theme::install();
@@ -777,13 +817,6 @@ int main(int argc, char** argv) {
 	a.show_view(palm::msg::from_key(start).value_or(palm::msg::View::Date));
 	a.ui.win->show();
 	palm::mnemonics::refresh();
-	std::optional<std::size_t> shot_at;
-	for (std::size_t i = 0; i < args.size(); ++i) {
-		if (args[i] == "--shot") {
-			shot_at = i;
-			break;
-		}
-	}
 	if (!shot_at) {
 		a.ui.win->maximize();
 	}
@@ -796,8 +829,9 @@ int main(int argc, char** argv) {
 	std::optional<ShotJob> shot;
 	if (shot_at) {
 		std::string out = *shot_at + 1 < args.size() ? args[*shot_at + 1] : std::string("shot.ppm");
-		shot.emplace(ShotJob{a.ui.win, std::move(out)});
-		Fl::add_timeout(1.0, save_shot, &*shot);
+		palm::shot::ignore_real_input();
+		shot.emplace(ShotJob{a.ui.win, std::move(steps), 0, std::move(out)});
+		Fl::add_timeout(1.0, shot_timer, &*shot);
 	}
 
 	// The loop ends when no window is shown, as the Rust loop ends when app.wait() returns false.
