@@ -1,7 +1,8 @@
 //! Palm Desktop for Windows and Linux, after Palm Desktop 3.1.1, as Main.kt and App.kt.
 //!
 //! `--shot out.ppm` draws the window offscreen at the display scale (FLTK_SCALING_FACTOR sets it), saves
-//! it and exits. It shows the device-pixel drawing on Windows only, as in the spike.
+//! it and exits. It shows the device-pixel drawing on Windows only, as in the spike. `--shot-open "click:X,Y;..."`
+//! first runs the steps that open menus, lists and dialogs (shot.rs), and the capture shows them.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -513,8 +514,44 @@ impl App {
 	}
 }
 
+/// The `--shot` timer: 1 s after the start and after each step, it runs step `next` of `--shot-open`, or saves
+/// the capture when no step is left and ends the program. A timer also runs inside the loop of a menu or dialog
+/// that an earlier step opened, so a step can act in it.
+fn shot_timer(win: fltk::window::Window, steps: Vec<shot::Step>, next: usize, out: String) {
+	app::add_timeout3(1.0, move |_| {
+		if let Some(&step) = steps.get(next) {
+			// Event times 2 s apart, so X11 takes no two steps for a double click.
+			shot::post(&win, step, 2000 * (next as u32 + 1));
+			shot_timer(win.clone(), steps.clone(), next + 1, out.clone());
+			return;
+		}
+		let code = match shot::save(&win, &out) {
+			Ok(()) => 0,
+			Err(e) => {
+				eprintln!("shot: {e}");
+				1
+			}
+		};
+		// A step can leave a menu or dialog open in a loop of its own, so the program ends here.
+		shot::exit(code);
+	});
+}
+
 fn main() {
 	let args: Vec<String> = std::env::args().collect();
+	let shot_at = args.iter().position(|x| x == "--shot");
+	// Wayland takes no posted events, so a shot run uses X11 on Linux, on every session alike.
+	#[cfg(target_os = "linux")]
+	if shot_at.is_some() {
+		std::env::set_var("FLTK_BACKEND", "x11");
+	}
+	let steps = match args.iter().position(|x| x == "--shot-open") {
+		Some(i) => shot::parse_steps(args.get(i + 1).map_or("", |s| s.as_str())).unwrap_or_else(|e| {
+			eprintln!("shot: {e}");
+			std::process::exit(2);
+		}),
+		None => Vec::new(),
+	};
 	let fl = app::App::default().load_system_fonts();
 	theme::install();
 	let (sender, receiver) = app::channel::<Msg>();
@@ -585,7 +622,6 @@ fn main() {
 	a.show_view(View::from_key(&start).unwrap_or(View::Date));
 	a.ui.win.show();
 	mnemonics::refresh();
-	let shot_at = args.iter().position(|x| x == "--shot");
 	if shot_at.is_none() {
 		a.ui.win.maximize();
 	}
@@ -600,13 +636,8 @@ fn main() {
 
 	if let Some(i) = shot_at {
 		let out = args.get(i + 1).cloned().unwrap_or_else(|| "shot.ppm".into());
-		let win = a.ui.win.clone();
-		app::add_timeout3(1.0, move |_| {
-			if let Err(e) = shot::save(&win, &out) {
-				eprintln!("shot: {e}");
-			}
-			app::quit();
-		});
+		shot::ignore_real_input();
+		shot_timer(a.ui.win.clone(), steps, 0, out);
 	}
 
 	while fl.wait() {

@@ -48,6 +48,6 @@ The view phases followed the Memo Pad: build the view in its group of the main w
 
 - Build in a short work copy (`~/.cache/ps/desktop-rs`): a long path breaks the FLTK build on the Windows 260-character limit. Copy the files into the repository for the commit.
 - This machine builds Rust with the GNU host; `~/.cargo/config.toml` names the MSYS2 compilers and Ninja. CI builds the MSVC release.
-- Test the app with `APPDATA` (Windows) or `XDG_CONFIG_HOME` (Linux) pointing at a folder of copies, never at the real files while a change is in progress. `palm-desktop --shot out.ppm` saves an offscreen capture at `FLTK_SCALING_FACTOR`.
+- Test the app with `APPDATA` (Windows) or `XDG_CONFIG_HOME` (Linux) pointing at a folder of copies, never at the real files while a change is in progress. `palm-desktop --shot out.ppm` saves an offscreen capture at `FLTK_SCALING_FACTOR`; `--shot-open "click:X,Y;rclick:X,Y;dclick:X,Y;move:X,Y"` first runs those mouse steps, one a second, so the capture shows the menus, lists, and dialogs they open (`shot.rs`).
 - Never send simulated keys to the desktop: they reach whatever window is in front.
 - Real data stays out of the repository. `real_files_round_trip` checks copies when `PALM_REAL_DATA` names their folder.
