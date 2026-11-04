@@ -136,6 +136,7 @@ MemoTable::MemoTable(int x, int y, int w, int h, std::shared_ptr<int> lead, msg:
 	row_header(0);
 	box(FL_DOWN_BOX);
 	color(FL_WHITE);
+	end();
 }
 
 void MemoTable::draw_cell(TableContext context, int row, int col, int x, int y, int w, int h) {
