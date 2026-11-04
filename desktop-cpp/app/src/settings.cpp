@@ -210,22 +210,6 @@ std::string escape(std::string_view s, bool escape_space) {
 	return out;
 }
 
-// The i32 that Rust's str::parse gives: an optional sign and digits, and nothing else.
-std::optional<int> parse_int(std::string_view s) {
-	if (s.starts_with('+')) {
-		s.remove_prefix(1);
-		if (s.starts_with('+') || s.starts_with('-')) {
-			return std::nullopt;
-		}
-	}
-	int value = 0;
-	const auto [end, ec] = std::from_chars(s.data(), s.data() + s.size(), value);
-	if (ec != std::errc() || end != s.data() + s.size()) {
-		return std::nullopt;
-	}
-	return value;
-}
-
 // The date line of a save: the local time as java.util.Date.toString writes it, e.g. "Tue Nov 03 10:15:00 CST 2026".
 // The zone abbreviation comes from platform::local_zone, as jiff's %Z gives it ("EST"); the C runtime's %Z gives
 // the Windows name ("Eastern Standard Time").
@@ -284,7 +268,7 @@ int Settings::get_int(std::string_view key, int def) const {
 	if (it == props.end()) {
 		return def;
 	}
-	return parse_int(it->second).value_or(def);
+	return text::parse_i32(it->second).value_or(def);
 }
 
 std::expected<void, std::string> Settings::set_int(std::string_view key, int value) {

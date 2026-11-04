@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -59,5 +60,8 @@ std::string from_utf8_lossy(std::string_view bytes);
 
 // Whether bytes are valid UTF-8, as Rust's str::from_utf8 and read_to_string require.
 bool is_utf8(std::string_view bytes);
+
+// The i32 that Rust's str::parse gives: an optional sign and digits, and nothing else.
+std::optional<int> parse_i32(std::string_view s);
 
 } // namespace palm::text

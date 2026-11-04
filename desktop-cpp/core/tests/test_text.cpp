@@ -5,8 +5,11 @@
 
 #include <doctest/doctest.h>
 
+#include <limits>
+
 using palm::text::is_utf8;
 using palm::text::lower_one;
+using palm::text::parse_i32;
 using palm::text::to_lowercase;
 using palm::text::to_uppercase;
 using palm::text::upper_one;
@@ -55,4 +58,17 @@ TEST_CASE("is_utf8 tells valid UTF-8 from bytes that are not") {
 	CHECK_FALSE(is_utf8("\xFF"));
 	CHECK_FALSE(is_utf8("\xC3"));
 	CHECK_FALSE(is_utf8("\xED\xA0\x80"));
+}
+
+TEST_CASE("parse_i32 takes what Rust's str::parse takes") {
+	CHECK_EQ(parse_i32("42"), 42);
+	CHECK_EQ(parse_i32("+7"), 7);
+	CHECK_EQ(parse_i32("-7"), -7);
+	CHECK_EQ(parse_i32("-2147483648"), std::numeric_limits<int>::min());
+	CHECK_FALSE(parse_i32("2147483648"));
+	CHECK_FALSE(parse_i32(""));
+	CHECK_FALSE(parse_i32("+"));
+	CHECK_FALSE(parse_i32("+-1"));
+	CHECK_FALSE(parse_i32(" 1"));
+	CHECK_FALSE(parse_i32("1a"));
 }

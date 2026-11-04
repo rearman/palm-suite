@@ -2,12 +2,14 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 namespace palm::text {
@@ -355,6 +357,21 @@ std::string from_utf8_lossy(std::string_view bytes) {
 // from_utf8_lossy replaces every invalid byte, so its result equals the input only when the input is valid UTF-8.
 bool is_utf8(std::string_view bytes) {
 	return from_utf8_lossy(bytes) == bytes;
+}
+
+std::optional<int> parse_i32(std::string_view s) {
+	if (s.starts_with('+')) {
+		s.remove_prefix(1);
+		if (s.starts_with('+') || s.starts_with('-')) {
+			return std::nullopt;
+		}
+	}
+	int value = 0;
+	const auto [end, ec] = std::from_chars(s.data(), s.data() + s.size(), value);
+	if (ec != std::errc() || end != s.data() + s.size()) {
+		return std::nullopt;
+	}
+	return value;
 }
 
 } // namespace palm::text
