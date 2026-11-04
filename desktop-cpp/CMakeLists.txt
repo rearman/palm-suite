@@ -177,6 +177,13 @@ endforeach()
 # The app: app/src/main.cpp, a GUI program on Windows (no console window).
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/app/src/main.cpp)
 	add_executable(palm-desktop WIN32 app/src/main.cpp)
+	# On Windows the program carries the app icon of desktop/packaging, which Explorer, the taskbar, and the
+	# shortcuts show.
+	if(WIN32)
+		set(app_rc ${CMAKE_CURRENT_BINARY_DIR}/palm-desktop.rc)
+		file(WRITE ${app_rc} "1 ICON \"${CMAKE_CURRENT_SOURCE_DIR}/../desktop/packaging/palm-desktop.ico\"\n")
+		target_sources(palm-desktop PRIVATE ${app_rc})
+	endif()
 	list(TRANSFORM PALM_UI_MODULES PREPEND palm_ OUTPUT_VARIABLE ui_libs)
 	target_link_libraries(palm-desktop PRIVATE ${ui_libs})
 endif()

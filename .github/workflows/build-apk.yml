@@ -410,8 +410,9 @@ jobs:
           path: desktop-rs/shots
 
   # The C++ port of the desktop app (desktop-cpp/), core first: the modules and their doctest tests, built with
-  # CMake and run with CTest. Windows amd64 (MSYS2), Linux amd64 and arm64. Nothing is released yet; the Linux
-  # apps are uploaded for the desktop-shots job.
+  # CMake and run with CTest. Windows amd64 (MSYS2), Linux amd64 and arm64. Each build is packaged (an MSI, a
+  # tar.gz) and uploaded; nothing is released before the cutover. The Linux apps are uploaded for the
+  # desktop-shots job too.
   desktop-cpp:
     strategy:
       fail-fast: false
@@ -497,8 +498,66 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-      # The Linux app for the screenshot check of the desktop-shots job. The Windows build needs the MSYS2
-      # runtime DLLs beside it, so it is not uploaded until packaging bundles them.
+      # WiX 3 for the MSI. The runner image may have WiX 3.14; install it only where it is missing.
+      - name: Install WiX
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          [ -x "/c/Program Files (x86)/WiX Toolset v3.14/bin/candle.exe" ] || choco install wixtoolset -y --no-progress
+
+      # desktop-cpp/packaging/package.sh: on Windows an MSI with the MSYS2 DLLs the app loads, on Linux a tar.gz
+      # with the app and the icon. Until the cutover the version is 0.0.<run> and the files carry "cpp" in
+      # their names.
+      - name: Package
+        id: pkg
+        run: |
+          app=build/palm-desktop
+          if [ "$RUNNER_OS" = Windows ]; then
+            app=$app.exe
+            export PATH="$PATH:/c/Program Files (x86)/WiX Toolset v3.14/bin"
+            file=palm-desktop-cpp-${{ matrix.name }}.msi
+          else
+            file=palm-desktop-cpp-${{ matrix.name }}.tar.gz
+          fi
+          bash packaging/package.sh "$app" "0.0.$GITHUB_RUN_NUMBER" "$file"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+
+      # Install the MSI for this user with no UI, check the program and both shortcuts, start the installed
+      # program with only the Windows folders on PATH (so a DLL missing from the MSI fails), take a shot, and
+      # remove it again.
+      - name: Check the MSI
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $msi = (Resolve-Path "${{ steps.pkg.outputs.file }}").Path
+          $log = "$env:RUNNER_TEMP\install.log"
+          $p = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /l*v `"$log`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content $log -Tail 60; throw "install failed: exit $($p.ExitCode)" }
+          $exe = "$env:LOCALAPPDATA\Palm Desktop\palm-desktop.exe"
+          if (-not (Test-Path $exe)) { throw "no program at $exe" }
+          $menu = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Palm\Palm Desktop.lnk"
+          if (-not (Test-Path $menu)) { throw "no shortcut at $menu" }
+          $desk = Join-Path ([Environment]::GetFolderPath('Desktop')) "Palm Desktop.lnk"
+          if (-not (Test-Path $desk)) { throw "no shortcut at $desk" }
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $env:APPDATA = "$env:RUNNER_TEMP\appdata"
+          New-Item -ItemType Directory -Force $env:APPDATA | Out-Null
+          $shot = "$env:RUNNER_TEMP\installed.ppm"
+          $p = Start-Process $exe -ArgumentList "--shot `"$shot`"" -PassThru
+          $null = $p.Handle
+          if (-not $p.WaitForExit(60000)) { $p.Kill(); throw "the installed program did not exit" }
+          if ($p.ExitCode -ne 0 -or -not (Test-Path $shot)) { throw "the installed program failed: exit $($p.ExitCode)" }
+          $p = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "uninstall failed: exit $($p.ExitCode)" }
+          if ((Test-Path $exe) -or (Test-Path $menu) -or (Test-Path $desk)) { throw "uninstall left files" }
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          path: desktop-cpp/${{ steps.pkg.outputs.file }}
+          archive: false
+
+      # The Linux app for the screenshot check of the desktop-shots job.
       - name: Name the app
         if: runner.os == 'Linux'
         run: cp build/palm-desktop palm-desktop-cpp-${{ matrix.name }}
