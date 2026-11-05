@@ -133,6 +133,8 @@ class TimeDialog(
             "All Day sets the start and end times of the Preferences.\n\nNo Time makes an event with no time."
     }
 
+    // An event with no time keeps no time until a time is picked: the time boxes stay empty, and OK keeps it.
+    private var none = untimed
     private var s = if (untimed) 8 * 60 else start
     private var e = if (untimed) 9 * 60 else end
     private var editingEnd = false
@@ -158,6 +160,7 @@ class TimeDialog(
         place(ctx.palmButton("All Day", 50) {
             s = allDay.first * 60
             e = minOf(allDay.last * 60, 24 * 60 - 1)
+            none = false
             editingEnd = false
             draw()
         }.apply { typeface = Palm.typeface(ctx, true) }, 10, 96)
@@ -169,7 +172,7 @@ class TimeDialog(
         // The body runs down under the button row, so the lists reach form y 150. A negative
         // top margin keeps the button row at form y 137 to 155.
         buttons.layoutParams = LP(MATCH, WRAP).apply { topMargin = -ctx.pp(18) }
-        button("OK", 37) { dismiss(); onPick(false, s, maxOf(e, s)) }
+        button("OK", 37) { dismiss(); onPick(none, s, maxOf(e, s)) }
         button("Cancel", 37) { dismiss() }
         draw()
     }
@@ -187,6 +190,7 @@ class TimeDialog(
 
     private fun set(v: Int) {
         val t = v.coerceIn(0, 24 * 60 - 1)
+        none = false
         if (editingEnd) {
             e = maxOf(t, s)
         } else {
@@ -202,17 +206,18 @@ class TimeDialog(
     private fun pickMinute(m: Int) = set((cur() / 60) * 60 + m)
 
     private fun draw() {
-        startBox.text = Fmt.time(s)
-        endBox.text = Fmt.time(e)
+        startBox.text = if (none) "" else Fmt.time(s)
+        endBox.text = if (none) "" else Fmt.time(e)
         for ((i, b) in listOf(startBox, endBox).withIndex()) {
             val sel = (i == 1) == editingEnd
             b.background = ctx.box(if (sel) Palm.INK else Palm.paper, Palm.INK, 1f, 0f)
             b.setTextColor(if (sel) Palm.paper else Palm.INK)
         }
         val v = cur()
-        hourList.current = v / 60
+        // With no time, no row is inverted; the hour list still opens at 8.
+        hourList.current = if (none) -1 else v / 60
         hourList.showRow(v / 60)
-        minList.current = (v % 60) / 5
+        minList.current = if (none) -1 else (v % 60) / 5
     }
 }
 
