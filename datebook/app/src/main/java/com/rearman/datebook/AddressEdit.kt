@@ -11,6 +11,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import kotlin.math.ceil
 
 /*
  * Address Edit screen, after the Palm OS 3.5 Address Book. The working copy is
@@ -31,7 +32,10 @@ internal fun MainActivity.buildAddressEdit(h: LinearLayout, content: FrameLayout
     })
 
     val col = vbox().apply { setPadding(pp(2), pp(1), pp(2), pp(1)) }
+    // The label column is 45 Palm px, or as wide as its widest label (at most half the screen), so no label wraps.
+    val names = mutableListOf<TextView>()
     fun row(name: TextView, input: View) {
+        names.add(name.apply { setSingleLine(true); ellipsize = android.text.TextUtils.TruncateAt.END })
         col.addView(hbox(Gravity.TOP).apply {
             addView(name, LP(pp(45), WRAP))
             addView(input, LP(0, WRAP, 1f).apply { marginStart = pp(2) })
@@ -77,6 +81,10 @@ internal fun MainActivity.buildAddressEdit(h: LinearLayout, content: FrameLayout
         })
     }
 
+    val nameW = names.maxOf { n -> ceil(android.text.Layout.getDesiredWidth(n.text, n.paint)).toInt() + n.paddingLeft + n.paddingRight }
+        .coerceIn(pp(45), resources.displayMetrics.widthPixels / 2)
+    names.forEach { it.layoutParams.width = nameW }
+
     withScrollBar(content, ScrollView(this).apply {
         addView(col)
         isFillViewport = true
@@ -94,7 +102,7 @@ internal fun MainActivity.buildAddressEdit(h: LinearLayout, content: FrameLayout
     cmds.addView(View(this), LP(0, 1, 1f))
 }
 
-/** A bold field name, right-aligned in the 45 Palm px label column. The fields start at x 49, as in the Palm III screen. */
+/** A bold field name, right-aligned in the label column (45 Palm px or more). With 45, the fields start at x 49, as in the Palm III screen. */
 private fun MainActivity.nameLabel(text: String): TextView =
     label(text, bold = true).apply { gravity = Gravity.END }
 

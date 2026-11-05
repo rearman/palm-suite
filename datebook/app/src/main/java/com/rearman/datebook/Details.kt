@@ -90,20 +90,25 @@ private fun LinearLayout.topPx(p: Int) {
 class TodoDetails(private val act: MainActivity, private val t: Todo) : PalmDialog(act, "To Do Item Details", height = 101,
     tips = "Tap a number to set the priority: 1 is the most important.\n\nTap Due Date to set when the item is due.\n\n" +
         "Check Private to hide or mask the item with Security.") {
+    private companion object {
+        // The labels end at form x 54: "Category:" and "Due Date:" are 50 px wide in this font, so all four controls line up.
+        const val LABEL_END = 54
+    }
+
     private val work = t.copy()
 
     init {
         val pri = PushGroup(act, listOf("1", "2", "3", "4", "5"), work.priority - 1,
             height = 11, widths = listOf(11, 11, 11, 11, 11)) { g -> work.priority = g.selected + 1 }
-        row("Priority:", pri.view)
+        row("Priority:", pri.view, labelEnd = LABEL_END)
 
         row("Category:", act.popupTrigger(act.store.categoryName(work.category)) { tv ->
             act.pickCategory(tv, work.category, includeAll = false) { id -> work.category = id; tv.setTrigger(act.store.categoryName(id)) }
-        }).topPx(0)
+        }, labelEnd = LABEL_END).topPx(0)
         row("Due Date:", act.popupTrigger(dueText(work.due)) { tv ->
             act.pickDue(tv, work.due) { d -> work.due = d; tv.setTrigger(dueText(d)) }
-        }).topPx(1)
-        row("Private:", act.checkBox("", work.isPrivate) { b -> work.isPrivate = b }).topPx(0)
+        }, labelEnd = LABEL_END).topPx(1)
+        row("Private:", act.checkBox("", work.isPrivate) { b -> work.isPrivate = b }, labelEnd = LABEL_END).topPx(0)
 
         button("OK", 25) { dismiss(); act.saveTodo(work) }
         button("Cancel", 35) { dismiss() }
@@ -134,9 +139,9 @@ internal fun Context.placeForm(area: FrameLayout, v: View, x: Int, y: Int, w: In
     area.addView(v, lp)
 }
 
-/** A bold label that ends at form x [right], with its top at form y [y]. */
+/** A bold label that ends at form x [right], with its top at form y [y]. It has room to the form edge, so it never wraps. */
 internal fun Context.rightLabel(area: FrameLayout, text: String, right: Int, y: Int) =
-    placeForm(area, label(text, bold = true).apply { gravity = Gravity.END }, 4, y, right - 4, 11)
+    placeForm(area, label(text, bold = true).apply { gravity = Gravity.END; setSingleLine(true) }, 0, y, right, 11)
 
 fun MainActivity.showPreferences() {
     val d = PalmDialog(this, "Preferences", height = 156,

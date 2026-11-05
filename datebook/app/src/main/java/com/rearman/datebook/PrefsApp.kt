@@ -56,8 +56,8 @@ private fun MainActivity.editShortCut(sc: ShortCut?) {
             "ShortCut Text is the text that takes its place.")
     val nameField = field(sc?.name ?: "", "ShortCut name")
     val textField = field(sc?.text ?: "", "ShortCut text")
-    d.row("ShortCut Name:", nameField, labelEnd = 64)
-    d.row("ShortCut Text:", textField, labelEnd = 64)
+    d.row("ShortCut Name:", nameField, labelEnd = 85)
+    d.row("ShortCut Text:", textField, labelEnd = 85)
     d.button("OK", 22) {
         val name = nameField.text.toString().trim()
         when {

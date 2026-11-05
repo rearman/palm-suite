@@ -198,6 +198,9 @@ fun Context.selector(text: String, onClick: (TextView) -> Unit): TextView =
 	label(text).apply {
 		background = box(Color.TRANSPARENT, Palm.GRAY, 1f, 1f, dashed = true)
 		setPadding(pp(2), 0, pp(2), 0)
+		// A value too long for its room ends in an ellipsis; it never wraps.
+		setSingleLine(true)
+		ellipsize = TextUtils.TruncateAt.END
 		setOnClickListener { onClick(this) }
 	}
 
@@ -205,6 +208,8 @@ fun Context.selector(text: String, onClick: (TextView) -> Unit): TextView =
 fun Context.popupTrigger(text: String, onClick: (TextView) -> Unit): TextView =
 	label("▼ $text", bold = true).apply {
 		setPadding(pp(1), pp(1), pp(2), pp(1))
+		setSingleLine(true)
+		ellipsize = TextUtils.TruncateAt.END
 		setOnClickListener { onClick(this) }
 	}
 
@@ -219,6 +224,7 @@ fun Context.checkBox(text: String, checked: Boolean, onChange: (Boolean) -> Unit
 		includeFontPadding = false
 		typeface = Palm.typeface(context, true)
 		buttonDrawable = PalmCheckDrawable(this@checkBox, pp(10))
+		setSingleLine(true)
 		minHeight = pp(14)
 		minimumHeight = pp(14)
 		minWidth = 0
@@ -401,6 +407,8 @@ open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, heigh
 	val body: LinearLayout = ctx.vbox().apply { setPadding(ctx.pp(3), ctx.pp(2), ctx.pp(3), ctx.pp(1)) }
 	val buttons: LinearLayout = ctx.hbox().apply { setPadding(ctx.pp(4), ctx.pp(2), ctx.pp(4), ctx.pp(4)) }
 	private val c = ctx
+	private val full = height >= 160
+	private val cmdButtons = mutableListOf<TextView>()
 
 	init {
 		requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -460,7 +468,7 @@ open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, heigh
 	 */
 	fun row(name: String, vararg views: View, labelEnd: Int = 51): LinearLayout {
 		val r = c.hbox()
-		r.addView(c.label(name, bold = true).apply { gravity = Gravity.END; minWidth = c.pp(labelEnd - 4) },
+		r.addView(c.label(name, bold = true).apply { gravity = Gravity.END; setSingleLine(true); minWidth = c.pp(labelEnd - 4) },
 			lp().apply { marginEnd = c.pp(5) })
 		views.forEach { r.addView(it, lp().apply { marginEnd = c.pp(2) }) }
 		body.addView(r, LP(MATCH, c.pp(14)).apply { topMargin = c.pp(2) })
@@ -472,7 +480,37 @@ open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, heigh
 		val b = c.palmButton(text, width, onClick)
 		// The gap goes before each button after the first, so the last button keeps its full width.
 		buttons.addView(b, lp().apply { if (buttons.childCount > 0) marginStart = c.pp(6) })
+		cmdButtons.add(b)
 		return b
+	}
+
+	override fun onStart() {
+		super.onStart()
+		fitButtons()
+	}
+
+	/**
+	 * Fits a button row wider than the form: the buttons first drop their Palm widths to fit their
+	 * text, then the gaps between them narrow, to 2 px at the least. A row that fits is left as it is.
+	 */
+	private fun fitButtons() {
+		val formW = if (full) c.resources.displayMetrics.widthPixels else c.pp(156)
+		val avail = formW - c.pp(2) - buttons.paddingLeft - buttons.paddingRight
+		val spec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+		fun total(): Int = (0 until buttons.childCount).sumOf { i ->
+			val v = buttons.getChildAt(i)
+			v.measure(spec, spec)
+			val lp = v.layoutParams as ViewGroup.MarginLayoutParams
+			v.measuredWidth + lp.marginStart + lp.marginEnd
+		}
+		if (total() <= avail) return
+		cmdButtons.forEach { it.minWidth = 0 }
+		val over = total() - avail
+		if (over <= 0) return
+		val gaps = cmdButtons.drop(1).map { it.layoutParams as ViewGroup.MarginLayoutParams }.filter { it.marginStart > 0 }
+		if (gaps.isEmpty()) return
+		val cut = (over + gaps.size - 1) / gaps.size
+		gaps.forEach { it.marginStart = maxOf(c.pp(2), it.marginStart - cut) }
 	}
 
 	/** A message in the body (the launcher forms). */

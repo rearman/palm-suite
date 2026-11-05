@@ -15,9 +15,9 @@ fun MainActivity.showSync() {
     val tokenField = field("", if (prefs.syncOn) "Saved" else "Device token")
     val passField = field("", if (prefs.syncOn) "Saved" else "Sync passphrase")
     passField.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-    d.row("Server:", serverField, labelEnd = 50)
-    d.row("Token:", tokenField, labelEnd = 50)
-    d.row("Passphrase:", passField, labelEnd = 50)
+    d.row("Server:", serverField, labelEnd = 65)
+    d.row("Token:", tokenField, labelEnd = 65)
+    d.row("Passphrase:", passField, labelEnd = 65)
 
     val last = prefs.syncLast
     d.message(
