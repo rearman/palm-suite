@@ -159,8 +159,7 @@ class MainActivity : Activity() {
 
 	// Builds the whole screen. keepScroll: stay at the same place in the app list; else go to the top.
 	fun render(keepScroll: Boolean = false) {
-		// All Palm text (launcher, dialogs, menus) uses the Text Size option.
-		Palm.text = state.textSize.palmPx
+		// The Text Size option sets the launcher text (font()); dialogs, menus, and lists keep the Palm form font.
 		val y = if (keepScroll) scroll?.scrollY ?: 0 else 0
 		// Options change the cell layout, so cells are built again.
 		cellCache.clear()
@@ -243,7 +242,7 @@ class MainActivity : Activity() {
 	// Sets the Palm OS font and the Text Size of launcher text; call it after the text is set. Glyphs the
 	// font does not have (▼, ✓) shrink to 0.6, as in Datebook (symbols).
 	internal fun TextView.font(bold: Boolean) {
-		setTextSize(TypedValue.COMPLEX_UNIT_PX, ppf(Palm.text))
+		setTextSize(TypedValue.COMPLEX_UNIT_PX, ppf(state.textSize.palmPx))
 		typeface = Palm.typeface(this@MainActivity, bold)
 		includeFontPadding = false
 		text = symbols(text)

@@ -606,9 +606,12 @@ open class MainActivity : Activity() {
 
     fun render() {
         eventBox?.dismiss(); eventBox = null
-        // The Palm Font option: small (the standard font), bold, or large (the large bold font).
-        Palm.text = if (prefs.font == 2) 20f else 16f
-        Palm.textBold = prefs.font != 0
+        // The Palm Font option: small (the standard font), bold, or large (the large bold font). It sets the
+        // font of the screen only; dialogs, menus, and pop-up lists keep the form font, as on the Palm.
+        Palm.views(if (prefs.font == 2) 20f else 16f, prefs.font != 0) { buildScreen() }
+    }
+
+    private fun buildScreen() {
         Fmt.h24 = DateFormat.is24HourFormat(this)
         root.removeAllViews()
         root.setBackgroundColor(Palm.paper)

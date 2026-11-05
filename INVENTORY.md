@@ -793,7 +793,7 @@ Actions with no control of their own.
 | Status bar hidden; swipe down shows it for a moment                | every window                                | hideStatusBar       |      |       |       |
 | Alarm notification: Snooze and OK                                  | Date Book                                   | AlarmReceiver       |      |       |       |
 | Sync on open, 1 s after a change, and hourly                       | all apps                                    | SyncEngine          |      |       |       |
-| Font option changes every screen and dialog                        | all apps                                    | render              |      |       |       |
+| Font option changes every screen; dialogs keep the form font       | all apps                                    | render, Palm.views  |      |       |       |
 | Masked private record: 50% gray bar with the lock; Hide removes it | every record list                           | isMasked, maskedBar |      |       |       |
 | Empty list message                                                 | Day, Agenda, To Do, Memo List, Address List | build*              |      |       |       |
 

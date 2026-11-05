@@ -84,7 +84,7 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Font, Security (show, mask or hide private records) and Purge. The screen is always the Green LCD color.
 - Security: Mask Records and Hide Records ask first. A masked record shows a gray bar with a lock. Tap it to show the record. Tap Password to set a password. With a password, you must enter it to show private records.
 - Many forms have a Tips icon (i) at the right of the title. Tap it to read a tip.
-- All screens use the proportions of the Palm IIIxe: the screen width is 160 Palm pixels, and the Font option selects the Palm small, bold or large font. Select Font shows three A buttons (small, bold and large) and no sample text. All text uses the Palm OS font.
+- All screens use the proportions of the Palm IIIxe: the screen width is 160 Palm pixels, and the Font option selects the Palm small, bold or large font for the screens. Dialogs, menus and lists always use the small font, as on the Palm. Select Font shows three A buttons (small, bold and large) and no sample text. All text uses the Palm OS font.
 - On a screen that is taller than it is wide, the keyboard stays open below the app, and the app uses the area above the keyboard. On a square screen, the keyboard opens only when you select a line of text.
 - Export Backup and Import Backup save and load all records, including addresses, as a JSON file. Import skips a record that is the same as a record on the device.
 - Delete Event, Delete To Do and Delete Memo have a Save archive copy on PC check box. When it is set, the app saves a backup file of the record before it deletes the record.

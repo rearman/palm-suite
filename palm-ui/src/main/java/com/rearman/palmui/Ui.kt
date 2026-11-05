@@ -55,15 +55,41 @@ object Palm {
 	/** The Green LCD paper color. */
 	val paper = 0xFFC9D3A8.toInt()
 	/**
-	 * Text size in Palm pixels, set by each app from its font option. 16 draws the Palm OS font at one
-	 * font pixel per Palm pixel, with an 11 px line.
+	 * The form text size in Palm pixels: 16 draws the Palm OS font at one font pixel per Palm pixel,
+	 * with an 11 px line. Forms, menus, and pop-up lists always use it, as on the Palm.
 	 */
-	var text = 16f
+	const val FORM_TEXT = 16f
 	/**
-	 * True when the font option is bold or large: then the regular text also draws in the bold
-	 * Palm font, as the Palm bold and large fonts do. Each app sets it with [text].
+	 * Text size in Palm pixels of the views being built: [FORM_TEXT], save inside [views], which sets
+	 * the size of the app's font option.
+	 */
+	var text = FORM_TEXT
+		private set
+	/**
+	 * True inside [views] when the font option is bold or large: then the regular text also draws in
+	 * the bold Palm font, as the Palm bold and large fonts do.
 	 */
 	var textBold = false
+		private set
+
+	/**
+	 * Builds a screen with the app's font option ([size] in Palm px, all text bold with [bold]), then
+	 * returns to the form font. Views built outside it (dialogs, menus, pop-up lists) keep the form
+	 * font, so their fixed Palm layouts fit at every font option.
+	 */
+	fun <T> views(size: Float, bold: Boolean, build: () -> T): T {
+		// The font in force before, so a render nested in another keeps the outer one's font.
+		val oldText = text
+		val oldBold = textBold
+		text = size
+		textBold = bold
+		try {
+			return build()
+		} finally {
+			text = oldText
+			textBold = oldBold
+		}
+	}
 	/** True when the windows draw into the camera cutout ([hideStatusBar]). The launcher sets it. */
 	var intoCutout = false
 
