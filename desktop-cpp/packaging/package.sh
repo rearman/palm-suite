@@ -5,8 +5,8 @@
 #
 # Windows (an MSYS2 MINGW64 shell, or Git Bash with the mingw64 bin folder first on PATH, and the WiX 3 bin
 # folder on PATH): an MSI of palm-desktop.wxs that holds the program and the MSYS2 DLLs it loads. Linux: a
-# tar.gz of one palm-desktop folder with the program and the icon. The version is a.b.c; the MSI takes it as
-# its product version, and the tar.gz ignores it.
+# tar.gz of one palm-desktop folder with the program and the icon. The version is a.b or a.b.c (a desktop-v
+# tag gives 0.24); the MSI takes it as its product version, and the tar.gz ignores it.
 set -euo pipefail
 
 if [ $# -ne 3 ]; then
@@ -17,8 +17,7 @@ app=$1
 version=$2
 out=$3
 here=$(cd "$(dirname "$0")" && pwd)
-icons="$here/../../desktop/packaging"
-echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "bad version $version" >&2; exit 1; }
+echo "$version" | grep -Eq '^[0-9]+(\.[0-9]+){1,2}$' || { echo "bad version $version" >&2; exit 1; }
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -51,7 +50,7 @@ MINGW* | MSYS*)
 		echo '</Include>'
 	} > "$work/files.wxi"
 	candle.exe -nologo -arch x64 -ext WixUIExtension -dVersion="$version" \
-		-dIcon="$(cygpath -w "$icons/palm-desktop.ico")" -I"$(cygpath -w "$work")" \
+		-dIcon="$(cygpath -w "$here/palm-desktop.ico")" -I"$(cygpath -w "$work")" \
 		-out "$(cygpath -w "$work/palm-desktop.wixobj")" "$(cygpath -w "$here/palm-desktop.wxs")"
 	light.exe -nologo -ext WixUIExtension -cultures:en-us -out "$(cygpath -w "$work/palm-desktop.msi")" \
 		"$(cygpath -w "$work/palm-desktop.wixobj")"
@@ -61,7 +60,7 @@ Linux)
 	mkdir -p "$work/palm-desktop"
 	cp "$app" "$work/palm-desktop/palm-desktop"
 	strip "$work/palm-desktop/palm-desktop"
-	cp "$icons/palm-desktop.png" "$work/palm-desktop/palm-desktop.png"
+	cp "$here/palm-desktop.png" "$work/palm-desktop/palm-desktop.png"
 	tar -C "$work" -czf "$out" palm-desktop
 	;;
 *)

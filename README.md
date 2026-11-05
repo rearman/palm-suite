@@ -203,9 +203,14 @@ The desktop keeps the Address Book records for sync.
   official Palm Desktop is installed, clear the desktop shortcut box: both
   shortcuts are named "Palm Desktop". Run a newer MSI to update. Your
   records stay.
-- Linux: download `palm-desktop-linux.tar.gz`, unpack it and run
-  `palm-desktop/bin/palm-desktop`. To update, unpack a newer one over it.
-- Both packages hold their own Java runtime.
+- Linux: download `palm-desktop-linux-x86_64.tar.gz` (or
+  `palm-desktop-linux-arm64.tar.gz`), unpack it and run
+  `palm-desktop/palm-desktop`. To update, unpack a newer one over it. It
+  needs glibc 2.38 or later (Ubuntu 24.04, Debian 13, Fedora 39 and later),
+  Cairo, Pango, libcurl and OpenSSL 3, and opens a Wayland window, else an
+  X11 one.
+- Versions before 0.24 were a Java (Swing) app. The MSI of 0.24 and later
+  replaces such an install in place, and your records stay.
 - Gentoo: see [Gentoo](#gentoo).
 - The app keeps its records in `desktop-data.json` in your config folder
   (`%APPDATA%\palm-suite` on Windows, `~/.config/palm-suite` on Linux). It
@@ -237,7 +242,7 @@ The desktop keeps the Address Book records for sync.
   bitmaps. See [Palm Desktop artwork](#palm-desktop-artwork).
 - The app icon (window, taskbar, shortcuts and installer) follows the style of
   the Android icons: a monitor showing the Date Book page.
-  `desktop/packaging/make-icon.py` draws it and writes `palm-desktop.ico`,
+  `desktop-cpp/packaging/make-icon.py` draws it and writes `palm-desktop.ico`,
   `palm-desktop.png` and the `app*.png` window icons.
 - Each category list ends with Edit Categories..., which opens the category
   editor of the To Do List or the Memo Pad.
@@ -263,10 +268,11 @@ The desktop keeps the Address Book records for sync.
 ### Gentoo
 
 The folder `gentoo/` is a Portage overlay with one package,
-`app-office/palm-desktop-bin`. It installs the jars of a `desktop-v*`
-release (`palm-desktop-jars.tar.gz`), a `palm-desktop` command and a menu
-entry. It runs on the system Java 17 or later and uses Liberation Sans. The
-first release with the jars is `desktop-v0.8`.
+`app-office/palm-desktop-bin`. It installs the program of a `desktop-v*`
+release (`palm-desktop-linux-x86_64.tar.gz` or
+`palm-desktop-linux-arm64.tar.gz`) as the `palm-desktop` command, with a
+menu entry. It uses Liberation Sans. Up to 0.23 it installed the jars of the
+Java app and ran them on the system Java.
 
 Portage can sync an overlay only from the root of a git repository, and the
 overlay is a folder of this one. So clone the repository, and point Portage
@@ -298,7 +304,7 @@ emerge --ask --update app-office/palm-desktop-bin
 
 # Palm Desktop artwork
 
-The icons in `desktop/src/main/resources/com/rearman/palmdesktop/icons/`,
+The icons in `desktop-cpp/assets/icons/`,
 except the `app*.png` files, come from Palm Desktop 3.1.1 for Windows
 (`palm.exe`, `date20.dll`, `todo20.dll`, `memo20.dll` and `addr20.dll`). They are Copyright © 2000 Palm, Inc. or its
 subsidiaries. All rights reserved by their current rights holders.

@@ -488,13 +488,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "palm-desktop-spike"
-version = "0.0.0"
-dependencies = [
- "fltk",
-]
-
-[[package]]
 name = "pbkdf2"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,5 +1,5 @@
 // The Palm Desktop 3.1.1 bitmaps, embedded at build time from the icons of the Swing app
-// (desktop/src/main/resources/com/rearman/palmdesktop/icons/*.png; CMakeLists.txt generates the data).
+// (desktop-cpp/assets/icons/*.png; CMakeLists.txt generates the data).
 #pragma once
 
 #include <span>

@@ -1,7 +1,7 @@
 // Palm Desktop for Windows and Linux, after Palm Desktop 3.1.1, as desktop-rs/app/src/main.rs.
 //
 // `--shot out.ppm` draws the window offscreen at the display scale (FLTK_SCALING_FACTOR sets it), saves it and exits.
-// It shows the device-pixel drawing on Windows only, as in the spike. `--shot-open "click:X,Y;..."` first runs the
+// It shows the device-pixel drawing on Windows only. `--shot-open "click:X,Y;..."` first runs the
 // steps that open menus, lists and dialogs (shot.hpp), and the capture shows them.
 #include "palm/address.hpp"
 #include "palm/address_dialog.hpp"

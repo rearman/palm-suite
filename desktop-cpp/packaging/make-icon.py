@@ -10,16 +10,16 @@ Each size is drawn on a grid four times finer than the output (4 * S by 4 * S), 
 averaged in 4 by 4 blocks down to S by S. The output is straight RGBA, 8 bits per channel.
 
 Writes:
-	desktop/packaging/palm-desktop.ico                              (16, 32, 48 and 256 px, PNG entries)
-	desktop/packaging/palm-desktop.png                              (256 px)
-	desktop/src/main/resources/com/rearman/palmdesktop/icons/app16.png
-	desktop/src/main/resources/com/rearman/palmdesktop/icons/app32.png
-	desktop/src/main/resources/com/rearman/palmdesktop/icons/app48.png
-	desktop/src/main/resources/com/rearman/palmdesktop/icons/app256.png
+	desktop-cpp/packaging/palm-desktop.ico                          (16, 32, 48 and 256 px, PNG entries)
+	desktop-cpp/packaging/palm-desktop.png                          (256 px)
+	desktop-cpp/assets/icons/app16.png
+	desktop-cpp/assets/icons/app32.png
+	desktop-cpp/assets/icons/app48.png
+	desktop-cpp/assets/icons/app256.png
 
 Run from the repository root:
 
-	python desktop/packaging/make-icon.py
+	python desktop-cpp/packaging/make-icon.py
 
 The script ends with a self-check. It prints "icons ok" when every check passes.
 Needs Python 3 with numpy. It uses no other package.
@@ -39,7 +39,7 @@ EDGE_GRAY = 0x90 / 255.0
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 ICO_SIZES = (16, 32, 48, 256)
-RES_DIR = os.path.join(ROOT, "desktop", "src", "main", "resources", "com", "rearman", "palmdesktop", "icons")
+RES_DIR = os.path.join(ROOT, "desktop-cpp", "assets", "icons")
 
 
 def axis_coords(n):
@@ -210,8 +210,8 @@ def main():
 
 	self_check(images, ico, rendered)
 
-	write(os.path.join(ROOT, "desktop", "packaging", "palm-desktop.ico"), ico)
-	write(os.path.join(ROOT, "desktop", "packaging", "palm-desktop.png"), images[256])
+	write(os.path.join(ROOT, "desktop-cpp", "packaging", "palm-desktop.ico"), ico)
+	write(os.path.join(ROOT, "desktop-cpp", "packaging", "palm-desktop.png"), images[256])
 	for s in (16, 32, 48, 256):
 		write(os.path.join(RES_DIR, "app%d.png" % s), images[s])
 	print("icons ok")

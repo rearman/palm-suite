@@ -93,7 +93,7 @@ macro_rules! icon {
 	($name:literal) => {
 		include_bytes!(concat!(
 			env!("CARGO_MANIFEST_DIR"),
-			"/../../desktop/src/main/resources/com/rearman/palmdesktop/icons/",
+			"/../../desktop-cpp/assets/icons/",
 			$name,
 			".png"
 		))

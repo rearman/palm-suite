@@ -1,6 +1,6 @@
 # The Rust port of Palm Desktop
 
-The port moves the desktop app in `desktop/` (Kotlin and Swing) to Rust and fltk-rs in `desktop-rs/`, for sharp drawing at 125% and 150% display scale, native Wayland windows, the text rendering of the system, a fast start and a small install. The Swing app stays the shipped app until the cutover. Both apps read and write the same `desktop-data.json` and `desktop.properties`, so a user can switch between them; do not run both at once.
+The port moves the desktop app in `desktop/` (Kotlin and Swing) to Rust and fltk-rs in `desktop-rs/`, for sharp drawing at 125% and 150% display scale, native Wayland windows, the text rendering of the system, a fast start and a small install. The C++ port in `desktop-cpp/` took over phase 10 and has been the shipped app since the cutover in 0.24 (see `desktop-cpp/PLAN.md`); this app is never released, and the screenshot check compares the C++ app with it. Both apps read and write the same `desktop-data.json` and `desktop.properties`, so a user can switch between them; do not run both at once.
 
 ## Done
 
@@ -21,11 +21,13 @@ The port moves the desktop app in `desktop/` (Kotlin and Swing) to Rust and fltk
 
 | Phase | Work                                                                                                                                                              | Kotlin source | Size (Rust lines)       |
 | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------- |
-| 10    | Packaging (the MSI, the Linux tar.gz files, the Gentoo ebuild), a beta period and the cutover; Page Setup has no FLTK dialog, and the print dialog sets the paper | none          | c. 200 (WiX source, CI) |
+| 10    | Done by the C++ app (`desktop-cpp/PLAN.md`): packaging and the cutover in 0.24; Page Setup has no FLTK dialog, and the print dialog sets the paper                | none          | none                    |
 
 The view phases followed the Memo Pad: build the view in its group of the main window, send every widget event as a `Msg`, reuse `split.rs`, `category.rs`, `records.rs`, `text_edit.rs` and `dialogs.rs`, draw custom views through `draw::Dev`, and check each view at 100%, 125% and 150%.
 
 ## Packaging and the cutover
+
+Done by the C++ app in 0.24, as below, with its icons in `desktop-cpp/assets/icons/` and `desktop-cpp/packaging/`.
 
 - Windows: an MSI from a hand-written WiX 3 source, with the upgrade code of the Swing MSI (`9703d1fd-0a96-45b3-8842-4b8bbcad48dc`), per-user install and the shortcut prompt. The first Rust version must be above the last Swing version (0.23) so the MSI upgrades the Swing install in place.
 - Linux: `palm-desktop-linux-x86_64.tar.gz` and `palm-desktop-linux-arm64.tar.gz` with the binary and the icon. The binary links the system Cairo, Pango, Wayland, libxkbcommon, X11 and fontconfig, and falls back to X11 when no Wayland session runs.

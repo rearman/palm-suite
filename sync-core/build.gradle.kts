@@ -2,8 +2,8 @@ plugins {
 	id("org.jetbrains.kotlin.jvm")
 }
 
-// Sync code that runs on Android and on the desktop: key derivation, record sealing and the
-// palmsync HTTP client. Android has org.json built in; the desktop app adds it.
+// The sync code of Date Book: key derivation, record sealing and the palmsync HTTP client. Android
+// has org.json built in, and the tests add it. The desktop apps port it (desktop-rs/, desktop-cpp/).
 kotlin {
 	jvmToolchain(17)
 }

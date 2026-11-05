@@ -17,5 +17,5 @@ dependencyResolutionManagement {
 rootProject.name = "Palm Suite"
 // The shared Palm OS look, and the two apps that use it.
 include(":palm-ui", ":datebook:app", ":palm-launcher:app")
-// The sync code that Date Book and the desktop app share, and the desktop app.
-include(":sync-core", ":desktop")
+// The sync code of Date Book (the desktop apps in desktop-rs/ and desktop-cpp/ port it).
+include(":sync-core")
