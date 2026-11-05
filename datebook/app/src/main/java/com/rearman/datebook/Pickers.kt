@@ -147,7 +147,8 @@ class TimeDialog(
         (0..55 step 5).map { m -> if (m % 30 == 0) "•%02d".format(m) else " %02d".format(m) },
         divideAfter = -1, centered = false) { pickMinute(it * 5) }
     // The form content. place() puts each view at form coordinates.
-    private val content = FrameLayout(ctx)
+    // It does not clip: the minute list ends at form x 153, past the body's right edge at 152.
+    private val content = FrameLayout(ctx).apply { clipChildren = false }
 
     init {
         startBox.gravity = Gravity.CENTER

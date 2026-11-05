@@ -121,10 +121,11 @@ class TodoDetails(private val act: MainActivity, private val t: Todo) : PalmDial
 
 // ---------------- Option dialogs ----------------
 
-/** A full-width layer in the dialog body for views placed at Palm form coordinates. It does not clip, so a view can sit at form x 2. */
+/**
+ * A full-width layer in the dialog body for views placed at Palm form coordinates. Neither it nor the
+ * body (PalmDialog) clips, so a view can sit at form x 2 or reach x 153.
+ */
 internal fun Context.formArea(d: PalmDialog): FrameLayout {
-    d.body.clipChildren = false
-    d.body.clipToPadding = false
     val area = FrameLayout(this).apply { clipChildren = false }
     d.body.addView(area, LP(MATCH, WRAP))
     return area

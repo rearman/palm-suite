@@ -404,7 +404,14 @@ class PushGroup(
  * With [tips], the Tips icon sits at the right of the title; a tap on it shows that text.
  */
 open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, height: Int = 0, tips: String? = null) : Dialog(ctx) {
-	val body: LinearLayout = ctx.vbox().apply { setPadding(ctx.pp(3), ctx.pp(2), ctx.pp(3), ctx.pp(1)) }
+	// The body content runs from form x 4 to 152, but Palm forms place controls out to x 153 and
+	// more (the Change Repeat summary box, the Set Time minute list), so the body does not clip
+	// them at its padding.
+	val body: LinearLayout = ctx.vbox().apply {
+		setPadding(ctx.pp(3), ctx.pp(2), ctx.pp(3), ctx.pp(1))
+		clipChildren = false
+		clipToPadding = false
+	}
 	val buttons: LinearLayout = ctx.hbox().apply { setPadding(ctx.pp(4), ctx.pp(2), ctx.pp(4), ctx.pp(4)) }
 	private val c = ctx
 	private val full = height >= 160
