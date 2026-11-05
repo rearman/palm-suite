@@ -405,7 +405,8 @@ class RepeatDialog(
             area.formAt(ctx.label("Tap one of the above buttons to set a repeat interval.", bold = true), 9, 42, 140, 0)
             updateSummary(); return
         }
-        area.formAt(ctx.label("Every:", bold = true).apply { gravity = Gravity.END }, 24, 38, 31, 11)
+        // The right-aligned labels end at form x 55, with room to their left so they never wrap.
+        area.formAt(ctx.label("Every:", bold = true).apply { gravity = Gravity.END; setSingleLine(true) }, 5, 38, 50, 11)
         every = ctx.numberField(maxOf(1, ev.every)).apply {
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun afterTextChanged(s: android.text.Editable?) {
@@ -418,7 +419,7 @@ class RepeatDialog(
         area.formAt(every, 60, 38, 17, 11)
         area.formAt(ctx.label(unit()), 83, 38)
 
-        area.formAt(ctx.label("End on:", bold = true).apply { gravity = Gravity.END }, 21, 55, 34, 11)
+        area.formAt(ctx.label("End on:", bold = true).apply { gravity = Gravity.END; setSingleLine(true) }, 5, 55, 50, 11)
         val endText = if (ev.repeatEnd < 0) "No End Date" else Fmt.dowDate(ev.repeatEnd)
         val endTrigger = ctx.popupTrigger(endText) { tv ->
             ctx.popupList(tv, listOf("No End Date", "Choose Date..."), if (ev.repeatEnd < 0) 0 else 1) { i ->

@@ -171,7 +171,7 @@ internal fun MainActivity.showPhoneLookup(ed: EditText) {
     // The list takes the body (form y 18 to 139). Look Up and the buttons share the bottom row, as in the Palm form.
     d.body.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(list) }, LP(MATCH, 0, 1f))
     d.buttons.addView(label("Look Up:"), lp())
-    d.buttons.addView(look, LP(pp(35), pp(11)).apply { marginStart = pp(2); marginEnd = pp(9) })
+    d.buttons.addView(look, LP(pp(35), pp(11)).apply { marginStart = pp(2); marginEnd = pp(3) })
     d.button("Add", 26) {
         val a = sel ?: return@button
         val name = listOf(a.firstName, a.lastName).filter { it.isNotBlank() }.joinToString(" ")

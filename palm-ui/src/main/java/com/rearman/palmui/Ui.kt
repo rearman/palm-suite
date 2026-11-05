@@ -44,6 +44,7 @@ import android.widget.PopupWindow
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /** Palm OS look: black ink on a green LCD screen, with grays for shading. */
@@ -331,7 +332,10 @@ class PushGroup(
 				gravity = Gravity.CENTER
 				minHeight = cellPx
 				minimumHeight = cellPx
-				setPadding(ctx.pp(2), 0, ctx.pp(2), 0)
+				setSingleLine(true)
+				// A fixed-width cell gives all its width to the text, as the Palm push buttons do.
+				val pad = if (widths != null) 0 else ctx.pp(2)
+				setPadding(pad, 0, pad, 0)
 				setOnClickListener {
 					if (multi) on[i] = !on[i] else selected = i
 					refresh()
@@ -339,8 +343,9 @@ class PushGroup(
 				}
 			}
 			cells.add(tv)
+			// A label wider than its cell widens the cell, so the text never wraps.
 			val cellLp = if (widths != null)
-				LP(ctx.pp(widths[i]), WRAP)
+				LP(maxOf(ctx.pp(widths[i]), ceil(tv.paint.measureText(s)).toInt()), WRAP)
 			else LP(0, WRAP, 1f)
 			view.addView(tv, cellLp.apply { marginEnd = ctx.pp(1) })
 		}
@@ -439,7 +444,8 @@ open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, heigh
 	/** Adds a command button to the button row. [width] is the Palm width, 0 for the default. */
 	fun button(text: String, width: Int = 0, onClick: () -> Unit): TextView {
 		val b = c.palmButton(text, width, onClick)
-		buttons.addView(b, lp().apply { marginEnd = c.pp(6) })
+		// The gap goes before each button after the first, so the last button keeps its full width.
+		buttons.addView(b, lp().apply { if (buttons.childCount > 0) marginStart = c.pp(6) })
 		return b
 	}
 
