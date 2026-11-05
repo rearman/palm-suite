@@ -37,21 +37,17 @@ class EventDetails(
             DateDialog(act, "Set Date", work.date) { d -> work.date = d; tv.text = Fmt.dowDate(d) }.show()
         }.apply { maxWidth = act.pp(156 - 56 - 4) }, 56, 34, WRAP, 11)
 
-        // The alarm field and unit stay in place when the check box is off. They are disabled.
+        // The alarm field and unit stay in place and can be set when the check box is off.
         act.rightLabel(area, "Alarm:", 51, 50)
         val units = listOf("Minutes", "Hours", "Days")
         val unit = act.popupTrigger(units[work.alarmUnit]) { tv ->
             act.popupList(tv, units, work.alarmUnit) { i -> work.alarmUnit = i; tv.setTrigger(units[i]) }
         }
-        val chk = act.checkBox("", work.alarm) { b ->
-            work.alarm = b; adv.isEnabled = b; unit.isEnabled = b
-        }
+        val chk = act.checkBox("", work.alarm) { b -> work.alarm = b }
         chk.setPadding(0, 0, 0, 0)
         act.placeForm(area, chk, 53, 49, WRAP, 14)
         act.placeForm(area, adv, 72, 50, 14, 11)
         act.placeForm(area, unit, 90, 49)
-        adv.isEnabled = work.alarm
-        unit.isEnabled = work.alarm
 
         act.rightLabel(area, "Repeat:", 51, 66)
         act.placeForm(area, act.selector(Recur.shortName(work)) { tv ->
@@ -159,7 +155,7 @@ fun MainActivity.showPreferences() {
         popupList(tv, hourNames.drop(1), end - 1) { i -> end = maxOf(i + 1, start + 1); tv.setTrigger(hourNames[end]) }
     }, 76, 38)
 
-    // The preset field and unit stay in place when the check box is off. They are disabled.
+    // The preset field and unit stay in place and can be set when the check box is off.
     var presetOn = prefs.presetOn
     var unit = prefs.presetUnit
     val adv = numberField(prefs.presetAdvance)
@@ -167,16 +163,12 @@ fun MainActivity.showPreferences() {
     val unitTrigger = popupTrigger(units[unit]) { tv ->
         popupList(tv, units, unit) { i -> unit = i; tv.setTrigger(units[i]) }
     }
-    val presetChk = checkBox("", presetOn) { b ->
-        presetOn = b; adv.isEnabled = b; unitTrigger.isEnabled = b
-    }
+    val presetChk = checkBox("", presetOn) { b -> presetOn = b }
     presetChk.setPadding(0, 0, 0, 0)
     placeForm(area, presetChk, 2, 66, WRAP, 14)
     placeForm(area, label("Alarm Preset:", bold = true), 17, 67)
     placeForm(area, adv, 89, 67, 15, 12)
     placeForm(area, unitTrigger, 105, 66)
-    adv.isEnabled = presetOn
-    unitTrigger.isEnabled = presetOn
 
     rightLabel(area, "Alarm Sound:", 87, 83)
     placeForm(area, palmButton("Change...") {

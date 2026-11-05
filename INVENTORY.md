@@ -81,18 +81,18 @@ Palm reference: Handbook p.93 to 94. Code: `MainActivity.buildAgenda`.
 
 Palm reference: Handbook p.87, 89. Code: `EventDetails`.
 
-| Kind    | Item                               | Code         | Look         | Works | Notes                                                              |
-| ------- | ---------------------------------- | ------------ | ------------ | ----- | ------------------------------------------------------------------ |
-| dialog  | "Event Details"                    | EventDetails | 2026-10-30 M |       |                                                                    |
-| trigger | Time                               | EventDetails | 2026-10-30 M |       |                                                                    |
-| trigger | Date                               | EventDetails | 2026-10-30 M |       |                                                                    |
-| check   | Alarm, with advance & unit trigger | EventDetails | 2026-10-30 M |       | Kept: the advance goes above 99 (a30bc14); the Palm allows 0 to 99 |
-| trigger | Repeat: Change Repeat              | EventDetails | 2026-10-30 M |       |                                                                    |
-| check   | Private                            | EventDetails | 2026-10-30 M |       |                                                                    |
-| button  | OK                                 | EventDetails | 2026-10-30 M |       |                                                                    |
-| button  | Cancel                             | EventDetails | 2026-10-30 M |       |                                                                    |
-| button  | Delete...                          | EventDetails | 2026-10-30 M |       |                                                                    |
-| button  | Note                               | EventDetails | 2026-10-30 M |       |                                                                    |
+| Kind    | Item                               | Code         | Look         | Works | Notes                                                                                                                                     |
+| ------- | ---------------------------------- | ------------ | ------------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| dialog  | "Event Details"                    | EventDetails | 2026-10-30 M |       |                                                                                                                                           |
+| trigger | Time                               | EventDetails | 2026-10-30 M |       |                                                                                                                                           |
+| trigger | Date                               | EventDetails | 2026-10-30 M |       |                                                                                                                                           |
+| check   | Alarm, with advance & unit trigger | EventDetails | 2026-10-30 M |       | Kept: the advance goes above 99 (a30bc14); the Palm allows 0 to 99. Kept: the advance & unit can be set with Alarm off (asked 2026-11-04) |
+| trigger | Repeat: Change Repeat              | EventDetails | 2026-10-30 M |       |                                                                                                                                           |
+| check   | Private                            | EventDetails | 2026-10-30 M |       |                                                                                                                                           |
+| button  | OK                                 | EventDetails | 2026-10-30 M |       |                                                                                                                                           |
+| button  | Cancel                             | EventDetails | 2026-10-30 M |       |                                                                                                                                           |
+| button  | Delete...                          | EventDetails | 2026-10-30 M |       |                                                                                                                                           |
+| button  | Note                               | EventDetails | 2026-10-30 M |       |                                                                                                                                           |
 
 ### Set Time
 
@@ -182,8 +182,8 @@ Palm reference: Handbook p.96. Code: `showPreferences`.
 | dialog  | "Preferences"              | showPreferences | 2026-10-30 M |       |                                                                                     |
 | trigger | Start Time                 | showPreferences |              |       | Kept: a pop-up list; the Palm has a time box with up and down arrows                |
 | trigger | End Time                   | showPreferences |              |       | Kept: a pop-up list; the Palm has a time box with up and down arrows                |
-| trigger | Alarm Preset: advance unit | showPreferences | 2026-10-30 M |       |                                                                                     |
-| check   | Alarm Preset               | showPreferences | 2026-10-30 M |       |                                                                                     |
+| trigger | Alarm Preset: advance unit | showPreferences | 2026-10-30 M |       | Kept: the advance & unit can be set with Alarm Preset off (asked 2026-11-04)        |
+| check   | Alarm Preset               | showPreferences | 2026-10-30 M |       | Kept: the advance & unit can be set with Alarm Preset off (asked 2026-11-04)        |
 | button  | Alarm Sound: Change...     | showPreferences |              |       | Kept: opens the Android alarm sound settings; the Palm has an Alarm Sound pick list |
 | trigger | Remind Me                  | showPreferences | 2026-10-30 M |       |                                                                                     |
 | trigger | Play Every                 | showPreferences | 2026-10-30 M |       |                                                                                     |
