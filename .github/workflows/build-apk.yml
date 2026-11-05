@@ -36,7 +36,7 @@ jobs:
       - name: Build APKs
         run: gradle assembleRelease testDebugUnitTest :sync-core:test --stacktrace
 
-      # The test vectors of the Rust port: VectorsTest writes a missing sync-core/testdata file, and a
+      # The test vectors of the desktop ports: VectorsTest writes a missing sync-core/testdata file, and a
       # changed output to sync-core/build/vectors. Both go up for review, also when the tests fail.
       - name: Upload test vectors
         if: always()
@@ -180,115 +180,9 @@ jobs:
           gh release list --limit 1000 --json tagName -q '.[].tagName' | grep "^$prefix-v" | sort -V | head -n -2 |
             while read -r tag; do gh release delete "$tag" --yes; done
 
-  # The Rust desktop app (desktop-rs/), whence the C++ app is ported: Windows amd64, Linux amd64 and arm64.
-  # It is never released; the desktop-shots job compares the C++ app with it.
-  desktop-rs:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: windows-latest, name: windows-amd64, exe: .exe }
-          - { os: ubuntu-22.04, name: linux-amd64, exe: '' }
-          - { os: ubuntu-22.04-arm, name: linux-arm64, exe: '' }
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        working-directory: desktop-rs
-        shell: bash
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      # FLTK draws with Cairo and Pango on Linux and opens a Wayland window, else an X11 one.
-      - name: Install FLTK build libraries
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libx11-dev libxext-dev libxft-dev libxinerama-dev \
-            libxcursor-dev libxrender-dev libxfixes-dev libpango1.0-dev libcairo2-dev libgl1-mesa-dev \
-            libglu1-mesa-dev libegl1-mesa-dev libwayland-dev wayland-protocols libxkbcommon-dev libdbus-1-dev \
-            xvfb imagemagick
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop-rs
-
-      - name: Check format and lints
-        run: |
-          cargo fmt --check
-          cargo clippy --workspace --all-targets -- -D warnings
-
-      # The server test of desktop-rs/core needs a running palmsync: build it from sync-server/ and start
-      # it on a fresh data folder. PALMSYNC_REQUIRED makes the test fail if the server is missing.
-      - name: Set up Go
-        if: matrix.name == 'linux-amd64'
-        uses: actions/setup-go@v5
-        with:
-          go-version: stable
-          check-latest: true
-          cache-dependency-path: sync-server/go.mod
-
-      - name: Start palmsync
-        if: matrix.name == 'linux-amd64'
-        run: |
-          (cd ../sync-server && go build -o "$RUNNER_TEMP/palmsync" .)
-          data="$RUNNER_TEMP/palmsync-data"
-          mkdir -p "$data"
-          token=$("$RUNNER_TEMP/palmsync" token add -data "$data" ci | awk '{print $NF}')
-          nohup "$RUNNER_TEMP/palmsync" serve -data "$data" -listen 127.0.0.1:8640 > "$RUNNER_TEMP/palmsync.log" 2>&1 &
-          for i in $(seq 20); do curl -s -o /dev/null http://127.0.0.1:8640/v1/meta && break; sleep 0.5; done
-          echo "PALMSYNC_URL=http://127.0.0.1:8640" >> "$GITHUB_ENV"
-          echo "PALMSYNC_TOKEN=$token" >> "$GITHUB_ENV"
-          echo "PALMSYNC_REQUIRED=1" >> "$GITHUB_ENV"
-
-      # The vectors of sync-core/testdata, the round and session tests, and the server test.
-      - name: Test
-        run: cargo test --workspace
-
-      - name: Build
-        run: |
-          cargo build --release
-          cp target/release/palm-desktop${{ matrix.exe }} palm-desktop-${{ matrix.name }}${{ matrix.exe }}
-
-      # Shows the app at three scales on a virtual X server and captures the screen, to judge
-      # the Linux rendering. The offscreen --shot capture does not test Cairo's device-pixel drawing. The app
-      # opens the format 1 fixture store of its tests, with no settings, so it does not sync.
-      - name: Screenshots
-        if: runner.os == 'Linux'
-        run: |
-          mkdir shots
-          export XDG_CONFIG_HOME="$RUNNER_TEMP/config"
-          mkdir -p "$XDG_CONFIG_HOME/palm-suite"
-          for s in 1 1.25 1.5; do
-            cp app/tests/fixtures/desktop-data-v1.json "$XDG_CONFIG_HOME/palm-suite/desktop-data.json"
-            FLTK_SCALING_FACTOR=$s xvfb-run -a -s "-screen 0 1400x900x24" sh -c \
-              "./palm-desktop-${{ matrix.name }} & sleep 3; import -window root shots/app-scale-$s.png; kill \$!"
-          done
-
-      # archive: false uploads the file itself and accepts only one file.
-      - name: Upload app
-        uses: actions/upload-artifact@v7
-        with:
-          path: desktop-rs/palm-desktop-${{ matrix.name }}${{ matrix.exe }}
-          archive: false
-
-      - name: Upload screenshots
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v7
-        with:
-          name: desktop-rs-shots-${{ matrix.name }}
-          path: desktop-rs/shots
-
   # The desktop app (desktop-cpp/), C++23 and FLTK: the modules and their doctest tests, built with CMake and
   # run with CTest, on Windows amd64 (MSYS2), Linux amd64 and arm64. Each build is packaged (pkg) and uploaded,
-  # and a desktop-v* tag attaches the packages to its release. The Linux apps are uploaded for the desktop-shots
-  # job too.
+  # and a desktop-v* tag attaches the packages to its release.
   desktop-cpp:
     strategy:
       fail-fast: false
@@ -325,8 +219,7 @@ jobs:
             mingw-w64-x86_64-nlohmann-json
             mingw-w64-x86_64-doctest
 
-      # FLTK 1.4.5 builds from source (CMake FetchContent) with Cairo and Pango, a Wayland window, else X11,
-      # from the libraries of the desktop-rs job.
+      # FLTK 1.4.5 builds from source (CMake FetchContent) with Cairo and Pango, a Wayland window, else X11.
       - name: Install toolchain (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -459,63 +352,3 @@ jobs:
           prefix="${GITHUB_REF_NAME%-v*}"
           gh release list --limit 1000 --json tagName -q '.[].tagName' | grep "^$prefix-v" | sort -V | head -n -2 |
             while read -r tag; do gh release delete "$tag" --yes; done
-
-      # The Linux app for the screenshot check of the desktop-shots job.
-      - name: Name the app
-        if: runner.os == 'Linux'
-        run: cp build/palm-desktop palm-desktop-cpp-${{ matrix.name }}
-
-      - name: Upload app
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v7
-        with:
-          path: desktop-cpp/palm-desktop-cpp-${{ matrix.name }}
-          archive: false
-
-  # The screenshot check of the C++ port against the Rust app (desktop-cpp/tools/shots): every state of steps.txt
-  # in both Linux amd64 builds, at three scales, on a virtual X server. Uploads the pairs that differ and fails.
-  desktop-shots:
-    needs: [desktop-rs, desktop-cpp]
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: desktop-cpp
-        shell: bash
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Install runtime libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev libssl-dev zlib1g-dev libx11-dev \
-            libxext-dev libxft-dev libxinerama-dev libxcursor-dev libxrender-dev libxfixes-dev libpango1.0-dev \
-            libcairo2-dev libwayland-dev libxkbcommon-dev libdbus-1-dev libgl1-mesa-dev libglu1-mesa-dev \
-            libegl1-mesa-dev xvfb
-
-      - name: Download the Rust app
-        uses: actions/download-artifact@v8
-        with:
-          name: palm-desktop-linux-amd64
-          path: ${{ runner.temp }}/apps
-
-      - name: Download the C++ app
-        uses: actions/download-artifact@v8
-        with:
-          name: palm-desktop-cpp-linux-amd64
-          path: ${{ runner.temp }}/apps
-
-      # The screen holds the window at 1.5 (1500 x 1050) with room for menus below it.
-      - name: Compare
-        run: |
-          chmod +x "$RUNNER_TEMP"/apps/*
-          PRUNE=1 xvfb-run -a -s "-screen 0 1920x1440x24" bash tools/shots/run.sh \
-            "$RUNNER_TEMP/apps/palm-desktop-linux-amd64" "$RUNNER_TEMP/apps/palm-desktop-cpp-linux-amd64" \
-            "$RUNNER_TEMP/shots"
-
-      - name: Upload differing shots
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: desktop-shots-differ
-          path: ${{ runner.temp }}/shots/*.ppm

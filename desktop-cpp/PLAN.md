@@ -1,6 +1,6 @@
 # The C++ port of Palm Desktop
 
-The port moved the Rust desktop app in `desktop-rs/` to C++23 and FLTK in `desktop-cpp/`. It followed the phases of `desktop-rs/PLAN.md`, and each module ports its Rust file line by line. Since the cutover in 0.24 the C++ app is the shipped desktop app; `desktop-rs/` and its CI job stay as the reference of the screenshot check, and a UI change goes into both apps.
+The port moved the Rust desktop app (formerly `desktop-rs/`) to C++23 and FLTK in `desktop-cpp/`, module by module and line by line. Since the cutover in 0.24 the C++ app is the shipped desktop app, and the Rust app, its plan, the screenshot check against it (`tools/shots/`), and the case table generator (`tools/gen_case`) are gone; the jj history keeps them. The rows below record the phases, and the port rules still explain the shape of the code.
 
 ## Done
 
@@ -34,7 +34,7 @@ Nothing. Page Setup stays gray, since FLTK has no page dialog and the print dial
 - Names stay as in Rust (snake_case functions, PascalCase types); a name that is a C++ keyword takes the module name (`export_ical`, `export_vcard`, `SyncClient::new_client`).
 - `Result<T, String>` is `std::expected<T, std::string>`, `Option` is `std::optional`, a Rust enum with data is a `std::variant`, a trait is an abstract class, and a Rust panic is a thrown `std::runtime_error`.
 - Rust's `div_euclid`, `rem_euclid`, and `%` on negatives differ from C++; Rust iterates `char`s where C++ sees bytes. Each port checks both.
-- Case mapping is Rust's over all of Unicode, the final sigma of `str::to_lowercase` included: `core/src/text_case.inc` is generated from the Rust standard library by `tools/gen_case` (`cargo run --manifest-path tools/gen_case/Cargo.toml > core/src/text_case.inc`); regenerate it with a newer Rust when the Rust app moves to a newer Unicode.
+- Case mapping is Rust's over all of Unicode, the final sigma of `str::to_lowercase` included: `core/src/text_case.inc` holds the tables that the former `tools/gen_case` generated from the Rust standard library; treat it as data.
 - `json::parse_value` is a port of serde_json 1.0.154's reader with its default features: the same values (floats too: without `float_roundtrip`, serde_json scales the significand by a power of ten, which can miss the nearest double in the last bit) and the same error texts and positions. `json::dump` writes floats as serde_json does (zmij: `format_double`). A file that Rust reads with `read_to_string` must be UTF-8 (`text::is_utf8`). When serde_json is upgraded, rerun a differential check of both readers on many texts, as on 2026-11-04 (6,079 texts, no difference).
 - Pixels: FLTK builds as fltk-sys builds it (GDI+ on Windows, FLTK at the compiler's default standard, so GCC fuses multiply-adds in FLTK on arm64 as under fltk-sys), and our code builds as ISO C++23 with `-ffp-contract=off`, as Rust fuses none. Take screenshots from a Release build: fltk-sys builds FLTK at -O3.
 - Time zones use C++20 `<chrono>` (`locate_zone`). `platform::local_zone()` gives the user's zone: `TZ` as jiff reads it, else on Windows `GetDynamicTimeZoneInformation` mapped through the CLDR table in `platform.cpp` (generated from jiff 0.2.38's copy; regenerate it from a newer jiff), else `current_zone()`. Under MinGW `current_zone()` gives `Etc/UTC`, so never call it directly.

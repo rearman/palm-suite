@@ -41,7 +41,7 @@ std::string_view trim(std::string_view s);
 
 // The single-code-point upper and lower case of a code point as Rust's char::to_uppercase and to_lowercase
 // give them, or the code point itself when the mapping yields several. The tables (core/src/text_case.inc) are
-// generated from Rust's standard library by tools/gen_case.
+// generated from Rust's standard library by the former tools/gen_case.
 char32_t upper_one(char32_t c);
 char32_t lower_one(char32_t c);
 

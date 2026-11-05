@@ -6,4 +6,3 @@ build/
 local.properties
 *.iml
 .idea/
-desktop-rs/target/

@@ -14,11 +14,11 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * Test vectors for the Rust port of sync-core in desktop-rs/. Each test runs the Kotlin code on fixed
+ * Test vectors for the C++ port of sync-core in desktop-cpp/. Each test runs the Kotlin code on fixed
  * inputs and compares the inputs and outputs with sync-core/testdata/<name>.json, as JSON values.
  * A missing file is written, so a new vector set starts from the Kotlin output. A changed output fails
  * the test and is written to build/vectors/<name>.json: check it, copy it to testdata, and fix the
- * Rust port to match.
+ * C++ port to match.
  *
  * Records appear in the model form of [ev], [todo], [memo], [addr] and [cat]: every field, long keys.
  */

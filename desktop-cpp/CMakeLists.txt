@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 project(palm_desktop C CXX)
 
-# The C++ port of Palm Desktop. core/ ports desktop-rs/core (the port of sync-core) and app/ ports
-# desktop-rs/app: one static library per module, so each module and its tests build alone. A module whose
+# Palm Desktop in C++23 and FLTK: core/ (the port of sync-core) and app/ (the desktop app), one static
+# library per module, so each module and its tests build alone. A module whose
 # source is not written yet is skipped.
 # compile_commands.json for clangd (.clangd names the build folder).
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -201,6 +201,6 @@ foreach(path IN LISTS PALM_TESTS)
 	target_include_directories(${name} PRIVATE core/tests app/tests)
 	target_link_libraries(${name} PRIVATE palm_test_main nlohmann_json::nlohmann_json ${links})
 	target_compile_definitions(${name} PRIVATE PALM_TESTDATA="${CMAKE_CURRENT_SOURCE_DIR}/../sync-core/testdata"
-		PALM_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/../desktop-rs/app/tests/fixtures")
+		PALM_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/app/tests/fixtures")
 	add_test(NAME ${name} COMMAND ${name})
 endforeach()

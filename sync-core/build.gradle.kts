@@ -3,7 +3,7 @@ plugins {
 }
 
 // The sync code of Date Book: key derivation, record sealing and the palmsync HTTP client. Android
-// has org.json built in, and the tests add it. The desktop apps port it (desktop-rs/, desktop-cpp/).
+// has org.json built in, and the tests add it. The desktop app in desktop-cpp/ ports it.
 kotlin {
 	jvmToolchain(17)
 }

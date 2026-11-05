@@ -1,6 +1,6 @@
 // links: text
 // The case mapping of text.hpp against what Rust's str::to_lowercase and to_uppercase give (the tables come from
-// tools/gen_case), and the UTF-8 check.
+// the former tools/gen_case), and the UTF-8 check.
 #include "palm/text.hpp"
 
 #include <doctest/doctest.h>
