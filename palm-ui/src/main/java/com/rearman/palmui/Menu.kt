@@ -69,6 +69,7 @@ class MenuBar(private val act: Activity, private val menus: List<Pair<String, Li
 		titles.removeAllViews()
 		menus.forEachIndexed { i, (name, _) ->
 			titles.addView(act.label(name, bold = true).apply {
+				setSingleLine(true)
 				setPadding(act.pp(3), 0, act.pp(3), 0)
 				if (i == open) { setBackgroundColor(Palm.INK); setTextColor(Palm.paper) }
 				setOnClickListener { open = i; draw() }
@@ -80,8 +81,11 @@ class MenuBar(private val act: Activity, private val menus: List<Pair<String, Li
 		drop.visibility = View.INVISIBLE
 		titles.post {
 			val t = titles.getChildAt(open)
+			// A drop-down wider than the room right of its title moves left, as far as needed, so no command wraps.
+			drop.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+			val room = (titles.parent as View).width - drop.measuredWidth - act.pp(1)
 			(drop.layoutParams as FrameLayout.LayoutParams).apply {
-				leftMargin = titles.left + t.left - act.pp(1)
+				leftMargin = minOf(titles.left + t.left - act.pp(1), maxOf(0, room))
 				topMargin = titles.bottom - act.pp(2)
 			}
 			drop.requestLayout()
@@ -104,6 +108,7 @@ class MenuBar(private val act: Activity, private val menus: List<Pair<String, Li
 			setOnClickListener { dismiss(); item.action() }
 		}
 		r.addView(act.label(item.name, bold = true).apply {
+			setSingleLine(true)
 			setTextColor(colors)
 			isDuplicateParentStateEnabled = true
 		}, LP(0, WRAP, 1f))
