@@ -599,9 +599,6 @@ fun Context.popupList(anchor: View, items: List<String>, selected: Int, onPick: 
 	}
 	pw.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
 	pw.elevation = dp(4).toFloat()
-	// The list is a sub-window of the trigger's window. Without this, its x and y count from that
-	// window's corner, so a list in a dialog low on the screen opened below its trigger.
-	pw.isLayoutInScreenEnabled = true
 	// The visible area: above the keyboard when the keyboard shows. The list can fill all of it, and a
 	// longer list scrolls.
 	val vis = Rect().also { anchor.getWindowVisibleDisplayFrame(it) }
@@ -616,7 +613,12 @@ fun Context.popupList(anchor: View, items: List<String>, selected: Int, onPick: 
 	val h = minOf(sv.measuredHeight, maxH)
 	val x = loc[0].coerceIn(0, maxOf(0, dm.widthPixels - w))
 	val y = loc[1].coerceIn(vis.top, maxOf(vis.top, vis.bottom - h))
-	pw.showAtLocation(anchor, Gravity.NO_GRAVITY, x, y)
+	// The list is a sub-window of the trigger's window, so its x and y count from that window's
+	// corner: without this, a list in a dialog low on the screen opened below its trigger. (The
+	// screen-coordinate switch, setIsLaidOutInScreen, needs API 29; minSdk is 26.)
+	val win = IntArray(2)
+	anchor.rootView.getLocationOnScreen(win)
+	pw.showAtLocation(anchor, Gravity.NO_GRAVITY, x - win[0], y - win[1])
 }
 
 /** A message with buttons. Each button closes the dialog and then runs its action. */
