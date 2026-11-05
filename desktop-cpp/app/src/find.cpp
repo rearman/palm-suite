@@ -4,6 +4,7 @@
 #include "palm/find.hpp"
 
 #include "palm/address.hpp"
+#include "palm/browser.hpp"
 #include "palm/days.hpp"
 #include "palm/dialogs.hpp"
 #include "palm/draw.hpp"
@@ -252,7 +253,7 @@ std::optional<runner::Record> show(const view::Ctx& ctx) {
 	dlg.go_b = new Fl_Button(286, 38, 75, 23, "&Go To");
 	dlg.go_b->deactivate();
 	auto* cancel = new Fl_Button(286, 68, 75, 23, "Cancel");
-	dlg.list = new Fl_Hold_Browser(10, 88, w - 20, 130);
+	dlg.list = new browser::Keep<Fl_Hold_Browser>(10, 88, w - 20, 130);
 	dlg.list->hide();
 	dlg.status = new Fl_Box(10, 224, w - 20, 16);
 	dlg.status->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);

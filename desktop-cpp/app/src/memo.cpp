@@ -170,7 +170,7 @@ void MemoTable::draw_cell(TableContext context, int row, int col, int x, int y, 
 int MemoTable::handle(int event) {
 	// FLTK's own handler runs first; the list events then see the event, and their result joins FLTK's, as fltk-rs
 	// does.
-	const int ret = Fl_Table_Row::handle(event);
+	const int ret = table_handle(event);
 	const bool used = records::list_event(*this, event, lead_, s_, LIST_MSGS);
 	return ret | (used ? 1 : 0);
 }

@@ -458,7 +458,7 @@ public:
 
 	int handle(int ev) override {
 		// FLTK's own handler runs first; the record events then see the event, and their result joins FLTK's.
-		const int ret = Fl_Table_Row::handle(ev);
+		const int ret = table_handle(ev);
 		const bool taken = records::list_event(*this, ev, lead, sender_, kListMsgs);
 		return ret | (taken ? 1 : 0);
 	}

@@ -170,7 +170,7 @@ public:
 	std::vector<Row> list_rows;
 
 	int handle(int event) override {
-		const int handled = Fl_Table_Row::handle(event);
+		const int handled = table_handle(event);
 		if (records::list_event(*this, event, lead_, s_, LIST_MSGS)) {
 			return 1;
 		}

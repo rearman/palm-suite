@@ -3,6 +3,7 @@
 // the dialog, and the keys of a window and the drawing of a strip are subclasses.
 #include "palm/event_dialog.hpp"
 
+#include "palm/browser.hpp"
 #include "palm/combo.hpp"
 #include "palm/date_picker.hpp"
 #include "palm/date_shared.hpp"
@@ -899,11 +900,11 @@ bool select_time(model::Event& t, bool h24) {
 	win->start_r = start_r;
 	win->end_r = end_r;
 
-	auto* hours = new Fl_Hold_Browser(96, 8, 48, 172);
+	Fl_Hold_Browser* hours = new browser::Keep<Fl_Hold_Browser>(96, 8, 48, 172);
 	for (int h = 0; h < 24; ++h) {
 		hours->add(std::format("{:02}", h24 ? h : (h + 11) % 12 + 1).c_str());
 	}
-	auto* minutes = new Fl_Hold_Browser(150, 8, 48, 172);
+	Fl_Hold_Browser* minutes = new browser::Keep<Fl_Hold_Browser>(150, 8, 48, 172);
 	for (int m = 0; m < 12; ++m) {
 		minutes->add(std::format("{:02}", m * 5).c_str());
 	}

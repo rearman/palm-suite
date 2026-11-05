@@ -782,7 +782,7 @@ void PaneList::draw_cell(TableContext context, int row, int col, int x, int y, i
 
 int PaneList::handle(int event) {
 	// FLTK's own handler runs first; the pane's events then see the event, and their result joins FLTK's.
-	const int ret = Fl_Table_Row::handle(event);
+	const int ret = table_handle(event);
 	return ret | (pane_event(*this, event, s_) ? 1 : 0);
 }
 

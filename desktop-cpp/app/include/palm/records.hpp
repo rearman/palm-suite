@@ -80,9 +80,14 @@ class RecordTable : public Fl_Table_Row {
 public:
 	using Fl_Table_Row::Fl_Table_Row;
 
-	// The row and the column under the pointer, as FLTK's cursor2rowcol gives them: a cell, or the dead zone of the
-	// table, which gives row 0 and column 0. No value outside the table.
+	// The row and the column of the cell under the pointer. No value outside the cells, so the blank area below the
+	// last row is no row.
 	std::optional<std::pair<int, int>> cell_under_cursor();
+
+	// Fl_Table_Row::handle, except that a left press on the blank area below the rows goes no further. FLTK clears the
+	// selection when a press and its release both fall there; a list keeps its selection, as a Windows list does.
+	// Every subclass's handle calls this in place of Fl_Table_Row::handle.
+	int table_handle(int event);
 };
 
 // Fits the one column of a record list to the width inside its edge and its scroll bar. Call it at the start of each

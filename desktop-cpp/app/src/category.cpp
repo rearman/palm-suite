@@ -1,6 +1,7 @@
 // The category drop-down lists and the Edit Categories dialog, as desktop-rs/app/src/category.rs.
 #include "palm/category.hpp"
 
+#include "palm/browser.hpp"
 #include "palm/dialogs.hpp"
 #include "palm/draw.hpp"
 #include "palm/mnemonics.hpp"
@@ -228,7 +229,7 @@ void edit_categories(palm::store::DesktopStore& store, std::int32_t app) {
 		title = "Edit Address Categories";
 	}
 	std::unique_ptr<Fl_Double_Window> win(new Fl_Double_Window(209, 158, title));
-	Fl_Multi_Browser* list = new Fl_Multi_Browser(10, 10, 110, 138);
+	Fl_Multi_Browser* list = new palm::browser::Keep<Fl_Multi_Browser>(10, 10, 110, 138);
 	// The browser's default font is Helvetica, the dialog font.
 	list->textsize(11);
 	std::optional<Action> action;

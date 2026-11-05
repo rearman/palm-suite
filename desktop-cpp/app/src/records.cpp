@@ -109,9 +109,9 @@ std::optional<ListAction> list_menu(text_edit::EditState s, std::span<const std:
 }
 
 std::optional<std::pair<int, int>> RecordTable::cell_under_cursor() {
-	// FLTK's cursor2rowcol with no header: the visible cells, then the dead zone of the table, which FLTK gives as row
-	// 0 and column 0. The arithmetic is FLTK's find_cell for a cell.
-	if (!Fl::event_inside(tox, toy, tow, toh)) {
+	// FLTK's cursor2rowcol with no header, for the visible cells only: FLTK gives its dead zone as row 0 and column 0,
+	// which made a click below the rows act on row 0. The arithmetic is FLTK's find_cell for a cell.
+	if (!Fl::event_inside(tix, tiy, tiw, tih)) {
 		return std::nullopt;
 	}
 	for (int r = toprow; r <= botrow; ++r) {
@@ -130,7 +130,17 @@ std::optional<std::pair<int, int>> RecordTable::cell_under_cursor() {
 			}
 		}
 	}
-	return std::pair{0, 0};
+	return std::nullopt;
+}
+
+int RecordTable::table_handle(int event) {
+	// The press is taken, so its release and drags come here, but FLTK never records it: its release test then sees
+	// the last press on a row and clears nothing.
+	if (event == FL_PUSH && Fl::event_button() == FL_LEFT_MOUSE && Fl::event_inside(tix, tiy, tiw, tih) &&
+	    !cell_under_cursor()) {
+		return 1;
+	}
+	return Fl_Table_Row::handle(event);
 }
 
 void fit_column(Fl_Table_Row& t, int row_h) {
@@ -166,14 +176,13 @@ bool list_event(RecordTable& t, int ev, const std::shared_ptr<int>& lead, msg::S
 	}
 	case FL_RELEASE: {
 		s.send(m.picked());
-		if (m.cell) {
-			const auto hit = t.cell_under_cursor();
-			if (hit && hit->first >= 0 && hit->first < t.rows() && hit->second >= 0 &&
-			    Fl::event_button() == FL_LEFT_MOUSE) {
-				s.send((*m.cell)(hit->first, hit->second, Fl::event_clicks() != 0));
-			}
+		// A release below the rows touches no record: no cell click, and a double click there opens nothing.
+		const auto hit = t.cell_under_cursor();
+		const bool on_row = hit && hit->first >= 0 && hit->first < t.rows() && hit->second >= 0;
+		if (m.cell && on_row && Fl::event_button() == FL_LEFT_MOUSE) {
+			s.send((*m.cell)(hit->first, hit->second, Fl::event_clicks() != 0));
 		}
-		if (m.open && Fl::event_clicks() != 0 && Fl::event_button() == FL_LEFT_MOUSE && *lead >= 0) {
+		if (m.open && on_row && Fl::event_clicks() != 0 && Fl::event_button() == FL_LEFT_MOUSE && *lead >= 0) {
 			s.send((*m.open)());
 		}
 		return false;
