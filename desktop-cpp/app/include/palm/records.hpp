@@ -78,9 +78,19 @@ struct ListMsgs {
 // found here, through the protected members of the table. The lists set both headers off, as every record list does.
 class RecordTable : public Fl_Table_Row {
 public:
-	// The table gets the sunken edge as a frame. Fl_Table::draw draws its box on every draw, the partial one of a
-	// drag-select too, which repaints only the rows whose selection changed: a filled box blanked every other row.
-	RecordTable(int x, int y, int w, int h, const char* label = nullptr);
+	// A list with no rows yet, `ncols` columns of rows `row_h` high, selection `mode`, both headers off, and a white
+	// inside. The table gets the sunken edge as a frame: Fl_Table::draw draws its box on every draw, the partial one of
+	// a drag-select too, which repaints only the rows whose selection changed, so a filled box blanked every other row.
+	// The table is ended, so no later widget joins it, and a subclass that adds a child widget must begin() it first.
+	RecordTable(int x, int y, int w, int h, TableRowSelectMode mode, int row_h, int ncols = 1);
+
+	// Sets the number of rows, each `row_h` high: FLTK gives a new row the last row's height, or 25 px when the
+	// table had none.
+	void rows(int n) override;
+	using Fl_Table_Row::rows;
+
+	// The height of every row.
+	int row_h() const { return row_h_; }
 
 	// The row and the column of the cell under the pointer. No value outside the cells, so the blank area below the
 	// last row is no row.
@@ -90,11 +100,14 @@ public:
 	// selection when a press and its release both fall there; a list keeps its selection, as a Windows list does.
 	// Every subclass's handle calls this in place of Fl_Table_Row::handle.
 	int table_handle(int event);
+
+private:
+	int row_h_;
 };
 
 // Fits the one column of a record list to the width inside its edge and its scroll bar. Call it at the start of each
-// page draw; `row_h` is the row height.
-void fit_column(Fl_Table_Row& t, int row_h);
+// page draw.
+void fit_column(RecordTable& t);
 
 // The events of a record list: a right click selects the row under the pointer and opens the list menu, a click or
 // an arrow key moves the lead row, a double click opens the row, a printable key goes to the view, and a paste event

@@ -108,9 +108,23 @@ std::optional<ListAction> list_menu(text_edit::EditState s, std::span<const std:
 	}
 }
 
-RecordTable::RecordTable(int x, int y, int w, int h, const char* label) : Fl_Table_Row(x, y, w, h, label) {
+RecordTable::RecordTable(int x, int y, int w, int h, TableRowSelectMode mode, int row_h, int ncols)
+    : Fl_Table_Row(x, y, w, h), row_h_(row_h) {
+	type(mode);
+	rows(0);
+	cols(ncols);
+	col_header(0);
+	row_header(0);
 	// The cells and FLTK's fill of the area below them, in color(), paint the inside.
 	box(FL_DOWN_FRAME);
+	color(FL_WHITE);
+	end();
+}
+
+void RecordTable::rows(int n) {
+	Fl_Table_Row::rows(n);
+	// A row already row_h_ high is left as it is, so only the new rows of the first fill change.
+	row_height_all(row_h_);
 }
 
 std::optional<std::pair<int, int>> RecordTable::cell_under_cursor() {
@@ -148,8 +162,8 @@ int RecordTable::table_handle(int event) {
 	return Fl_Table_Row::handle(event);
 }
 
-void fit_column(Fl_Table_Row& t, int row_h) {
-	const int width = t.w() - 4 - (t.rows() * row_h > t.h() - 4 ? 17 : 0);
+void fit_column(RecordTable& t) {
+	const int width = t.w() - 4 - (t.rows() * t.row_h() > t.h() - 4 ? 17 : 0);
 	if (t.col_width(0) != width) {
 		t.col_width(0, width);
 	}

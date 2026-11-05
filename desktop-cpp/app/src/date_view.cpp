@@ -87,18 +87,9 @@ Fl_Choice* pane_choice() {
 	return c;
 }
 
-// A list of the right pane, with the properties of the Rust TableRow.
+// A list of the right pane, PANE_W wide; RecordTable gives it the setup of the Rust TableRow.
 PaneList* new_pane_list(int x, int y, int h, std::shared_ptr<PaneModel> pane, bool address, msg::Sender s) {
-	auto* t = new PaneList(x, y, PANE_W, h, std::move(pane), address, std::move(s));
-	t->type(Fl_Table_Row::SELECT_SINGLE);
-	t->rows(0);
-	t->cols(1);
-	t->row_height_all(ROW_H);
-	t->col_header(0);
-	t->row_header(0);
-	t->color(FL_WHITE);
-	t->end();
-	return t;
+	return new PaneList(x, y, PANE_W, h, std::move(pane), address, std::move(s));
 }
 
 // The day group. Its resize runs the layout of the Day view, as the Rust resize_callback did.
@@ -443,7 +434,6 @@ void DateView::refresh_lists(view::Ctx& ctx, bool address) {
 	}
 	const auto fill = [](Fl_Table_Row* t, std::size_t n) {
 		t->rows(static_cast<int>(n));
-		t->row_height_all(ROW_H);
 		t->redraw();
 	};
 	fill(todo_list_, pane_todos_.size());

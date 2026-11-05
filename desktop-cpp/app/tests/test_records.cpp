@@ -38,15 +38,9 @@ void left_at(int x, int y) {
 
 TEST_CASE("a click below the rows of a list hits no row and keeps the selection") {
 	Fl_Window win(200, 120);
-	records::RecordTable t(0, 0, 200, 120);
-	t.type(Fl_Table_Row::SELECT_MULTI);
-	t.col_header(0);
-	t.row_header(0);
+	records::RecordTable t(0, 0, 200, 120, Fl_Table_Row::SELECT_MULTI, 16);
 	t.rows(3);
-	t.cols(1);
-	t.row_height_all(16);
 	t.col_width(0, 180);
-	t.end();
 	win.end();
 
 	// The second row is the one under y = 24; nothing is under y = 100.
@@ -65,20 +59,29 @@ TEST_CASE("a click below the rows of a list hits no row and keeps the selection"
 
 TEST_CASE("a drag-select changes the swept rows alone, and the list's edge leaves the other rows drawn") {
 	Fl_Window win(200, 120);
-	records::RecordTable t(0, 0, 200, 120);
-	t.type(Fl_Table_Row::SELECT_MULTI);
-	t.col_header(0);
-	t.row_header(0);
+	records::RecordTable t(0, 0, 200, 120, Fl_Table_Row::SELECT_MULTI, 16);
 	t.rows(5);
-	t.cols(1);
-	t.row_height_all(16);
 	t.col_width(0, 180);
-	t.end();
+	// The list is ended, so the next widget joins the window.
+	CHECK(Fl_Group::current() == &win);
 	win.end();
 
 	// A drag redraws only the rows whose selection changed, and Fl_Table draws the box on that partial draw too: a
-	// filled box would blank the rest, so the edge must be a frame.
+	// filled box would blank the rest, so the edge must be a frame. The constructor gives every list its setup.
 	CHECK(t.box() == FL_DOWN_FRAME);
+	CHECK(t.type() == Fl_Table_Row::SELECT_MULTI);
+	CHECK(t.cols() == 1);
+	CHECK(t.color() == FL_WHITE);
+	CHECK_FALSE(t.col_header());
+	CHECK_FALSE(t.row_header());
+
+	// Every row is row_h high: the first rows of an empty list, and the rows a later fill adds.
+	CHECK(t.row_h() == 16);
+	CHECK(t.row_height(0) == 16);
+	CHECK(t.row_height(4) == 16);
+	t.rows(7);
+	CHECK(t.row_height(6) == 16);
+	t.rows(5);
 
 	// A press on row 1 and a drag to row 3 select rows 1 to 3.
 	left_at(20, 24);

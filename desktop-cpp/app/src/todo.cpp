@@ -437,17 +437,8 @@ public:
 class TodoTable : public records::RecordTable {
 public:
 	TodoTable(int x, int y, int w, int h, msg::Sender s)
-	    : records::RecordTable(x, y, w, h), lead(std::make_shared<int>(-1)), sender_(std::move(s)),
-	      note_img_(theme::icon("note")), private_img_(theme::icon("private")) {
-		type(Fl_Table_Row::SELECT_MULTI);
-		rows(0);
-		cols(0);
-		row_height_all(ROW_H);
-		col_header(0);
-		row_header(0);
-		color(FL_WHITE);
-		end();
-	}
+	    : records::RecordTable(x, y, w, h, Fl_Table_Row::SELECT_MULTI, ROW_H, 0), lead(std::make_shared<int>(-1)),
+	      sender_(std::move(s)), note_img_(theme::icon("note")), private_img_(theme::icon("private")) {}
 
 	// The rows of the table, in table order, and the columns the Show Options ask for.
 	std::vector<Row> lines;
@@ -719,7 +710,6 @@ void TodoView::rebuild(const view::Ctx& ctx) {
 		table_->cols(static_cast<int>(cols.size()));
 	}
 	table_->rows(static_cast<int>(shown_.size()));
-	table_->row_height_all(ROW_H);
 	records::pick_row(*table_, *lead_, pick);
 	if (!pick) {
 		clear_details();

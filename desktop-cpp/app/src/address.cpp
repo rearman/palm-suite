@@ -164,7 +164,8 @@ const records::ListMsgs LIST_MSGS{
 class AddressList : public records::RecordTable {
 public:
 	AddressList(int x, int y, int w, int h, std::shared_ptr<int> lead, msg::Sender s)
-	    : records::RecordTable(x, y, w, h), lead_(std::move(lead)), s_(std::move(s)) {}
+	    : records::RecordTable(x, y, w, h, Fl_Table_Row::SELECT_MULTI, ROW_H), lead_(std::move(lead)),
+	      s_(std::move(s)) {}
 
 	// The rows, in list order.
 	std::vector<Row> list_rows;
@@ -179,7 +180,7 @@ public:
 
 	void draw_cell(TableContext context, int row, int /*col*/, int x, int y, int w, int h) override {
 		if (context == CONTEXT_STARTPAGE) {
-			records::fit_column(*this, ROW_H);
+			records::fit_column(*this);
 			widest_ = widest_number(list_rows);
 		} else if (context == CONTEXT_CELL) {
 			if (row < 0 || static_cast<std::size_t>(row) >= list_rows.size()) {
@@ -427,14 +428,6 @@ AddressView::AddressView(int x, int y, int w, int h, msg::Sender s, const settin
 	const int by = ly + lh - 29;
 	const int look_y = by - 5 - 21;
 	table_ = new detail::AddressList(lx + 4, ly + 30, lw - 8, look_y - 4 - (ly + 30), lead_, *s_);
-	table_->type(Fl_Table_Row::SELECT_MULTI);
-	table_->rows(0);
-	table_->cols(1);
-	table_->row_height_all(ROW_H);
-	table_->col_header(0);
-	table_->row_header(0);
-	table_->color(FL_WHITE);
-	table_->end();
 
 	auto* look_label = new Fl_Box(lx + 4, look_y, 46, 21, "Look up:");
 	look_label->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
@@ -524,8 +517,6 @@ void AddressView::rebuild_list(view::Ctx& ctx) {
 		table_->list_rows.push_back(row_of(a, by_co));
 	}
 	table_->rows(static_cast<int>(shown_.size()));
-	// New rows take FLTK's default height.
-	table_->row_height_all(ROW_H);
 	std::optional<std::size_t> row;
 	if (selected_id_) {
 		for (std::size_t i = 0; i < shown_.size(); ++i) {

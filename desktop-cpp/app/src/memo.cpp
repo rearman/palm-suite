@@ -39,6 +39,9 @@ namespace palm::memo {
 
 namespace {
 
+// The height of a row of the Memo List.
+constexpr int ROW_H = 16;
+
 // The lines of a text as Rust's str::lines gives them: a line ends at "\n" or "\r\n", and a final line ending adds no
 // empty line.
 std::vector<std::string> lines_of(std::string_view s) {
@@ -126,23 +129,14 @@ private:
 };
 
 MemoTable::MemoTable(int x, int y, int w, int h, std::shared_ptr<int> lead, msg::Sender s)
-    : records::RecordTable(x, y, w, h), note_icon_(theme::icon("note")), key_icon_(theme::icon("private")),
-      lead_(std::move(lead)), s_(std::move(s)) {
-	type(Fl_Table_Row::SELECT_MULTI);
-	rows(0);
-	cols(1);
-	row_height_all(16);
-	col_header(0);
-	row_header(0);
-	color(FL_WHITE);
-	end();
-}
+    : records::RecordTable(x, y, w, h, Fl_Table_Row::SELECT_MULTI, ROW_H), note_icon_(theme::icon("note")),
+      key_icon_(theme::icon("private")), lead_(std::move(lead)), s_(std::move(s)) {}
 
 void MemoTable::draw_cell(TableContext context, int row, int col, int x, int y, int w, int h) {
 	(void)col;
 	switch (context) {
 	case CONTEXT_STARTPAGE:
-		records::fit_column(*this, 16);
+		records::fit_column(*this);
 		break;
 	case CONTEXT_CELL: {
 		if (row < 0 || static_cast<std::size_t>(row) >= lines_.size()) {
@@ -336,8 +330,6 @@ std::optional<model::Memo> MemoView::rebuild_list(const view::Ctx& ctx, std::opt
 		table_->lines_.push_back(MemoTable::Row{m.title(), m.is_private});
 	}
 	table_->rows(static_cast<int>(shown_.size()));
-	// New rows take FLTK's default height; the Memo List rows are 16 px.
-	table_->row_height_all(16);
 	table_->select_all_rows(0);
 	for (std::size_t i = 0; i < shown_.size(); ++i) {
 		if (std::find(keep.begin(), keep.end(), shown_[i].id) != keep.end()) {

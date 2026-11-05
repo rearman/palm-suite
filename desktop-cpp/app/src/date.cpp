@@ -744,8 +744,8 @@ int SwitchFrame::handle(int event) {
 }
 
 PaneList::PaneList(int x, int y, int w, int h, std::shared_ptr<PaneModel> pane, bool address, msg::Sender s)
-    : records::RecordTable(x, y, w, h), pane_(std::move(pane)), address_(address), s_(std::move(s)),
-      note_(theme::icon("note")), key_(theme::icon("private")) {}
+    : records::RecordTable(x, y, w, h, Fl_Table_Row::SELECT_SINGLE, ROW_H), pane_(std::move(pane)), address_(address),
+      s_(std::move(s)), note_(theme::icon("note")), key_(theme::icon("private")) {}
 
 PaneList::~PaneList() = default;
 
@@ -753,7 +753,7 @@ void PaneList::draw_cell(TableContext context, int row, int col, int x, int y, i
 	(void)col;
 	switch (context) {
 	case CONTEXT_STARTPAGE:
-		records::fit_column(*this, ROW_H);
+		records::fit_column(*this);
 		if (address_) {
 			widest_ = address::widest_number(pane_->addrs);
 		}
