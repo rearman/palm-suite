@@ -78,7 +78,9 @@ struct ListMsgs {
 // found here, through the protected members of the table. The lists set both headers off, as every record list does.
 class RecordTable : public Fl_Table_Row {
 public:
-	using Fl_Table_Row::Fl_Table_Row;
+	// The table gets the sunken edge as a frame. Fl_Table::draw draws its box on every draw, the partial one of a
+	// drag-select too, which repaints only the rows whose selection changed: a filled box blanked every other row.
+	RecordTable(int x, int y, int w, int h, const char* label = nullptr);
 
 	// The row and the column of the cell under the pointer. No value outside the cells, so the blank area below the
 	// last row is no row.

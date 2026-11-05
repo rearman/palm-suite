@@ -96,7 +96,6 @@ PaneList* new_pane_list(int x, int y, int h, std::shared_ptr<PaneModel> pane, bo
 	t->row_height_all(ROW_H);
 	t->col_header(0);
 	t->row_header(0);
-	t->box(FL_DOWN_BOX);
 	t->color(FL_WHITE);
 	t->end();
 	return t;

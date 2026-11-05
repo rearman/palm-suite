@@ -62,3 +62,33 @@ TEST_CASE("a click below the rows of a list hits no row and keeps the selection"
 	t.table_handle(FL_RELEASE);
 	CHECK(t.row_selected(1) == 1);
 }
+
+TEST_CASE("a drag-select changes the swept rows alone, and the list's edge leaves the other rows drawn") {
+	Fl_Window win(200, 120);
+	records::RecordTable t(0, 0, 200, 120);
+	t.type(Fl_Table_Row::SELECT_MULTI);
+	t.col_header(0);
+	t.row_header(0);
+	t.rows(5);
+	t.cols(1);
+	t.row_height_all(16);
+	t.col_width(0, 180);
+	t.end();
+	win.end();
+
+	// A drag redraws only the rows whose selection changed, and Fl_Table draws the box on that partial draw too: a
+	// filled box would blank the rest, so the edge must be a frame.
+	CHECK(t.box() == FL_DOWN_FRAME);
+
+	// A press on row 1 and a drag to row 3 select rows 1 to 3.
+	left_at(20, 24);
+	t.table_handle(FL_PUSH);
+	left_at(20, 56);
+	t.table_handle(FL_DRAG);
+	t.table_handle(FL_RELEASE);
+	CHECK(t.row_selected(0) == 0);
+	CHECK(t.row_selected(1) == 1);
+	CHECK(t.row_selected(2) == 1);
+	CHECK(t.row_selected(3) == 1);
+	CHECK(t.row_selected(4) == 0);
+}

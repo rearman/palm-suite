@@ -108,6 +108,11 @@ std::optional<ListAction> list_menu(text_edit::EditState s, std::span<const std:
 	}
 }
 
+RecordTable::RecordTable(int x, int y, int w, int h, const char* label) : Fl_Table_Row(x, y, w, h, label) {
+	// The cells and FLTK's fill of the area below them, in color(), paint the inside.
+	box(FL_DOWN_FRAME);
+}
+
 std::optional<std::pair<int, int>> RecordTable::cell_under_cursor() {
 	// FLTK's cursor2rowcol with no header, for the visible cells only: FLTK gives its dead zone as row 0 and column 0,
 	// which made a click below the rows act on row 0. The arithmetic is FLTK's find_cell for a cell.

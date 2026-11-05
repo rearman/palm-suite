@@ -433,7 +433,6 @@ AddressView::AddressView(int x, int y, int w, int h, msg::Sender s, const settin
 	table_->row_height_all(ROW_H);
 	table_->col_header(0);
 	table_->row_header(0);
-	table_->box(FL_DOWN_BOX);
 	table_->color(FL_WHITE);
 	table_->end();
 

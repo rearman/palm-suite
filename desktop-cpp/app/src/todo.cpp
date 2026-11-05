@@ -445,7 +445,6 @@ public:
 		row_height_all(ROW_H);
 		col_header(0);
 		row_header(0);
-		box(FL_DOWN_BOX);
 		color(FL_WHITE);
 		end();
 	}

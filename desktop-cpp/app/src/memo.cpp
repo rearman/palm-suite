@@ -134,7 +134,6 @@ MemoTable::MemoTable(int x, int y, int w, int h, std::shared_ptr<int> lead, msg:
 	row_height_all(16);
 	col_header(0);
 	row_header(0);
-	box(FL_DOWN_BOX);
 	color(FL_WHITE);
 	end();
 }
