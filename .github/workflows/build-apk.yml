@@ -1,11 +1,11 @@
 name: Build APKs
 
-# Builds and tests both apps, the sync server and the desktop app. A tag handheld-v*, launcher-v*, server-v* or
-# desktop-v* also releases that one part. A release tag build keeps the two newest releases of each app and deletes the older ones.
+# Builds and tests the two phone apps, the watch app, the sync server and the desktop app. A tag handheld-v*,
+# launcher-v*, watch-v*, server-v* or desktop-v* also releases that one part. A release tag build keeps the two newest releases of each app and deletes the older ones.
 on:
   push:
     branches: [ main, master ]
-    tags: [ 'handheld-v*', 'launcher-v*', 'server-v*', 'desktop-v*' ]
+    tags: [ 'handheld-v*', 'launcher-v*', 'watch-v*', 'server-v*', 'desktop-v*' ]
   workflow_dispatch:
 
 jobs:
@@ -52,7 +52,7 @@ jobs:
             sync-core/build/vectors
           if-no-files-found: ignore
 
-      # A tag build names the APK of its app after the tag, for example handheld-v1.13.apk.
+      # A tag build names the APK of its app after the tag, for example handheld-v1.13.apk or watch-v1.0.apk.
       - name: Rename APKs
         id: apk
         env:
@@ -60,17 +60,22 @@ jobs:
         run: |
           db=handheld.apk
           pl=palm-launcher.apk
+          wt=watch.apk
           case "$TAG" in
             handheld-v*) db="$TAG.apk" ;;
             launcher-v*) pl="palm-$TAG.apk" ;;
+            watch-v*) wt="$TAG.apk" ;;
           esac
           mv datebook/app/build/outputs/apk/release/app-release.apk "$db"
           mv palm-launcher/app/build/outputs/apk/release/app-release.apk "$pl"
+          mv datebook/wear/build/outputs/apk/release/wear-release.apk "$wt"
           echo "handheld=$db" >> "$GITHUB_OUTPUT"
           echo "launcher=$pl" >> "$GITHUB_OUTPUT"
+          echo "watch=$wt" >> "$GITHUB_OUTPUT"
           case "$TAG" in
             handheld-v*) echo "release=$db" >> "$GITHUB_OUTPUT" ;;
             launcher-v*) echo "release=$pl" >> "$GITHUB_OUTPUT" ;;
+            watch-v*) echo "release=$wt" >> "$GITHUB_OUTPUT" ;;
           esac
 
       # archive: false uploads the file itself and accepts only one file, so each APK has its own step.
@@ -86,9 +91,15 @@ jobs:
           path: ${{ steps.apk.outputs.launcher }}
           archive: false
 
+      - name: Upload watch APK
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.apk.outputs.watch }}
+          archive: false
+
       # On a release tag, attach the APK of that app to the GitHub Release of the tag. A rerun replaces it.
       - name: Attach APK to release
-        if: startsWith(github.ref_name, 'handheld-v') || startsWith(github.ref_name, 'launcher-v')
+        if: startsWith(github.ref_name, 'handheld-v') || startsWith(github.ref_name, 'launcher-v') || startsWith(github.ref_name, 'watch-v')
         env:
           GH_TOKEN: ${{ github.token }}
           APK: ${{ steps.apk.outputs.release }}
@@ -103,7 +114,7 @@ jobs:
       # ones. Their tags stay. Versions sort with sort -V. The handheld app was released as datebook
       # up to datebook-v1.12, so a handheld release also deletes the datebook releases.
       - name: Delete old releases
-        if: startsWith(github.ref_name, 'handheld-v') || startsWith(github.ref_name, 'launcher-v')
+        if: startsWith(github.ref_name, 'handheld-v') || startsWith(github.ref_name, 'launcher-v') || startsWith(github.ref_name, 'watch-v')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

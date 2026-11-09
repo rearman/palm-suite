@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_agenda"
+        android:label="@string/app_name">
+
+        <!-- The phone app is required: it sends the agenda. -->
+        <meta-data
+            android:name="com.google.android.wearable.standalone"
+            android:value="false" />
+
+        <!-- The Date Book widget (Wear OS 7). -->
+        <service
+            android:name=".AgendaWidgetService"
+            android:exported="true"
+            android:icon="@drawable/ic_agenda"
+            android:label="@string/widget_label"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.glance.wear.action.BIND_WIDGET_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.glance.wear.widget.provider"
+                android:resource="@xml/agenda_widget" />
+        </service>
+
+        <!-- Moves the widget on at the end of an appointment and at midnight. -->
+        <receiver
+            android:name=".AgendaTick"
+            android:exported="false" />
+
+        <!-- Receives the agenda from the phone (WearBridge in datebook/app). -->
+        <service
+            android:name=".AgendaListener"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:host="*"
+                    android:path="/agenda"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
