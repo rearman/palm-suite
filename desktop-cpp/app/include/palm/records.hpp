@@ -84,8 +84,8 @@ public:
 	// The table is ended, so no later widget joins it, and a subclass that adds a child widget must begin() it first.
 	RecordTable(int x, int y, int w, int h, TableRowSelectMode mode, int row_h, int ncols = 1);
 
-	// Sets the number of rows, each `row_h` high: FLTK gives a new row the last row's height, or 25 px when the
-	// table had none.
+	// Sets the number of rows, each `row_h` high. FLTK gives a new row the last row's height, or 25 px when the
+	// table had none, so a fill of an empty list first makes one row `row_h` high, and the rest copy it in one pass.
 	void rows(int n) override;
 	using Fl_Table_Row::rows;
 

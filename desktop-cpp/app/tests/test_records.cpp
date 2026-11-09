@@ -75,13 +75,19 @@ TEST_CASE("a drag-select changes the swept rows alone, and the list's edge leave
 	CHECK_FALSE(t.col_header());
 	CHECK_FALSE(t.row_header());
 
-	// Every row is row_h high: the first rows of an empty list, and the rows a later fill adds.
+	// Every row is row_h high: the first rows of an empty list, the rows a later fill adds, and the rows of a list
+	// filled again after a filter emptied it, which FLTK alone makes 25 px high.
 	CHECK(t.row_h() == 16);
 	CHECK(t.row_height(0) == 16);
 	CHECK(t.row_height(4) == 16);
 	t.rows(7);
 	CHECK(t.row_height(6) == 16);
+	t.rows(0);
+	t.rows(3);
+	CHECK(t.row_height(0) == 16);
+	CHECK(t.row_height(2) == 16);
 	t.rows(5);
+	CHECK(t.row_height(4) == 16);
 
 	// A press on row 1 and a drag to row 3 select rows 1 to 3.
 	left_at(20, 24);

@@ -122,9 +122,14 @@ RecordTable::RecordTable(int x, int y, int w, int h, TableRowSelectMode mode, in
 }
 
 void RecordTable::rows(int n) {
+	// Each row_height call resizes the whole table, so setting the rows one at a time cost a time that grows with the
+	// square of the rows. FLTK's row_height also writes past the end of its list when it grows it, so the one row that
+	// sets the height comes from rows(1). Every row here is row_h_ high, so the rows a fill adds copy the last one.
+	if (n > 0 && rows() == 0) {
+		Fl_Table_Row::rows(1);
+		row_height(0, row_h_);
+	}
 	Fl_Table_Row::rows(n);
-	// A row already row_h_ high is left as it is, so only the new rows of the first fill change.
-	row_height_all(row_h_);
 }
 
 std::optional<std::pair<int, int>> RecordTable::cell_under_cursor() {
