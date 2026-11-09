@@ -229,6 +229,13 @@ object Recur {
     /** Day of week with Sunday = 0. */
     fun dow(d: LocalDate): Int = d.dayOfWeek.value % 7
 
+    /**
+     * The local wall time [minutes] after midnight of [day] (negative or past one day is fine), in
+     * epoch ms. The minutes count on the wall clock, so a DST change keeps 3:00 pm at 3:00 pm.
+     */
+    fun millis(day: Long, minutes: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Long =
+        LocalDate.ofEpochDay(day).atStartOfDay().plusMinutes(minutes).atZone(zone).toInstant().toEpochMilli()
+
     /** Week of the month, 1..5. */
     fun weekIndex(d: LocalDate): Int = (d.dayOfMonth - 1) / 7 + 1
 
