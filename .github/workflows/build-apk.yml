@@ -35,7 +35,8 @@ jobs:
 
       # compileSdk 37 (the watch app's Glance Wear needs it). The runner image may not have the platform yet.
       - name: Install Android platform 37
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" > /dev/null
+        # From API 37 on, the package names carry the minor version.
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0"
 
       - name: Build APKs
         run: gradle assembleRelease testDebugUnitTest :sync-core:test --stacktrace
