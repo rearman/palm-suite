@@ -1124,8 +1124,7 @@ void DateView::todo_click(view::Ctx& ctx, std::size_t row, std::int32_t lx, bool
 		return;
 	}
 	model::Todo t = pane_todos_[row];
-	const std::int32_t scroll_w = todo_list_->rows() * todo_list_->row_h() > todo_list_->h() - 4 ? 17 : 0;
-	const auto [pri, due] = pane_parts(*pane_, todo_list_->w() - 4 - scroll_w);
+	const auto [pri, due] = pane_parts(*pane_, records::inner_w(*todo_list_));
 	const std::int64_t today = platform::today();
 	if (lx < 20) {
 		// The check box.

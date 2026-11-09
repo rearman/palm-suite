@@ -112,6 +112,9 @@ private:
 // page draw.
 void fit_column(RecordTable& t);
 
+// The width inside the edge of a record list and, when its rows overflow it, its scroll bar.
+int inner_w(RecordTable& t);
+
 // The events of a record list: a right click selects the row under the pointer and opens the list menu, a click or
 // an arrow key moves the lead row, a double click opens the row, a printable key goes to the view, and a paste event
 // brings the clipboard text of Paste. `lead` is the lead row, shared with the view as the Rust Rc<Cell> is.

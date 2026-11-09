@@ -167,8 +167,12 @@ int RecordTable::table_handle(int event) {
 	return Fl_Table_Row::handle(event);
 }
 
+int inner_w(RecordTable& t) {
+	return t.w() - 4 - (t.rows() * t.row_h() > t.h() - 4 ? 17 : 0);
+}
+
 void fit_column(RecordTable& t) {
-	const int width = t.w() - 4 - (t.rows() * t.row_h() > t.h() - 4 ? 17 : 0);
+	const int width = inner_w(t);
 	if (t.col_width(0) != width) {
 		t.col_width(0, width);
 	}

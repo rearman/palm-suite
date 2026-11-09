@@ -229,7 +229,7 @@ std::optional<std::size_t> popup(const std::vector<std::string>& labels) {
 
 // Fits the fixed columns and gives the To Do text the rest of the width inside the edge and the scroll bar.
 void fit_columns(records::RecordTable& t, const std::vector<Col>& cols) {
-	const int room = t.w() - 4 - (t.rows() * t.row_h() > t.h() - 4 ? 17 : 0);
+	const int room = records::inner_w(t);
 	int fixed = 0;
 	for (const Col c : cols) {
 		fixed += fixed_width(c);

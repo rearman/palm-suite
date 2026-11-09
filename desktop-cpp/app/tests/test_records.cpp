@@ -89,6 +89,12 @@ TEST_CASE("a drag-select changes the swept rows alone, and the list's edge leave
 	t.rows(5);
 	CHECK(t.row_height(4) == 16);
 
+	// The inside of the edge: 5 rows of 16 px fit in 116 px, and 8 rows need the scroll bar.
+	CHECK(records::inner_w(t) == 196);
+	t.rows(8);
+	CHECK(records::inner_w(t) == 179);
+	t.rows(5);
+
 	// A press on row 1 and a drag to row 3 select rows 1 to 3.
 	left_at(20, 24);
 	t.table_handle(FL_PUSH);
