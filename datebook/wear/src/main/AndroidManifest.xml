@@ -20,12 +20,18 @@
             android:icon="@drawable/ic_agenda"
             android:label="@string/widget_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <!-- The watch's widget host finds providers through the Tiles action and binds with a
+                 widget identifier; the Glance action alone does not list the widget. -->
             <intent-filter>
                 <action android:name="androidx.glance.wear.action.BIND_WIDGET_PROVIDER" />
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
             </intent-filter>
             <meta-data
                 android:name="androidx.glance.wear.widget.provider"
                 android:resource="@xml/agenda_widget" />
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/ic_agenda" />
         </service>
 
         <!-- Moves the widget on at the end of an appointment and at midnight. -->

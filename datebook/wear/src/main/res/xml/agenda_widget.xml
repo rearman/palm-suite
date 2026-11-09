@@ -5,6 +5,10 @@
     label="@string/widget_label"
     preferredType="LARGE">
 
-    <container type="LARGE" />
-    <container type="SMALL" />
+    <container
+        type="LARGE"
+        previewImage="@drawable/ic_agenda" />
+    <container
+        type="SMALL"
+        previewImage="@drawable/ic_agenda" />
 </wearwidget-provider>
