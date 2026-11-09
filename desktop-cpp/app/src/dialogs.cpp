@@ -173,6 +173,12 @@ Fl_Window* largest_shown() {
 	return best;
 }
 
+// The width of a message box with a text column of `text_w` at `left`, and buttons `buttons_w` wide: the text with its
+// margin, or the buttons with theirs, within the narrowest and the widest box.
+int message_width(int left, int text_w, int buttons_w) {
+	return std::clamp(std::max(left + text_w + MARGIN, buttons_w + 2 * MARGIN), BOX_MIN_W, BOX_MAX_W);
+}
+
 } // namespace
 
 void set_main(Fl_Window* win) {
@@ -246,7 +252,7 @@ std::optional<std::size_t> ask_icon(std::string_view title, Icon icon, std::stri
 	const int text_h = static_cast<int>(lines.size()) * fl_height();
 	const int n = static_cast<int>(buttons.size());
 	const int buttons_w = n * BUTTON_W + std::max(n - 1, 0) * BUTTON_GAP;
-	const int w = detail::message_width(left, text_w, buttons_w);
+	const int w = message_width(left, text_w, buttons_w);
 	const int text_bottom = TEXT_TOP + text_h;
 	const int content_bottom = icon == Icon::None ? text_bottom : std::max(text_bottom, MARGIN + ICON_SIZE);
 	const int by = content_bottom + MARGIN;
@@ -487,10 +493,6 @@ std::vector<std::string> wrap_lines(std::string_view text, int max_w,
 		out.push_back(line);
 	}
 	return out;
-}
-
-int message_width(int left, int text_w, int buttons_w) {
-	return std::clamp(std::max(left + text_w + MARGIN, buttons_w + 2 * MARGIN), BOX_MIN_W, BOX_MAX_W);
 }
 
 } // namespace detail

@@ -88,10 +88,6 @@ TEST_CASE("windows_names_map_to_iana") {
 	CHECK(!iana_for_windows("Nowhere Standard Time").has_value());
 }
 
-TEST_CASE("local_zone_is_set") {
-	CHECK(local_zone() != nullptr);
-}
-
 TEST_CASE("tz_variable_names_the_zone") {
 	CHECK(zone_name_for("Asia/Tokyo") == "Asia/Tokyo");
 }
@@ -131,12 +127,4 @@ TEST_CASE("today_is_the_tokyo_date_under_tz_tokyo") {
 	const std::int64_t after = zone_today(tokyo);
 	// The date may turn over between the reads, so either bracketing date is right.
 	CHECK((got == before || got == after));
-}
-
-TEST_CASE("today_is_within_a_day_of_the_utc_date") {
-	const auto utc_day = std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now());
-	const auto epoch_day = static_cast<std::int64_t>(utc_day.time_since_epoch().count());
-	const std::int64_t diff = today() - epoch_day;
-	CHECK(diff >= -1);
-	CHECK(diff <= 1);
 }

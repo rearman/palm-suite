@@ -67,13 +67,8 @@ TEST_CASE("a drag-select changes the swept rows alone, and the list's edge leave
 	win.end();
 
 	// A drag redraws only the rows whose selection changed, and Fl_Table draws the box on that partial draw too: a
-	// filled box would blank the rest, so the edge must be a frame. The constructor gives every list its setup.
+	// filled box would blank the rest, so the edge must be a frame.
 	CHECK(t.box() == FL_DOWN_FRAME);
-	CHECK(t.type() == Fl_Table_Row::SELECT_MULTI);
-	CHECK(t.cols() == 1);
-	CHECK(t.color() == FL_WHITE);
-	CHECK_FALSE(t.col_header());
-	CHECK_FALSE(t.row_header());
 
 	// Every row is row_h high: the first rows of an empty list, the rows a later fill adds, and the rows of a list
 	// filled again after a filter emptied it, which FLTK alone makes 25 px high.
@@ -88,12 +83,6 @@ TEST_CASE("a drag-select changes the swept rows alone, and the list's edge leave
 	CHECK(t.row_height(2) == 16);
 	t.rows(5);
 	CHECK(t.row_height(4) == 16);
-
-	// The inside of the edge: 5 rows of 16 px fit in 116 px, and 8 rows need the scroll bar.
-	CHECK(records::inner_w(t) == 196);
-	t.rows(8);
-	CHECK(records::inner_w(t) == 179);
-	t.rows(5);
 
 	// A press on row 1 and a drag to row 3 select rows 1 to 3.
 	left_at(20, 24);

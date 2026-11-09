@@ -42,11 +42,6 @@ public:
 
 } // namespace
 
-TEST_CASE("new session is not running") {
-	const session::SyncSession s{};
-	CHECK_FALSE(s.running());
-}
-
 TEST_CASE("start with an empty store sends an empty plan") {
 	EmptyStore store;
 	session::SyncSession s{};

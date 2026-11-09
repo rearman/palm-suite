@@ -92,10 +92,6 @@ namespace detail {
 std::vector<std::string> wrap_lines(std::string_view text, int max_w,
                                     const std::function<int(std::string_view)>& measure);
 
-// The width of a message box with a text column of `text_w` at `left`, and buttons `buttons_w` wide: the text with its
-// margin, or the buttons with theirs, within the narrowest and the widest box. Exposed for test_dialogs.cpp.
-int message_width(int left, int text_w, int buttons_w);
-
 } // namespace detail
 
 } // namespace palm::dialogs
