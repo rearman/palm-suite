@@ -23,6 +23,8 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Event Details: time, date, alarm, repeat, private and note. In Set Time, All Day sets the start and end times of the Preferences. An event with no time keeps no time until you select a time. You can set the alarm time and unit when Alarm is off.
 - Repeat: daily, weekly (on selected days), monthly by day or by date, yearly, with an optional end date. For changes or deletions of a repeating event, select Current, Future or All. Future applies to this and all later occurrences. Earlier occurrences stay.
 - Alarms ring while the app is closed. Preferences set the alarm preset, the number of reminders and the interval. Snooze adds 5 minutes.
+- The alarm also shows on a paired watch, with OK and Snooze. Tap OK or dismiss the alarm on the phone or on the watch: the alarm goes from both.
+- Live Update (Android 16 or later): from the start to the end of a timed event with an alarm, the event shows in the status bar and on the watch. It shows the time to the end. To stop it, turn off Live Updates for Date Book in the Android notification settings.
 - In the Day view, type a character when no event is selected to start a new event. The event starts at the next hour (today) or at the Day Start time, and the text you type is its description.
 - Press Backspace in an empty event to delete it. An event with a note or a repeat stays.
 - Export iCalendar saves all events as an .ics file for Google Calendar, Outlook or Apple Calendar. Import iCalendar adds the events of an .ics file and skips events that are already in Date Book. Times change to the time zone of the device. A timed event that goes past midnight becomes one event for each day it covers. A repeat rule that Date Book cannot show gives a one-time event. The Import dialog shows how many events were simplified.
@@ -90,6 +92,15 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 - Delete Event, Delete To Do and Delete Memo have a Save archive copy on PC check box. When it is set, the app saves a backup file of the record before it deletes the record.
 - ShortCuts: type ^ or press Ctrl+Space, then a ShortCut name. When the letters after ^ match a full name, the ^ and the name change to the ShortCut text. The Prefs app edits the list: New, Edit... and Delete.... Export Backup does not include ShortCuts.
 - Sync: Options > Sync... connects the apps to your own palmsync server (see sync-server/README.md). Enter the server address, the device token and the sync passphrase. Use the same passphrase on every device. The apps sync when they open, about 1 second after a change and every hour, and Sync Now syncs at once. The server stores only encrypted records. When the same record changed on two devices, the apps keep both copies, as Palm HotSync did.
+
+### Watch
+
+The watch app (`watch.apk`) is for a watch with Wear OS 7, for example the Pixel Watch 5. Install `handheld.apk` on the phone and `watch.apk` on the watch.
+
+- Add the Date Book widget on the watch. The large card shows the date, the appointments of today that did not end, and the number of To Do items that are due. The small card shows the next appointment.
+- The phone sends the appointments of 7 days to the watch about 2 seconds after a change, after a sync, when the phone starts and at midnight. The widget changes to the next day at midnight.
+- When there are no appointments, the widget shows "No appointments".
+- Private records follow the Security setting of the phone: Hide Records removes them from the watch, and Mask Records shows "Private" in their place.
 
 ## Limits
 
