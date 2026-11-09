@@ -31,7 +31,11 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: '9.4.1'
+
+      # compileSdk 37 (the watch app's Glance Wear needs it). The runner image may not have the platform yet.
+      - name: Install Android platform 37
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" > /dev/null
 
       - name: Build APKs
         run: gradle assembleRelease testDebugUnitTest :sync-core:test --stacktrace

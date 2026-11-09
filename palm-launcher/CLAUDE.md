@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-An Android home-screen launcher, a companion to `../datebook`. Kotlin, plain Android Views (no AndroidX, no Compose, no XML layouts), no dependencies. minSdk 26, compileSdk and targetSdk 34, JDK 17. Version control is jj.
+An Android home-screen launcher, a companion to `../datebook`. Kotlin, plain Android Views (no AndroidX, no Compose, no XML layouts), no dependencies. minSdk 26, compileSdk 37, targetSdk 34, JDK 17. Version control is jj.
 
 ## Build
 
-The repository has no Gradle wrapper. CI (`.github/workflows/build-apk.yml`) uses Gradle 8.7 on JDK 17:
+The repository has no Gradle wrapper. CI (`.github/workflows/build-apk.yml`) uses Gradle 9.4.1 (AGP 9.2.1) on JDK 17:
 
 ```sh
 gradle assembleRelease --stacktrace
