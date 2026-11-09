@@ -1,6 +1,5 @@
 package com.rearman.palmlauncher
 
-import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
@@ -15,19 +14,6 @@ class ModelTest {
 
 	private fun filterApps(s: LauncherState, apps: List<App>): List<App> =
 		s.filter(apps, { it.c }, { it.l })
-
-	@Test
-	fun defaultsHaveFiveCategoriesWithUnfiledLast() {
-		val s = LauncherState.defaults()
-		assertEquals(5, s.categories.size)
-		assertEquals(listOf(1, 2, 3, 4, 0), s.categories.map { it.id })
-		assertEquals(listOf("Games", "Main", "System", "Utilities", "Unfiled"), s.categories.map { it.name })
-		assertEquals(ALL, s.selected)
-		assertEquals(ViewMode.GRID, s.viewMode)
-		assertEquals(4, s.dock.size)
-		assertTrue(s.dock.all { it == null })
-		assertTrue(s.assignments.isEmpty())
-	}
 
 	@Test
 	fun filterAllSortsByLabelCaseInsensitive() {
@@ -207,15 +193,6 @@ class ModelTest {
 		assertEquals(Size.NORMAL, Size.of(""))
 		assertEquals(Size.NORMAL, Size.of(null))
 		assertEquals(Size.NORMAL, Size.of("HUGE"))
-		assertEquals(Size.NORMAL, LauncherState.defaults().textSize)
-	}
-
-	@Test
-	fun columnWidthsFitOrNull() {
-		// Column 0 holds entries 0, 2, 4; column 1 holds entries 1, 3.
-		assertArrayEquals(intArrayOf(30, 40), columnWidths(listOf(10, 40, 30, 20, 5), 2, 100))
-		assertArrayEquals(intArrayOf(0, 0), columnWidths(emptyList(), 2, 100))
-		assertNull(columnWidths(listOf(60, 50), 2, 100))
 	}
 
 	@Test

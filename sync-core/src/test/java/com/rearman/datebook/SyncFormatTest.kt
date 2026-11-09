@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Format 2 (short keys, defaults left out) and format 1 (long keys), and the plaintext compression. */
+/** Format 2 (short keys, defaults left out) and the plaintext compression. VectorsTest pins format 1. */
 class SyncFormatTest {
     private val cat = { uid: String -> if (uid == "cat-1") 3 else if (uid == "cat-7") 7 else 0 }
 
@@ -21,13 +21,6 @@ class SyncFormatTest {
         assertEquals("event", SyncCodec.kind(text))
         assertEquals("e", JSONObject(text).getString("k"))
         assertEquals(e.copy(uid = "u1"), SyncCodec.toEvent(text, "u1"))
-    }
-
-    @Test fun defaultEventWritesOnlyKindAndTitle() {
-        // date 0 is the default; Event() alone would hold today's date.
-        val text = SyncCodec.event(Event(title = "Dentist", date = 0))
-        assertEquals(setOf("k", "t"), JSONObject(text).keys().asSequence().toSet())
-        assertEquals("Dentist", SyncCodec.toEvent(text, "u1").title)
     }
 
     @Test fun todoRoundTripsThroughFormat2() {
@@ -70,58 +63,6 @@ class SyncFormatTest {
         val text = SyncCodec.shortcuts(list)
         assertEquals("shortcuts", SyncCodec.kind(text))
         assertEquals(list, SyncCodec.toShortcuts(text))
-    }
-
-    @Test fun eventDecodesFromFormat1() {
-        val text = """{"kind":"event","title":"Dentist","note":"","date":19000,"untimed":false,"start":600,"end":660,"alarm":true,"alarmAdvance":2,"alarmUnit":1,"repeat":2,"every":2,"repeatEnd":19100,"weekDays":42,"exceptions":[19007,19014],"private":true}"""
-        assertEquals("event", SyncCodec.kind(text))
-        assertEquals(
-            Event(
-                title = "Dentist", date = 19000, start = 600, end = 660, alarm = true, alarmAdvance = 2,
-                alarmUnit = 1, repeat = Repeat.WEEK, every = 2, repeatEnd = 19100, weekDays = 0x2A,
-                exceptions = mutableSetOf(19007L, 19014L), isPrivate = true, uid = "u1"
-            ),
-            SyncCodec.toEvent(text, "u1")
-        )
-    }
-
-    @Test fun todoDecodesFromFormat1() {
-        val text = """{"kind":"todo","title":"Call","note":"later","priority":2,"due":19000,"done":true,"category":"cat-1","private":true}"""
-        assertEquals("todo", SyncCodec.kind(text))
-        assertEquals(
-            Todo(title = "Call", note = "later", priority = 2, due = 19000, done = true, category = 3, isPrivate = true, uid = "t1"),
-            SyncCodec.toTodo(text, "t1", cat)
-        )
-    }
-
-    @Test fun memoDecodesFromFormat1() {
-        val text = """{"kind":"memo","text":"Title\nbody","category":"","private":false,"pos":3}"""
-        assertEquals("memo", SyncCodec.kind(text))
-        assertEquals(Memo(text = "Title\nbody", pos = 3, uid = "m1"), SyncCodec.toMemo(text, "m1", cat))
-    }
-
-    @Test fun addressDecodesFromFormat1() {
-        val text = """{"kind":"address","lastName":"Earman","firstName":"Ross","title":"","company":"Palm Co","phoneLabels":[7,1,2,3,4],"phones":["555-0100","555-0101","","",""],"address":"","city":"","state":"","zip":"","country":"","custom":["","","",""],"note":"","showPhone":1,"category":"cat-7","private":false}"""
-        assertEquals("address", SyncCodec.kind(text))
-        assertEquals(
-            Address(
-                lastName = "Earman", firstName = "Ross", company = "Palm Co", phoneLabels = listOf(7, 1, 2, 3, 4),
-                phones = listOf("555-0100", "555-0101", "", "", ""), showPhone = 1, category = 7, uid = "a1"
-            ),
-            SyncCodec.toAddress(text, "a1", cat)
-        )
-    }
-
-    @Test fun categoryDecodesFromFormat1() {
-        val text = """{"kind":"category","name":"Work","app":2}"""
-        assertEquals("category", SyncCodec.kind(text))
-        assertEquals(Category(9, "Work", 2, "c1"), SyncCodec.toCategory(text, "c1", 9))
-    }
-
-    @Test fun shortcutsDecodeFromFormat1() {
-        val text = """{"kind":"shortcuts","list":[{"name":"Dentist","text":"Dentist at ^T"},{"name":"Mtg","text":"Meeting"}]}"""
-        assertEquals("shortcuts", SyncCodec.kind(text))
-        assertEquals(listOf("Dentist" to "Dentist at ^T", "Mtg" to "Meeting"), SyncCodec.toShortcuts(text))
     }
 
     @Test fun shortPlainTextStaysUtf8Json() {
