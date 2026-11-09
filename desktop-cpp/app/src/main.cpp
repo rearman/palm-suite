@@ -17,6 +17,7 @@
 #include "palm/msg.hpp"
 #include "palm/options.hpp"
 #include "palm/platform.hpp"
+#include "palm/platform_ui.hpp"
 #include "palm/printing.hpp"
 #include "palm/records.hpp"
 #include "palm/runner.hpp"
@@ -59,6 +60,9 @@ namespace {
 // The sync runs this long after the last local change, so one action that writes several records syncs once.
 constexpr double CHANGE_DELAY = 1.0;
 constexpr double HOUR = 3600.0;
+
+// The setting of the main window's box and maximized state, saved at exit (platform_ui::format_placement).
+constexpr std::string_view WINDOW_PLACEMENT = "windowPlacement";
 
 // What the focus owner is, for the Edit commands: a text field, a record list, or nothing.
 enum class TargetKind { Text, MemoList, AddressList, TodoList, None };
@@ -380,7 +384,12 @@ void App::handle(palm::msg::Msg msg) {
 	        },
 	        [this](palm::msg::SyncDialogClose&) { close_dialog(); },
 	        [](palm::msg::About&) { palm::dialogs::about(); },
-	        [](palm::msg::Exit&) { Fl::hide_all_windows(); },
+	        [this](palm::msg::Exit&) {
+		        if (const auto p = palm::platform_ui::placement(ui.win, ui.win->boxes)) {
+			        save_setting(WINDOW_PLACEMENT, palm::platform_ui::format_placement(*p));
+		        }
+		        Fl::hide_all_windows();
+	        },
 	    },
 	    msg);
 	check_save();
@@ -818,11 +827,14 @@ int main(int argc, char** argv) {
 	}
 	a.refresh_views();
 	a.show_view(palm::msg::from_key(start).value_or(palm::msg::View::Date));
-	a.ui.win->show();
-	palm::mnemonics::refresh();
-	if (!shot_at) {
-		a.ui.win->maximize();
+	// The window opens where it was at the end of the last session, else maximized. A capture keeps the built size.
+	if (shot_at) {
+		a.ui.win->show();
+	} else {
+		palm::platform_ui::show_placed(a.ui.win,
+		                               palm::platform_ui::parse_placement(a.settings.get(WINDOW_PLACEMENT, "")));
 	}
+	palm::mnemonics::refresh();
 
 	// Sync now when sync is on, then every hour, 1 s after each local change, and when the window comes to the front
 	// after a minute without a sync.

@@ -321,6 +321,13 @@ int MainWindow::handle(int event) {
 	return result;
 }
 
+void MainWindow::resize(int x, int y, int w, int h) {
+	Fl_Double_Window::resize(x, y, w, h);
+	if (shown() && visible() && !maximize_active() && !fullscreen_active()) {
+		boxes.note(platform_ui::Box{this->x(), this->y(), this->w(), this->h()});
+	}
+}
+
 Ui Ui::build(msg::Sender s) {
 	auto* win = new MainWindow(s);
 	win->color(theme::PANEL);

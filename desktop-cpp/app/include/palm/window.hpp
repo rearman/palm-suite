@@ -4,6 +4,7 @@
 #pragma once
 
 #include "palm/msg.hpp"
+#include "palm/platform_ui.hpp"
 #include "palm/text_edit.hpp"
 
 #include <FL/Fl_Double_Window.H>
@@ -55,7 +56,13 @@ public:
 	// FLTK's own handler runs first, then the window sends its messages, as the Rust closure of the handle does.
 	int handle(int event) override;
 
+	// FLTK's own resize runs first. Then the box of a shown window that is not maximized is noted in `boxes`. FLTK's
+	// position() also comes here.
+	void resize(int x, int y, int w, int h) override;
+
 	msg::Sender sender;
+	// The window's last boxes while not maximized, for the placement saved at exit on X11.
+	platform_ui::BoxKeeper boxes;
 	// The commands of the menu bar, the toolbar, the launcher bar and the close box.
 	std::list<Command> commands;
 	// The commands of the Edit menu, which is built again for each view.
