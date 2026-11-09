@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.glance.wear.AssociateWithGlanceWearWidget
 import androidx.glance.wear.GlanceWearWidget
 import androidx.glance.wear.GlanceWearWidgetService
 import androidx.glance.wear.WearWidgetBrush
@@ -78,6 +79,8 @@ class AgendaWidget : GlanceWearWidget() {
     }
 }
 
+// The annotation lets Glance Wear find the widget class without starting the service.
+@AssociateWithGlanceWearWidget(AgendaWidget::class)
 class AgendaWidgetService : GlanceWearWidgetService() {
     override val widget: GlanceWearWidget = AgendaWidget()
 }
