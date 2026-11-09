@@ -129,7 +129,7 @@ namespace {
 // Whether the session is Wayland. The Linux build of FLTK runs on Wayland when a compositor is there and on X11 else.
 bool on_wayland() {
 #ifdef FLTK_USE_WAYLAND
-	Fl::open_display();
+	fl_open_display();
 	return fl_wl_display() != nullptr;
 #else
 	return false;
