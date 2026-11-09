@@ -99,7 +99,13 @@ object SyncEngine {
                 afterRound = { o -> if (o.shortCutsChanged) ShortCuts.list = Prefs(ctx).shortCuts },
                 finish = { error, changed ->
                     Prefs(ctx).syncLast = if (error == null) lastSyncText() else "Sync failed: $error"
-                    if (changed) onApplied?.invoke()
+                    if (changed) {
+                        // Also with no screen open (the hourly job): the alarms, the Live Update and
+                        // the watch must follow the records from the server.
+                        Alarms.scheduleNext(ctx)
+                        WearBridge.push(ctx)
+                        onApplied?.invoke()
+                    }
                     done(error)
                 },
                 again = { request(ctx) },

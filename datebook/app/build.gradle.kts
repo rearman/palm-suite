@@ -50,5 +50,8 @@ kotlin {
 dependencies {
     implementation(project(":palm-ui"))
     implementation(project(":sync-core"))
+    // The Wear Data Layer (WearBridge.kt), which sends the agenda to the watch app in datebook/wear.
+    // It is the one dependency outside the repository; it brings androidx.core with it.
+    implementation("com.google.android.gms:play-services-wearable:20.0.1")
     testImplementation("junit:junit:4.13.2")
 }

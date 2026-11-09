@@ -37,7 +37,7 @@ object Alarms {
     private const val LIVE_TAG = "live"
     const val SNOOZE_MINUTES = 5
 
-    // The Live Updates move on at midnight.
+    // The Live Update and the watch agenda move on at midnight.
     const val ACTION_DAY = "com.rearman.datebook.DAY"
 
     fun alarmTime(e: Event, day: Long): Long =
@@ -89,7 +89,7 @@ object Alarms {
      * Finds the next alarm time after now and sets the system alarm for it. On Android 16 and
      * later it also sets the alarm for the next start or end of a Live Update, and brings the
      * Live Updates up to date, so an edit or delete removes a stale one. A third alarm, at
-     * midnight, moves the Live Updates on to the new day.
+     * midnight, moves the Live Updates and the watch agenda on to the new day.
      */
     fun scheduleNext(ctx: Context) {
         clock(ctx)
@@ -333,7 +333,10 @@ class AlarmReceiver : BroadcastReceiver() {
                 Alarms.show(ctx, e, day)
             }
             Alarms.ACTION_LIVE -> Alarms.scheduleNext(ctx)
-            Alarms.ACTION_DAY -> Alarms.scheduleNext(ctx)
+            Alarms.ACTION_DAY -> {
+                Alarms.scheduleNext(ctx)
+                WearBridge.push(ctx)
+            }
         }
     }
 }
@@ -341,5 +344,6 @@ class AlarmReceiver : BroadcastReceiver() {
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         Alarms.scheduleNext(ctx)
+        WearBridge.push(ctx)
     }
 }

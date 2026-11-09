@@ -133,6 +133,7 @@ open class MainActivity : Activity() {
                 SyncJob.scheduleSoon(app)
                 SyncEngine.requestSoon(app)
             }
+            WearBridge.pushSoon(app)
         }
         mode = if (isPrefsApp) PREFS else if (isAddressApp) ADDRESS else if (isMemoApp) MEMO else if (isTodoApp) TODO else prefs.lastView
         // Palm: without Remember last category, the Address Book opens on All.
@@ -1146,17 +1147,7 @@ open class MainActivity : Activity() {
 
     internal fun categoryLabel(id: Int) = if (id < 0) "All" else store.categoryName(id)
 
-    private fun sortTodos(list: List<Todo>): List<Todo> {
-        val dueKey = { t: Todo -> if (t.due < 0) Long.MAX_VALUE else t.due }
-        val catKey = { t: Todo -> store.categoryName(t.category).lowercase() }
-        val cmp: Comparator<Todo> = when (prefs.sortMode) {
-            1 -> compareBy<Todo>({ dueKey(it) }, { it.priority }, { it.id })
-            2 -> compareBy<Todo>({ catKey(it) }, { it.priority }, { dueKey(it) }, { it.id })
-            3 -> compareBy<Todo>({ catKey(it) }, { dueKey(it) }, { it.priority }, { it.id })
-            else -> compareBy<Todo>({ it.priority }, { dueKey(it) }, { it.id })
-        }
-        return list.sortedWith(cmp)
-    }
+    private fun sortTodos(list: List<Todo>): List<Todo> = store.sortTodos(list, prefs.sortMode)
 
     private fun visibleTodos(): List<Todo> {
         val cat = prefs.todoCategory

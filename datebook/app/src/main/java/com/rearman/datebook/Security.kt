@@ -53,7 +53,8 @@ fun MainActivity.showSecurity() {
     placeForm(area, selector(passwordText()) { tv -> editPassword { tv.text = passwordText() } }, 59, 55, WRAP, 11)
     d.button("OK", 37) {
         d.dismiss()
-        val set = { prefs.security = pick; revealed.clear(); render() }
+        // The watch agenda hides or masks private records as the security option does.
+        val set = { prefs.security = pick; revealed.clear(); render(); WearBridge.pushSoon(this) }
         when {
             pick == prefs.security -> {}
             pick == 0 -> askPassword(set)

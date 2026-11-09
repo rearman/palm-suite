@@ -208,6 +208,19 @@ class Store private constructor(ctx: Context) :
 
     // ---- to dos ----
 
+    /** The To Do List order of the Sort by option [sortMode] (Prefs.sortMode). */
+    fun sortTodos(list: List<Todo>, sortMode: Int): List<Todo> {
+        val dueKey = { t: Todo -> if (t.due < 0) Long.MAX_VALUE else t.due }
+        val catKey = { t: Todo -> categoryName(t.category).lowercase() }
+        val cmp: Comparator<Todo> = when (sortMode) {
+            1 -> compareBy<Todo>({ dueKey(it) }, { it.priority }, { it.id })
+            2 -> compareBy<Todo>({ catKey(it) }, { it.priority }, { dueKey(it) }, { it.id })
+            3 -> compareBy<Todo>({ catKey(it) }, { dueKey(it) }, { it.priority }, { it.id })
+            else -> compareBy<Todo>({ it.priority }, { dueKey(it) }, { it.id })
+        }
+        return list.sortedWith(cmp)
+    }
+
     private fun loadTodos(): MutableList<Todo> {
         val list = mutableListOf<Todo>()
         readableDatabase.rawQuery("SELECT * FROM todos WHERE deleted=0", null).use { c ->
