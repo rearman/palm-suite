@@ -65,8 +65,6 @@ struct Row {
 
 namespace {
 
-constexpr int ROW_H = 16;
-
 // The width of the Due box of the details; the day name takes the rest of the row, as in Palm Desktop 3.1.1.
 constexpr int DUE_W = 90;
 
@@ -230,8 +228,8 @@ std::optional<std::size_t> popup(const std::vector<std::string>& labels) {
 }
 
 // Fits the fixed columns and gives the To Do text the rest of the width inside the edge and the scroll bar.
-void fit_columns(Fl_Table& t, const std::vector<Col>& cols) {
-	const int room = t.w() - 4 - (t.rows() * ROW_H > t.h() - 4 ? 17 : 0);
+void fit_columns(records::RecordTable& t, const std::vector<Col>& cols) {
+	const int room = t.w() - 4 - (t.rows() * t.row_h() > t.h() - 4 ? 17 : 0);
 	int fixed = 0;
 	for (const Col c : cols) {
 		fixed += fixed_width(c);
@@ -437,8 +435,9 @@ public:
 class TodoTable : public records::RecordTable {
 public:
 	TodoTable(int x, int y, int w, int h, msg::Sender s)
-	    : records::RecordTable(x, y, w, h, Fl_Table_Row::SELECT_MULTI, ROW_H, 0), lead(std::make_shared<int>(-1)),
-	      sender_(std::move(s)), note_img_(theme::icon("note")), private_img_(theme::icon("private")) {}
+	    : records::RecordTable(x, y, w, h, Fl_Table_Row::SELECT_MULTI, records::ROW_H, 0),
+	      lead(std::make_shared<int>(-1)), sender_(std::move(s)), note_img_(theme::icon("note")),
+	      private_img_(theme::icon("private")) {}
 
 	// The rows of the table, in table order, and the columns the Show Options ask for.
 	std::vector<Row> lines;

@@ -32,9 +32,6 @@ inline constexpr std::int32_t PANE_W = 234;
 // The width of the tab strip on the right edge.
 inline constexpr std::int32_t TABS_W = 24;
 
-// The height of one row of a record list.
-inline constexpr std::int32_t ROW_H = 16;
-
 // The height of the title box of the Day view.
 inline constexpr std::int32_t TITLE_H = 18;
 

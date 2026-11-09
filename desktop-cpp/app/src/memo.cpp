@@ -39,9 +39,6 @@ namespace palm::memo {
 
 namespace {
 
-// The height of a row of the Memo List.
-constexpr int ROW_H = 16;
-
 // The lines of a text as Rust's str::lines gives them: a line ends at "\n" or "\r\n", and a final line ending adds no
 // empty line.
 std::vector<std::string> lines_of(std::string_view s) {
@@ -129,7 +126,7 @@ private:
 };
 
 MemoTable::MemoTable(int x, int y, int w, int h, std::shared_ptr<int> lead, msg::Sender s)
-    : records::RecordTable(x, y, w, h, Fl_Table_Row::SELECT_MULTI, ROW_H), note_icon_(theme::icon("note")),
+    : records::RecordTable(x, y, w, h, Fl_Table_Row::SELECT_MULTI), note_icon_(theme::icon("note")),
       key_icon_(theme::icon("private")), lead_(std::move(lead)), s_(std::move(s)) {}
 
 void MemoTable::draw_cell(TableContext context, int row, int col, int x, int y, int w, int h) {

@@ -33,8 +33,6 @@ namespace palm::address {
 
 namespace {
 
-// The height of a row of the Address List, as Palm Desktop 3.1.1.
-constexpr int ROW_H = 16;
 // The gap after the number column of the Address List, measured in Palm Desktop.
 constexpr int RIGHT = 36;
 // The most of a narrow row that the number column takes.
@@ -164,8 +162,7 @@ const records::ListMsgs LIST_MSGS{
 class AddressList : public records::RecordTable {
 public:
 	AddressList(int x, int y, int w, int h, std::shared_ptr<int> lead, msg::Sender s)
-	    : records::RecordTable(x, y, w, h, Fl_Table_Row::SELECT_MULTI, ROW_H), lead_(std::move(lead)),
-	      s_(std::move(s)) {}
+	    : records::RecordTable(x, y, w, h, Fl_Table_Row::SELECT_MULTI), lead_(std::move(lead)), s_(std::move(s)) {}
 
 	// The rows, in list order.
 	std::vector<Row> list_rows;

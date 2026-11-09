@@ -74,6 +74,9 @@ struct ListMsgs {
 	std::optional<msg::Msg (*)(int, int, bool)> cell;
 };
 
+// The height of a row of every record list, as Palm Desktop 3.1.1.
+inline constexpr int ROW_H = 16;
+
 // A record list: a Fl_Table_Row with one column. FLTK's cursor2rowcol is private, so the cell under the pointer is
 // found here, through the protected members of the table. The lists set both headers off, as every record list does.
 class RecordTable : public Fl_Table_Row {
@@ -82,7 +85,7 @@ public:
 	// inside. The table gets the sunken edge as a frame: Fl_Table::draw draws its box on every draw, the partial one of
 	// a drag-select too, which repaints only the rows whose selection changed, so a filled box blanked every other row.
 	// The table is ended, so no later widget joins it, and a subclass that adds a child widget must begin() it first.
-	RecordTable(int x, int y, int w, int h, TableRowSelectMode mode, int row_h, int ncols = 1);
+	RecordTable(int x, int y, int w, int h, TableRowSelectMode mode, int row_h = ROW_H, int ncols = 1);
 
 	// Sets the number of rows, each `row_h` high. FLTK gives a new row the last row's height, or 25 px when the
 	// table had none, so a fill of an empty list first makes one row `row_h` high, and the rest copy it in one pass.
