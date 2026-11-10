@@ -10,8 +10,8 @@ android {
         applicationId = "com.rearman.datebook"
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "1.16"
+        versionCode = 19
+        versionName = "1.17"
     }
 
     // A fixed key, kept in the repository, so that each new build

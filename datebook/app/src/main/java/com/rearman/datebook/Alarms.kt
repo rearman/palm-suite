@@ -85,6 +85,11 @@ object Alarms {
 
     private fun liveOn() = Build.VERSION.SDK_INT >= 36
 
+    // Promotion (the status bar chip) came in Android 16 QPR2, API 36.1: on 36.0 the Builder has no
+    // setRequestPromotedOngoing or setShortCriticalText, and calling them throws NoSuchMethodError.
+    private fun promoteOn() = Build.VERSION.SDK_INT > 36 ||
+        (Build.VERSION.SDK_INT == 36 && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1)
+
     /**
      * Finds the next alarm time after now and sets the system alarm for it. On Android 16 and
      * later it also sets the alarm for the next start or end of a Live Update, and brings the
@@ -124,7 +129,9 @@ object Alarms {
     /**
      * Shows a Live Update for each alarmed timed event in progress now, and removes the others.
      * The chronometer counts down to the end, so the notification needs no update while it shows.
-     * The system can refuse promotion; the notification then shows as an ordinary one.
+     * Before API 36.1, or when the system refuses promotion, it shows as an ordinary one. A
+     * notification the system rejects is left out: this runs in onResume and at boot, so a
+     * throw here would stop the app at every start.
      */
     private fun refreshLive(ctx: Context, store: Store, now: Long) {
         if (Build.VERSION.SDK_INT < 36) return
@@ -142,7 +149,7 @@ object Alarms {
         for (e in active) {
             val end = at(today, e.end)
             val until = "until ${Fmt.time(e.end)}"
-            val n = Notification.Builder(ctx, CHANNEL_NOW)
+            val b = Notification.Builder(ctx, CHANNEL_NOW)
                 .setSmallIcon(R.drawable.ic_stat)
                 .setContentTitle(e.title.ifBlank { "(no description)" })
                 .setContentText(until)
@@ -152,19 +159,21 @@ object Alarms {
                 .setShowWhen(true)
                 .setUsesChronometer(true)
                 .setChronometerCountDown(true)
-                // The status bar chip: the end time with am or pm ("3:00 pm"), to fit its few letters.
-                .setShortCriticalText(Fmt.time(e.end))
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 // A backup for the end alarm: the system removes it at the end.
                 .setTimeoutAfter(end - now)
-                .setRequestPromotedOngoing(nm.canPostPromotedNotifications())
                 .setVisibility(if (e.isPrivate) Notification.VISIBILITY_PRIVATE else Notification.VISIBILITY_PUBLIC)
                 .setPublicVersion(publicVersion(ctx, CHANNEL_NOW, "Date Book event", until))
-                .build()
+            if (promoteOn()) {
+                // The status bar chip: the end time with am or pm ("3:00 pm"), to fit its few letters.
+                b.setShortCriticalText(Fmt.time(e.end))
+                b.setRequestPromotedOngoing(nm.canPostPromotedNotifications())
+            }
             try {
-                nm.notify(LIVE_TAG, notifId(e, today), n)
-            } catch (_: SecurityException) {
+                nm.notify(LIVE_TAG, notifId(e, today), b.build())
+            } catch (_: RuntimeException) {
+                // SecurityException (no permission) or a rejected notification: no Live Update.
             }
         }
     }
