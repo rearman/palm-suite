@@ -793,7 +793,7 @@ Actions with no control of their own.
 | Status bar hidden; swipe down shows it for a moment                | every window                                | hideStatusBar       |      |       |       |
 | Alarm notification: Snooze and OK                                  | Date Book                                   | AlarmReceiver       |      |       |       |
 | Alarm notification: OK or dismiss on phone or watch clears both    | Date Book, watch                            | Alarms.show         |      |       |       |
-| Live Update: alarmed timed event in progress, counts to its end    | Date Book, watch (Android 16)               | refreshLive         |      |       |       |
+| Live Update: alarmed timed event in progress, counts to its end    | Date Book (Android 16)                      | refreshLive         |      |       |       |
 | Agenda to the watch: after a change or sync, at boot and midnight  | Date Book                                   | WearBridge          |      |       |       |
 | Watch widget, large card: today from now on and the To Dos due     | watch                                       | LargeCard           |      |       |       |
 | Watch widget, small card: the next appointment                     | watch                                       | SmallCard           |      |       |       |
