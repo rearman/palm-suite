@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
 import android.text.format.DateFormat
+import android.view.Gravity
 import android.view.View
 import android.widget.CheckBox
 import android.widget.LinearLayout
@@ -106,13 +107,18 @@ class AgendaActivity : Activity() {
                 list.addView(text(todoText(t, today)))
                 continue
             }
-            list.addView(CheckBox(this).apply {
-                text = todoText(t, today)
-                textSize = 14f
-                setTextColor(Color.BLACK)
+            // The box and the text are two views: a CheckBox with a text of its own would also
+            // check on a tap on the text.
+            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            row.addView(CheckBox(this).apply {
                 buttonTintList = ColorStateList.valueOf(Color.BLACK)
-                setOnCheckedChangeListener { box, checked -> if (checked) complete(box, t.uid) }
+                contentDescription = t.title
+                setOnCheckedChangeListener { box, checked ->
+                    if (checked) { box.isEnabled = false; complete(row, t.uid) }
+                }
             })
+            row.addView(text(todoText(t, today)))
+            list.addView(row)
         }
         if (toTodos) {
             toTodos = false
@@ -122,7 +128,6 @@ class AgendaActivity : Activity() {
 
     /** Takes the checked To Do off the list, tells the phone, and updates the widgets. */
     private fun complete(row: View, uid: String) {
-        row.isEnabled = false
         val app = applicationContext
         // A scope of its own: the put must end although the screen may close first.
         CoroutineScope(Dispatchers.Main).launch {
