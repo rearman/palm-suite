@@ -6,8 +6,17 @@ import org.json.JSONObject
 /** One appointment of the watch agenda: times in minutes after midnight. */
 data class AgendaEvent(val title: String, val start: Int, val end: Int, val untimed: Boolean, val isPrivate: Boolean = false)
 
-/** One open To Do of the watch agenda, with its due date (epoch day). */
-data class AgendaTodo(val title: String, val due: Long, val priority: Int = 1, val isPrivate: Boolean = false)
+/**
+ * One open To Do of the watch agenda, with its due date (epoch day, -1 = no date). The watch
+ * completes it by [uid]; a To Do with no uid (a masked one) has no check box there.
+ */
+data class AgendaTodo(
+    val title: String,
+    val due: Long,
+    val priority: Int = 1,
+    val isPrivate: Boolean = false,
+    val uid: String = "",
+)
 
 /**
  * The agenda that the phone (WearBridge) sends to the watch app (datebook/wear) over the Wear
@@ -15,7 +24,11 @@ data class AgendaTodo(val title: String, val due: Long, val priority: Int = 1, v
  *
  * Version 1: {"v":1, "generated":<epoch ms>, "today":<epoch day>,
  *  "days":[{"day":<epoch day>, "events":[{"title":s, "start":min, "end":min, "untimed":b, "private":b}]}],
- *  "todos":[{"title":s, "due":<epoch day>, "priority":n, "private":b}]}
+ *  "todos":[{"title":s, "due":<epoch day>, "priority":n, "private":b, "uid":s}]}
+ * "uid" came later and may be absent.
+ *
+ * The watch answers with the item [DONE_PATH]: the uids of the To Dos checked there, as the string
+ * array [DONE_KEY]. The phone completes each one that is still open.
  */
 data class WearAgenda(
     val today: Long,
@@ -26,8 +39,17 @@ data class WearAgenda(
     /** The events of [day], in Day view order. */
     fun events(day: Long): List<AgendaEvent> = days[day].orEmpty()
 
-    /** The To Dos due on [day] or before it. */
-    fun todosDue(day: Long): Int = todos.count { it.due <= day }
+    /** The To Dos due on [day] or before it. A To Do with no date is never due. */
+    fun todosDue(day: Long): Int = todos.count { it.due in 0..day }
+
+    /**
+     * The appointments still to come at [now] (minutes after midnight) of [day], each with its
+     * day: those of [day] that are untimed or have not ended, then all of the later days.
+     */
+    fun upcoming(day: Long, now: Int): List<Pair<Long, AgendaEvent>> =
+        days.toSortedMap().filterKeys { it >= day }.flatMap { (d, list) ->
+            list.filter { d > day || it.untimed || it.end > now }.map { d to it }
+        }
 
     fun toJson(): String {
         val da = JSONArray()
@@ -42,7 +64,7 @@ data class WearAgenda(
         val ta = JSONArray()
         for (t in todos) {
             ta.put(JSONObject().put("title", t.title).put("due", t.due).put("priority", t.priority)
-                .put("private", t.isPrivate))
+                .put("private", t.isPrivate).put("uid", t.uid))
         }
         return JSONObject().put("v", VERSION).put("generated", generated).put("today", today)
             .put("days", da).put("todos", ta).toString()
@@ -52,6 +74,8 @@ data class WearAgenda(
         const val PATH = "/agenda"
         const val KEY = "json"
         const val VERSION = 1
+        const val DONE_PATH = "/done"
+        const val DONE_KEY = "uids"
         val EMPTY = WearAgenda(-1, emptyMap(), emptyList())
 
         /** Reads [toJson]. A bad payload, or one of another version, gives [EMPTY]. */
@@ -74,7 +98,8 @@ data class WearAgenda(
                 val ta = o.getJSONArray("todos")
                 val todos = (0 until ta.length()).map {
                     val t = ta.getJSONObject(it)
-                    AgendaTodo(t.getString("title"), t.getLong("due"), t.getInt("priority"), t.getBoolean("private"))
+                    AgendaTodo(t.getString("title"), t.getLong("due"), t.getInt("priority"), t.getBoolean("private"),
+                        t.optString("uid"))
                 }
                 WearAgenda(o.getLong("today"), days, todos, o.getLong("generated"))
             } catch (_: Exception) {

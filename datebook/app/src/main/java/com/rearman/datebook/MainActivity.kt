@@ -1211,9 +1211,7 @@ open class MainActivity : Activity() {
         }
 
     private fun completeTodo(t: Todo, done: Boolean) {
-        t.done = done
-        if (done && prefs.recordCompletion) t.due = today
-        store.save(t)
+        store.complete(t, done, if (prefs.recordCompletion) today else -1)
         root.post { render() }
     }
 

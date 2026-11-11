@@ -256,6 +256,16 @@ class Store private constructor(ctx: Context) :
         onWrite?.invoke()
     }
 
+    /**
+     * Marks [t] completed or open and saves it. [recordOn] is today (an epoch day) with Record
+     * Completion Date set, which becomes the due date of a completed item, and -1 without.
+     */
+    fun complete(t: Todo, done: Boolean, recordOn: Long) {
+        t.done = done
+        if (done && recordOn >= 0) t.due = recordOn
+        save(t)
+    }
+
     fun delete(t: Todo) {
         remove("todos", t.id)
         todos.removeAll { it.id == t.id }
