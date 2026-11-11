@@ -24,6 +24,7 @@ import androidx.compose.remote.creation.compose.state.rc
 import androidx.compose.remote.creation.compose.state.rdp
 import androidx.compose.remote.creation.compose.state.rs
 import androidx.compose.remote.creation.compose.state.rsp
+import androidx.compose.remote.creation.compose.text.RemoteTextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -49,9 +50,9 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * The Date Book widget. The large card lists the count of the To Dos due and the appointments
- * still to come that fit, each in a bubble of its own under the header of its day, today's
- * first; the card itself is clear, after the Google widgets. The small card is one white
+ * The Date Book widget. The large card lists the appointments still to come that fit, each in a
+ * bubble of its own under the centered header of its day, today's first; the card itself is
+ * clear, after the Google widgets. The small card is one white
  * bubble with the next appointment. A tap opens the watch screen (AgendaActivity). Black on white
  * in the bubbles, as on the Palm. The text uses the system font: Remote Compose resolves a font by
  * name on the watch, so the Palm OS font of the app cannot reach it.
@@ -63,12 +64,11 @@ class AgendaWidget : GlanceWearWidget() {
         val today = LocalDate.now().toEpochDay()
         val now = LocalTime.now().let { it.hour * 60 + it.minute }
         val events = agenda.upcoming(today, now)
-        val due = agenda.copy(todos = AgendaStore.openTodos(context, agenda)).todosDue(today)
         AgendaTick.schedule(context, agenda, today, now)
         val small = params.containerType == ContainerInfo.CONTAINER_TYPE_SMALL
         return WearWidgetDocument(background = cardBrush(small)) {
             if (small) SmallCard(today, events.firstOrNull { !it.second.untimed } ?: events.firstOrNull())
-            else LargeCard(today, events, due)
+            else LargeCard(today, events, Fit(context, params))
         }
     }
 }
@@ -107,20 +107,50 @@ internal val White = Color.White.rc
 internal fun cardBrush(small: Boolean): WearWidgetBrush =
     WearWidgetBrush.color(if (small) White else Color.Transparent.rc)
 
+/** The text sizes of the cards, in sp: a day header, an entry, and a To Do's check box. */
+internal const val HEAD_SP = 14
+internal const val ENTRY_SP = 15
+internal const val CHECK_SP = 20
+
 /**
- * The most rows (headers and bubbles) of a large card: the rows that fit the large card of the
- * 41 mm watch. A widget cannot scroll (Glance Wear allows no scroll operation; a document with
- * one shows black), so the watch screen shows the rest. Tune it on a larger watch.
+ * The rows that fit a large card. A widget cannot scroll (Glance Wear allows no scroll operation;
+ * a document with one shows black), so a card takes rows while their height fits its content
+ * area, and the watch screen shows the rest. The row heights are an estimate: the system font's
+ * line height taken as [LINE] times its size, which may run off on another watch or font; tune
+ * the values here on the watch, or measure the text if Remote Compose gains a way.
  */
-internal const val MAX_ROWS = 5
+internal class Fit(ctx: Context, params: WearWidgetParams) {
+    private val scale = ctx.resources.configuration.fontScale
+    // The first row has no gap above it, so the gap of one row comes back.
+    private var left = params.heightDp - 2 * params.verticalPaddingDp + GAP
+
+    fun text(sp: Int): Float = sp * scale * LINE
+    fun bubble(sp: Int): Float = text(sp) + 2 * PAD_V
+
+    /** Takes rows of the [heights] in dp if all of them fit, else none. */
+    fun take(vararg heights: Float): Boolean {
+        val h = heights.sum() + heights.size * GAP
+        if (h > left) return false
+        left -= h
+        return true
+    }
+
+    companion object {
+        const val LINE = 1.2f
+        const val GAP = 4
+        const val PAD_H = 12
+        const val PAD_V = 8
+        const val CORNER = 16
+    }
+}
 
 /**
  * The bubble of one entry of a large card, after the Google widgets: the full width, a light gray
  * fill with round corners, and the text clear of the edge.
  */
 internal fun RemoteModifier.bubble(): RemoteModifier =
-    fillMaxWidth().clip(RemoteRoundedCornerShape(10.rdp)).background(Color(0xFFE0E0E0).rc)
-        .padding(horizontal = 8.rdp, vertical = 3.rdp)
+    fillMaxWidth().clip(RemoteRoundedCornerShape(Fit.CORNER.rdp)).background(Color(0xFFE0E0E0).rc)
+        .padding(horizontal = Fit.PAD_H.rdp, vertical = Fit.PAD_V.rdp)
 
 /** The column of a large card: the full card, its rows with a gap between them. */
 @Composable
@@ -128,7 +158,7 @@ internal fun RemoteModifier.bubble(): RemoteModifier =
 internal fun CardList(content: @RemoteComposable @Composable () -> Unit) {
     RemoteColumn(
         modifier = RemoteModifier.fillMaxSize(),
-        verticalArrangement = RemoteArrangement.spacedBy(3.rdp),
+        verticalArrangement = RemoteArrangement.spacedBy(Fit.GAP.rdp),
     ) { content() }
 }
 
@@ -153,11 +183,13 @@ internal fun openScreen(todos: Boolean = false) = pendingIntentAction { ctx ->
 internal fun Line(
     text: String, size: Int, bold: Boolean = false,
     modifier: RemoteModifier = RemoteModifier.fillMaxWidth(), color: RemoteColor = Black,
+    align: RemoteTextAlign? = null,
 ) {
     RemoteText(
         text = text.rs,
         modifier = modifier,
         color = color,
+        textAlign = align,
         fontSize = size.rsp,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
         overflow = TextOverflow.Ellipsis,
@@ -167,34 +199,27 @@ internal fun Line(
 
 @Composable
 @RemoteComposable
-private fun LargeCard(today: Long, events: List<Pair<Long, AgendaEvent>>, due: Int) {
+private fun LargeCard(today: Long, events: List<Pair<Long, AgendaEvent>>, fit: Fit) {
     // Each bubble and header opens the screen; the clear gaps between them take no tap.
     val open = openScreen()
-    val header = RemoteModifier.fillMaxWidth().padding(horizontal = 8.rdp).clickable(open)
+    val header = RemoteModifier.fillMaxWidth().clickable(open)
     val bubble = RemoteModifier.bubble().clickable(open)
     CardList {
-        // Today's header shows even with no appointment, as the date of the card.
-        Line(Fmt.dowDate(today), 14, bold = true, modifier = header, color = White)
-        var rows = 1
         if (events.isEmpty()) {
-            Line("No appointments", 13, modifier = bubble)
-            rows++
+            Line(Fmt.dowDate(today), HEAD_SP, bold = true, modifier = header, color = White, align = RemoteTextAlign.Center)
+            Line("No appointments", ENTRY_SP, modifier = bubble)
         }
-        if (due > 0) {
-            Line(if (due == 1) "1 To Do due" else "$due To Dos due", 13, bold = true, modifier = bubble)
-            rows++
-        }
-        var shown = today
+        var shown = -1L
         for ((day, e) in events) {
-            // A later day takes a header row and a bubble row; stop at the rows that fit.
-            val need = if (day != shown) 2 else 1
-            if (rows + need > MAX_ROWS) break
-            if (day != shown) {
-                Line(Fmt.dowDate(day), 14, bold = true, modifier = header, color = White)
+            // A new day takes its header row with its first bubble; stop at the first row that does not fit.
+            val newDay = day != shown
+            val fits = if (newDay) fit.take(fit.text(HEAD_SP), fit.bubble(ENTRY_SP)) else fit.take(fit.bubble(ENTRY_SP))
+            if (!fits) break
+            if (newDay) {
+                Line(Fmt.dowDate(day), HEAD_SP, bold = true, modifier = header, color = White, align = RemoteTextAlign.Center)
                 shown = day
             }
-            Line(line(e), 13, modifier = bubble)
-            rows += need
+            Line(line(e), ENTRY_SP, modifier = bubble)
         }
     }
 }

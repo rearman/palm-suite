@@ -16,8 +16,6 @@ import androidx.compose.remote.creation.compose.modifier.RemoteModifier
 import androidx.compose.remote.creation.compose.modifier.clickable
 import androidx.compose.remote.creation.compose.modifier.fillMaxSize
 import androidx.compose.remote.creation.compose.modifier.fillMaxWidth
-import androidx.compose.remote.creation.compose.modifier.padding
-import androidx.compose.remote.creation.compose.state.rdp
 import androidx.compose.runtime.Composable
 import androidx.glance.wear.AssociateWithGlanceWearWidget
 import androidx.glance.wear.GlanceWearWidget
@@ -58,12 +56,14 @@ class TodoWidget : GlanceWearWidget() {
                     else TodoRow(todos.first(), today, RemoteModifier.fillMaxWidth())
                 }
             } else {
+                val fit = Fit(context, params)
                 CardList {
-                    Line("To Do", 14, bold = true, color = White,
-                        modifier = RemoteModifier.fillMaxWidth().padding(horizontal = 8.rdp).clickable(open))
-                    if (todos.isEmpty()) Line("No To Do items", 13, modifier = RemoteModifier.bubble().clickable(open))
-                    // The title takes one row; the To Dos take the rest that fit.
-                    for (t in todos.take(MAX_ROWS - 1)) TodoRow(t, today, RemoteModifier.bubble())
+                    if (todos.isEmpty()) Line("No To Do items", ENTRY_SP, modifier = RemoteModifier.bubble().clickable(open))
+                    // The check box is the tallest text of a row; stop at the first row that does not fit.
+                    for (t in todos) {
+                        if (!fit.take(fit.bubble(maxOf(CHECK_SP, ENTRY_SP)))) break
+                        TodoRow(t, today, RemoteModifier.bubble())
+                    }
                 }
             }
         }
@@ -94,9 +94,9 @@ private fun TodoRow(t: AgendaTodo, today: Long, modifier: RemoteModifier) {
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 )
             }
-            Line("☐ ", 18, modifier = RemoteModifier.clickable(check))
+            Line("☐ ", CHECK_SP, modifier = RemoteModifier.clickable(check))
         }
-        Line(todoText(t, today), 13, bold = t.due in 0 until today,
+        Line(todoText(t, today), ENTRY_SP, bold = t.due in 0 until today,
             modifier = RemoteModifier.fillMaxWidth().clickable(openScreen(todos = true)))
     }
 }

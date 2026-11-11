@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Date Book</string>
     <string name="widget_label">Date Book</string>
-    <string name="widget_description">The next appointments and the To Dos due</string>
+    <string name="widget_description">The next appointments, by day</string>
     <string name="todo_widget_label">To Do</string>
     <string name="todo_widget_description">The first To Do items, with check boxes</string>
 </resources>
