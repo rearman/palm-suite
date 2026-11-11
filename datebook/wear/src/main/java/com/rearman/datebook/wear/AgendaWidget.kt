@@ -6,11 +6,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.text.format.DateFormat
+import androidx.compose.remote.creation.compose.action.pendingIntentAction
 import androidx.compose.remote.creation.compose.layout.RemoteArrangement
 import androidx.compose.remote.creation.compose.layout.RemoteColumn
 import androidx.compose.remote.creation.compose.layout.RemoteComposable
 import androidx.compose.remote.creation.compose.layout.RemoteText
 import androidx.compose.remote.creation.compose.modifier.RemoteModifier
+import androidx.compose.remote.creation.compose.modifier.clickable
 import androidx.compose.remote.creation.compose.modifier.fillMaxSize
 import androidx.compose.remote.creation.compose.modifier.fillMaxWidth
 import androidx.compose.remote.creation.compose.state.rc
@@ -42,8 +44,9 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * The Date Book widget. The large card lists today's appointments from now on and the count of
- * the To Dos due; the small card shows the next appointment. Black on white, as on the Palm. The
+ * The Date Book widget. The large card lists the appointments still to come, today's first and
+ * then those of the later days, and the count of the To Dos due; the small card shows the next
+ * appointment. A tap opens the watch screen (AgendaActivity). Black on white, as on the Palm. The
  * text uses the system font: Remote Compose resolves a font by name on the watch, so the Palm OS
  * font of the app cannot reach it.
  */
@@ -53,28 +56,13 @@ class AgendaWidget : GlanceWearWidget() {
         Fmt.h24 = DateFormat.is24HourFormat(context)
         val today = LocalDate.now().toEpochDay()
         val now = LocalTime.now().let { it.hour * 60 + it.minute }
-        // Untimed events stay all day; a timed one leaves at its end.
-        val events = agenda.events(today).filter { it.untimed || it.end > now }
-        val due = agenda.todosDue(today)
+        val events = agenda.upcoming(today, now)
+        val due = agenda.copy(todos = AgendaStore.openTodos(context, agenda)).todosDue(today)
         AgendaTick.schedule(context, agenda, today, now)
         val small = params.containerType == ContainerInfo.CONTAINER_TYPE_SMALL
         return WearWidgetDocument(background = WearWidgetBrush.color(Color.White.rc)) {
-            if (small) SmallCard(events.firstOrNull { !it.untimed } ?: events.firstOrNull())
+            if (small) SmallCard(today, events.firstOrNull { !it.second.untimed } ?: events.firstOrNull())
             else LargeCard(today, events, due)
-        }
-    }
-
-    companion object {
-        /**
-         * Asks the host for new content of every Date Book widget. The caller holds its process
-         * until this returns (a service thread, or a receiver's goAsync).
-         */
-        suspend fun updateAll(ctx: Context) {
-            val app = ctx.applicationContext
-            try {
-                withContext(Dispatchers.Main) { AgendaWidget().triggerUpdateAll(app) }
-            } catch (_: Exception) {
-            }
         }
     }
 }
@@ -85,17 +73,48 @@ class AgendaWidgetService : GlanceWearWidgetService() {
     override val widget: GlanceWearWidget = AgendaWidget()
 }
 
-private val Black = Color.Black.rc
+/** The widgets of the watch app. */
+object Widgets {
+    /**
+     * Asks the host for new content of every Date Book and To Do widget. The caller holds its
+     * process until this returns (a service thread, or a receiver's goAsync).
+     */
+    suspend fun updateAll(ctx: Context) {
+        val app = ctx.applicationContext
+        for (w in listOf(AgendaWidget(), TodoWidget())) {
+            try {
+                withContext(Dispatchers.Main) { w.triggerUpdateAll(app) }
+            } catch (_: Exception) {
+            }
+        }
+    }
+}
 
-private fun line(e: AgendaEvent): String =
-    if (e.untimed) e.title else "${Fmt.time(e.start)} ${e.title}"
+internal val Black = Color.Black.rc
+
+/** The day of an appointment not of [today], before its time: "Thu ". */
+internal fun dayPrefix(today: Long, day: Long): String =
+    if (day == today) "" else "${Fmt.dowShort[Recur.dow(Fmt.ld(day))]} "
+
+private fun line(today: Long, day: Long, e: AgendaEvent): String =
+    dayPrefix(today, day) + if (e.untimed) e.title else "${Fmt.time(e.start)} ${e.title}"
+
+/** Opens the watch screen at its appointments, or at its To Dos with [todos]. */
+@Composable
+@RemoteComposable
+internal fun openScreen(todos: Boolean = false) = pendingIntentAction { ctx ->
+    PendingIntent.getActivity(
+        ctx, if (todos) 1 else 0, AgendaActivity.intent(ctx, todos),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+}
 
 @Composable
 @RemoteComposable
-private fun Line(text: String, size: Int, bold: Boolean = false) {
+internal fun Line(text: String, size: Int, bold: Boolean = false, modifier: RemoteModifier = RemoteModifier.fillMaxWidth()) {
     RemoteText(
         text = text.rs,
-        modifier = RemoteModifier.fillMaxWidth(),
+        modifier = modifier,
         color = Black,
         fontSize = size.rsp,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
@@ -106,31 +125,39 @@ private fun Line(text: String, size: Int, bold: Boolean = false) {
 
 @Composable
 @RemoteComposable
-private fun LargeCard(today: Long, events: List<AgendaEvent>, due: Int) {
-    RemoteColumn(modifier = RemoteModifier.fillMaxSize(), verticalArrangement = RemoteArrangement.spacedBy(2.rdp)) {
+private fun LargeCard(today: Long, events: List<Pair<Long, AgendaEvent>>, due: Int) {
+    RemoteColumn(
+        modifier = RemoteModifier.fillMaxSize().clickable(openScreen()),
+        verticalArrangement = RemoteArrangement.spacedBy(2.rdp),
+    ) {
         Line(Fmt.dowDate(today), 14, bold = true)
         if (events.isEmpty()) Line("No appointments", 13)
         // Four lines fit the large card of the 41 mm watch.
-        for (e in events.take(4)) Line(line(e), 13)
+        for ((day, e) in events.take(4)) Line(line(today, day, e), 13)
         if (due > 0) Line(if (due == 1) "1 To Do due" else "$due To Dos due", 12, bold = true)
     }
 }
 
 @Composable
 @RemoteComposable
-private fun SmallCard(next: AgendaEvent?) {
-    RemoteColumn(modifier = RemoteModifier.fillMaxSize(), verticalArrangement = RemoteArrangement.Center) {
+private fun SmallCard(today: Long, next: Pair<Long, AgendaEvent>?) {
+    RemoteColumn(
+        modifier = RemoteModifier.fillMaxSize().clickable(openScreen()),
+        verticalArrangement = RemoteArrangement.Center,
+    ) {
         if (next == null) {
             Line("No appointments", 13)
         } else {
-            if (!next.untimed) Line(Fmt.time(next.start), 14, bold = true)
-            Line(next.title, 13)
+            val (day, e) = next
+            val time = (dayPrefix(today, day) + if (e.untimed) "" else Fmt.time(e.start)).trim()
+            if (time.isNotEmpty()) Line(time, 14, bold = true)
+            Line(e.title, 13)
         }
     }
 }
 
 /**
- * Updates the widget at the next end of a timed appointment of today, or at midnight, so the
+ * Updates the widgets at the next end of a timed appointment of today, or at midnight, so the
  * cards move on with no push from the phone. Inexact: the widget may lag a few minutes.
  */
 class AgendaTick : BroadcastReceiver() {
@@ -139,7 +166,7 @@ class AgendaTick : BroadcastReceiver() {
         val done = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                AgendaWidget.updateAll(ctx)
+                Widgets.updateAll(ctx)
             } finally {
                 done.finish()
             }

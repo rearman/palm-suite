@@ -3,7 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// The Date Book watch app for Wear OS 7: the agenda widget (Glance Wear and Remote Compose). It
+// The Date Book watch app for Wear OS 7: the Date Book and To Do widgets (Glance Wear and Remote
+// Compose) and the screen they open (plain Android Views). It
 // shares the applicationId and the key of datebook/app, which the Wear Data Layer requires, so the
 // phone's WearBridge can send it the agenda. This module alone uses AndroidX and Compose.
 android {
@@ -15,8 +16,8 @@ android {
         // Wear OS 7 (API 37): Wear Widgets exist only there.
         minSdk = 37
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     // The key of datebook/app, by path: the Data Layer pairs only apps with the same key.

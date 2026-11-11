@@ -7,7 +7,7 @@ import com.google.android.gms.wearable.WearableListenerService
 import com.rearman.datebook.WearAgenda
 import kotlinx.coroutines.runBlocking
 
-/** Saves each agenda that the phone sends (WearBridge in datebook/app) and updates the widget. */
+/** Saves each agenda that the phone sends (WearBridge in datebook/app) and updates the widgets. */
 class AgendaListener : WearableListenerService() {
     // A worker thread of the service: the update runs to its end before the service may stop.
     override fun onDataChanged(events: DataEventBuffer) {
@@ -18,6 +18,6 @@ class AgendaListener : WearableListenerService() {
             AgendaStore.save(this, json)
             got = true
         }
-        if (got) runBlocking { AgendaWidget.updateAll(this@AgendaListener) }
+        if (got) runBlocking { Widgets.updateAll(this@AgendaListener) }
     }
 }
