@@ -24,10 +24,10 @@ import androidx.compose.remote.creation.compose.state.rc
 import androidx.compose.remote.creation.compose.state.rdp
 import androidx.compose.remote.creation.compose.state.rs
 import androidx.compose.remote.creation.compose.state.rsp
-import androidx.compose.remote.creation.compose.text.RemoteTextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.glance.wear.AssociateWithGlanceWearWidget
 import androidx.glance.wear.GlanceWearWidget
@@ -183,7 +183,7 @@ internal fun openScreen(todos: Boolean = false) = pendingIntentAction { ctx ->
 internal fun Line(
     text: String, size: Int, bold: Boolean = false,
     modifier: RemoteModifier = RemoteModifier.fillMaxWidth(), color: RemoteColor = Black,
-    align: RemoteTextAlign? = null,
+    align: TextAlign? = null,
 ) {
     RemoteText(
         text = text.rs,
@@ -206,7 +206,7 @@ private fun LargeCard(today: Long, events: List<Pair<Long, AgendaEvent>>, fit: F
     val bubble = RemoteModifier.bubble().clickable(open)
     CardList {
         if (events.isEmpty()) {
-            Line(Fmt.dowDate(today), HEAD_SP, bold = true, modifier = header, color = White, align = RemoteTextAlign.Center)
+            Line(Fmt.dowDate(today), HEAD_SP, bold = true, modifier = header, color = White, align = TextAlign.Center)
             Line("No appointments", ENTRY_SP, modifier = bubble)
         }
         var shown = -1L
@@ -216,7 +216,7 @@ private fun LargeCard(today: Long, events: List<Pair<Long, AgendaEvent>>, fit: F
             val fits = if (newDay) fit.take(fit.text(HEAD_SP), fit.bubble(ENTRY_SP)) else fit.take(fit.bubble(ENTRY_SP))
             if (!fits) break
             if (newDay) {
-                Line(Fmt.dowDate(day), HEAD_SP, bold = true, modifier = header, color = White, align = RemoteTextAlign.Center)
+                Line(Fmt.dowDate(day), HEAD_SP, bold = true, modifier = header, color = White, align = TextAlign.Center)
                 shown = day
             }
             Line(line(e), ENTRY_SP, modifier = bubble)
