@@ -16,17 +16,14 @@ import androidx.compose.remote.creation.compose.modifier.RemoteModifier
 import androidx.compose.remote.creation.compose.modifier.clickable
 import androidx.compose.remote.creation.compose.modifier.fillMaxSize
 import androidx.compose.remote.creation.compose.modifier.fillMaxWidth
-import androidx.compose.remote.creation.compose.state.rc
+import androidx.compose.remote.creation.compose.modifier.padding
 import androidx.compose.remote.creation.compose.state.rdp
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.glance.wear.AssociateWithGlanceWearWidget
 import androidx.glance.wear.GlanceWearWidget
 import androidx.glance.wear.GlanceWearWidgetService
-import androidx.glance.wear.WearWidgetBrush
 import androidx.glance.wear.WearWidgetData
 import androidx.glance.wear.WearWidgetDocument
-import androidx.glance.wear.color
 import androidx.glance.wear.core.ContainerInfo
 import androidx.glance.wear.core.WearWidgetParams
 import com.rearman.datebook.AgendaTodo
@@ -38,8 +35,9 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * The To Do widget. The large card lists the first open To Dos in the order of the phone's To Do
- * List, the small card the first one. A tap on a check box completes the To Do (TodoCheck); a tap
+ * The To Do widget. The large card is a scrolling list of the open To Dos in the order of the
+ * phone's To Do List, each in a bubble of its own on a clear card; the small card is one white
+ * bubble with the first one. A tap on a check box completes the To Do (TodoCheck); a tap
  * on its text opens the watch screen at the To Dos, where the whole text shows.
  */
 class TodoWidget : GlanceWearWidget() {
@@ -51,22 +49,23 @@ class TodoWidget : GlanceWearWidget() {
         // The late mark of a due date changes at midnight.
         AgendaTick.schedule(context, agenda, today, LocalTime.now().let { it.hour * 60 + it.minute })
         val small = params.containerType == ContainerInfo.CONTAINER_TYPE_SMALL
-        return WearWidgetDocument(background = WearWidgetBrush.color(Color.White.rc)) {
-            RemoteColumn(
-                modifier = RemoteModifier.fillMaxSize(),
-                verticalArrangement = if (small) RemoteArrangement.Center else RemoteArrangement.spacedBy(2.rdp),
-            ) {
-                val open = RemoteModifier.fillMaxWidth().clickable(openScreen(todos = true))
-                if (!small) Line("To Do", 14, bold = true, modifier = open)
-                if (todos.isEmpty()) Line("No To Do items", 13, modifier = open)
-                // Three bubbles fit the large card of the 41 mm watch below the title.
-                for (t in todos.take(if (small) 1 else ROWS)) TodoRow(t, today)
+        return WearWidgetDocument(background = cardBrush(small)) {
+            val open = openScreen(todos = true)
+            if (small) {
+                // The white card is the bubble of the first To Do.
+                RemoteColumn(modifier = RemoteModifier.fillMaxSize(), verticalArrangement = RemoteArrangement.Center) {
+                    if (todos.isEmpty()) Line("No To Do items", 13, modifier = RemoteModifier.fillMaxWidth().clickable(open))
+                    else TodoRow(todos.first(), today, RemoteModifier.fillMaxWidth())
+                }
+            } else {
+                ScrollList {
+                    Line("To Do", 14, bold = true, color = White,
+                        modifier = RemoteModifier.fillMaxWidth().padding(horizontal = 10.rdp).clickable(open))
+                    if (todos.isEmpty()) Line("No To Do items", 13, modifier = RemoteModifier.bubble().clickable(open))
+                    for (t in todos.take(MAX_ENTRIES)) TodoRow(t, today, RemoteModifier.bubble())
+                }
             }
         }
-    }
-
-    companion object {
-        const val ROWS = 3
     }
 }
 
@@ -83,8 +82,8 @@ internal fun todoText(t: AgendaTodo, today: Long): String {
 
 @Composable
 @RemoteComposable
-private fun TodoRow(t: AgendaTodo, today: Long) {
-    RemoteRow(modifier = RemoteModifier.bubble(), verticalAlignment = RemoteAlignment.CenterVertically) {
+private fun TodoRow(t: AgendaTodo, today: Long, modifier: RemoteModifier) {
+    RemoteRow(modifier = modifier, verticalAlignment = RemoteAlignment.CenterVertically) {
         // The empty check box of the system font, with a space that widens the tap target. A
         // masked To Do (no uid) has none.
         if (t.uid.isNotEmpty()) {

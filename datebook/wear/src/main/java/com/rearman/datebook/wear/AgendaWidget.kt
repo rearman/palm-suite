@@ -18,7 +18,10 @@ import androidx.compose.remote.creation.compose.modifier.clip
 import androidx.compose.remote.creation.compose.modifier.fillMaxSize
 import androidx.compose.remote.creation.compose.modifier.fillMaxWidth
 import androidx.compose.remote.creation.compose.modifier.padding
+import androidx.compose.remote.creation.compose.modifier.rememberRemoteScrollState
+import androidx.compose.remote.creation.compose.modifier.verticalScroll
 import androidx.compose.remote.creation.compose.shapes.RemoteRoundedCornerShape
+import androidx.compose.remote.creation.compose.state.RemoteColor
 import androidx.compose.remote.creation.compose.state.rc
 import androidx.compose.remote.creation.compose.state.rdp
 import androidx.compose.remote.creation.compose.state.rs
@@ -48,11 +51,12 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * The Date Book widget. The large card lists the appointments still to come, today's first and
- * then those of the later days, and the count of the To Dos due; the small card shows the next
- * appointment. A tap opens the watch screen (AgendaActivity). Black on white, as on the Palm. The
- * text uses the system font: Remote Compose resolves a font by name on the watch, so the Palm OS
- * font of the app cannot reach it.
+ * The Date Book widget. The large card is a scrolling list of the appointments still to come,
+ * each in a bubble of its own under the header of its day, today's first, then the count of the
+ * To Dos due; the card itself is clear, after the Google widgets. The small card is one white
+ * bubble with the next appointment. A tap opens the watch screen (AgendaActivity). Black on white
+ * in the bubbles, as on the Palm. The text uses the system font: Remote Compose resolves a font by
+ * name on the watch, so the Palm OS font of the app cannot reach it.
  */
 class AgendaWidget : GlanceWearWidget() {
     override suspend fun provideWidgetData(context: Context, params: WearWidgetParams): WearWidgetData {
@@ -64,7 +68,7 @@ class AgendaWidget : GlanceWearWidget() {
         val due = agenda.copy(todos = AgendaStore.openTodos(context, agenda)).todosDue(today)
         AgendaTick.schedule(context, agenda, today, now)
         val small = params.containerType == ContainerInfo.CONTAINER_TYPE_SMALL
-        return WearWidgetDocument(background = WearWidgetBrush.color(Color.White.rc)) {
+        return WearWidgetDocument(background = cardBrush(small)) {
             if (small) SmallCard(today, events.firstOrNull { !it.second.untimed } ?: events.firstOrNull())
             else LargeCard(today, events, due)
         }
@@ -95,21 +99,45 @@ object Widgets {
 }
 
 internal val Black = Color.Black.rc
+internal val White = Color.White.rc
 
 /**
- * The bubble of one entry of a card, after the Google widgets: the full width, a light gray fill
- * with round corners, and the text clear of the edge.
+ * The background of a card: white for the small card, which is one bubble; clear for the large
+ * card, whose entries are bubbles of their own on the black of the watch. A transparent brush is
+ * not the empty brush, so the host draws it clear in place of its default surface.
+ */
+internal fun cardBrush(small: Boolean): WearWidgetBrush =
+    WearWidgetBrush.color(if (small) White else Color.Transparent.rc)
+
+/**
+ * The most entries a large card lists. A naive cap that keeps the Remote Compose document small;
+ * past it the watch screen shows the rest. Raise it if the watch scrolls a longer list well.
+ */
+internal const val MAX_ENTRIES = 20
+
+/**
+ * The bubble of one entry of a large card, after the Google widgets: the full width, a light gray
+ * fill with round corners, and the text clear of the edge.
  */
 internal fun RemoteModifier.bubble(): RemoteModifier =
-    fillMaxWidth().clip(RemoteRoundedCornerShape(8.rdp)).background(Color(0xFFE0E0E0).rc)
-        .padding(horizontal = 6.rdp, vertical = 2.rdp)
+    fillMaxWidth().clip(RemoteRoundedCornerShape(12.rdp)).background(Color(0xFFE0E0E0).rc)
+        .padding(horizontal = 10.rdp, vertical = 6.rdp)
+
+/** The column of a large card: the full card, scrolling when its bubbles are taller than it. */
+@Composable
+@RemoteComposable
+internal fun ScrollList(content: @RemoteComposable @Composable () -> Unit) {
+    RemoteColumn(
+        modifier = RemoteModifier.fillMaxSize().verticalScroll(rememberRemoteScrollState()),
+        verticalArrangement = RemoteArrangement.spacedBy(4.rdp),
+    ) { content() }
+}
 
 /** The day of an appointment not of [today], before its time: "Thu ". */
 internal fun dayPrefix(today: Long, day: Long): String =
     if (day == today) "" else "${Fmt.dowShort[Recur.dow(Fmt.ld(day))]} "
 
-private fun line(today: Long, day: Long, e: AgendaEvent): String =
-    dayPrefix(today, day) + if (e.untimed) e.title else "${Fmt.time(e.start)} ${e.title}"
+private fun line(e: AgendaEvent): String = if (e.untimed) e.title else "${Fmt.time(e.start)} ${e.title}"
 
 /** Opens the watch screen at its appointments, or at its To Dos with [todos]. */
 @Composable
@@ -123,11 +151,14 @@ internal fun openScreen(todos: Boolean = false) = pendingIntentAction { ctx ->
 
 @Composable
 @RemoteComposable
-internal fun Line(text: String, size: Int, bold: Boolean = false, modifier: RemoteModifier = RemoteModifier.fillMaxWidth()) {
+internal fun Line(
+    text: String, size: Int, bold: Boolean = false,
+    modifier: RemoteModifier = RemoteModifier.fillMaxWidth(), color: RemoteColor = Black,
+) {
     RemoteText(
         text = text.rs,
         modifier = modifier,
-        color = Black,
+        color = color,
         fontSize = size.rsp,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
         overflow = TextOverflow.Ellipsis,
@@ -138,15 +169,23 @@ internal fun Line(text: String, size: Int, bold: Boolean = false, modifier: Remo
 @Composable
 @RemoteComposable
 private fun LargeCard(today: Long, events: List<Pair<Long, AgendaEvent>>, due: Int) {
-    RemoteColumn(
-        modifier = RemoteModifier.fillMaxSize().clickable(openScreen()),
-        verticalArrangement = RemoteArrangement.spacedBy(2.rdp),
-    ) {
-        Line(Fmt.dowDate(today), 14, bold = true)
-        if (events.isEmpty()) Line("No appointments", 13)
-        // Three bubbles fit the large card of the 41 mm watch between the date and the To Dos due.
-        for ((day, e) in events.take(3)) Line(line(today, day, e), 13, modifier = RemoteModifier.bubble())
-        if (due > 0) Line(if (due == 1) "1 To Do due" else "$due To Dos due", 12, bold = true)
+    // Each bubble and header opens the screen, so the column itself takes no tap from the scroll.
+    val open = openScreen()
+    val header = RemoteModifier.fillMaxWidth().padding(horizontal = 10.rdp).clickable(open)
+    val bubble = RemoteModifier.bubble().clickable(open)
+    ScrollList {
+        // Today's header shows even with no appointment, as the date of the card.
+        Line(Fmt.dowDate(today), 14, bold = true, modifier = header, color = White)
+        if (events.isEmpty()) Line("No appointments", 13, modifier = bubble)
+        if (due > 0) Line(if (due == 1) "1 To Do due" else "$due To Dos due", 13, bold = true, modifier = bubble)
+        var shown = today
+        for ((day, e) in events.take(MAX_ENTRIES)) {
+            if (day != shown) {
+                Line(Fmt.dowDate(day), 14, bold = true, modifier = header, color = White)
+                shown = day
+            }
+            Line(line(e), 13, modifier = bubble)
+        }
     }
 }
 
@@ -162,10 +201,9 @@ private fun SmallCard(today: Long, next: Pair<Long, AgendaEvent>?) {
         } else {
             val (day, e) = next
             val time = (dayPrefix(today, day) + if (e.untimed) "" else Fmt.time(e.start)).trim()
-            RemoteColumn(modifier = RemoteModifier.bubble()) {
-                if (time.isNotEmpty()) Line(time, 14, bold = true)
-                Line(e.title, 13)
-            }
+            // The white card is the bubble.
+            if (time.isNotEmpty()) Line(time, 14, bold = true)
+            Line(e.title, 13)
         }
     }
 }
