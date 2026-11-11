@@ -12,9 +12,13 @@ import androidx.compose.remote.creation.compose.layout.RemoteColumn
 import androidx.compose.remote.creation.compose.layout.RemoteComposable
 import androidx.compose.remote.creation.compose.layout.RemoteText
 import androidx.compose.remote.creation.compose.modifier.RemoteModifier
+import androidx.compose.remote.creation.compose.modifier.background
 import androidx.compose.remote.creation.compose.modifier.clickable
+import androidx.compose.remote.creation.compose.modifier.clip
 import androidx.compose.remote.creation.compose.modifier.fillMaxSize
 import androidx.compose.remote.creation.compose.modifier.fillMaxWidth
+import androidx.compose.remote.creation.compose.modifier.padding
+import androidx.compose.remote.creation.compose.shapes.RemoteRoundedCornerShape
 import androidx.compose.remote.creation.compose.state.rc
 import androidx.compose.remote.creation.compose.state.rdp
 import androidx.compose.remote.creation.compose.state.rs
@@ -92,6 +96,14 @@ object Widgets {
 
 internal val Black = Color.Black.rc
 
+/**
+ * The bubble of one entry of a card, after the Google widgets: the full width, a light gray fill
+ * with round corners, and the text clear of the edge.
+ */
+internal fun RemoteModifier.bubble(): RemoteModifier =
+    fillMaxWidth().clip(RemoteRoundedCornerShape(8.rdp)).background(Color(0xFFE0E0E0).rc)
+        .padding(horizontal = 6.rdp, vertical = 2.rdp)
+
 /** The day of an appointment not of [today], before its time: "Thu ". */
 internal fun dayPrefix(today: Long, day: Long): String =
     if (day == today) "" else "${Fmt.dowShort[Recur.dow(Fmt.ld(day))]} "
@@ -132,8 +144,8 @@ private fun LargeCard(today: Long, events: List<Pair<Long, AgendaEvent>>, due: I
     ) {
         Line(Fmt.dowDate(today), 14, bold = true)
         if (events.isEmpty()) Line("No appointments", 13)
-        // Four lines fit the large card of the 41 mm watch.
-        for ((day, e) in events.take(4)) Line(line(today, day, e), 13)
+        // Three bubbles fit the large card of the 41 mm watch between the date and the To Dos due.
+        for ((day, e) in events.take(3)) Line(line(today, day, e), 13, modifier = RemoteModifier.bubble())
         if (due > 0) Line(if (due == 1) "1 To Do due" else "$due To Dos due", 12, bold = true)
     }
 }
@@ -150,8 +162,10 @@ private fun SmallCard(today: Long, next: Pair<Long, AgendaEvent>?) {
         } else {
             val (day, e) = next
             val time = (dayPrefix(today, day) + if (e.untimed) "" else Fmt.time(e.start)).trim()
-            if (time.isNotEmpty()) Line(time, 14, bold = true)
-            Line(e.title, 13)
+            RemoteColumn(modifier = RemoteModifier.bubble()) {
+                if (time.isNotEmpty()) Line(time, 14, bold = true)
+                Line(e.title, 13)
+            }
         }
     }
 }

@@ -59,7 +59,7 @@ class TodoWidget : GlanceWearWidget() {
                 val open = RemoteModifier.fillMaxWidth().clickable(openScreen(todos = true))
                 if (!small) Line("To Do", 14, bold = true, modifier = open)
                 if (todos.isEmpty()) Line("No To Do items", 13, modifier = open)
-                // Three rows fit the large card of the 41 mm watch below the title.
+                // Three bubbles fit the large card of the 41 mm watch below the title.
                 for (t in todos.take(if (small) 1 else ROWS)) TodoRow(t, today)
             }
         }
@@ -84,7 +84,7 @@ internal fun todoText(t: AgendaTodo, today: Long): String {
 @Composable
 @RemoteComposable
 private fun TodoRow(t: AgendaTodo, today: Long) {
-    RemoteRow(modifier = RemoteModifier.fillMaxWidth(), verticalAlignment = RemoteAlignment.CenterVertically) {
+    RemoteRow(modifier = RemoteModifier.bubble(), verticalAlignment = RemoteAlignment.CenterVertically) {
         // The empty check box of the system font, with a space that widens the tap target. A
         // masked To Do (no uid) has none.
         if (t.uid.isNotEmpty()) {
