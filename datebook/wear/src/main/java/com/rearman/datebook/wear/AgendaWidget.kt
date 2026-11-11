@@ -18,8 +18,6 @@ import androidx.compose.remote.creation.compose.modifier.clip
 import androidx.compose.remote.creation.compose.modifier.fillMaxSize
 import androidx.compose.remote.creation.compose.modifier.fillMaxWidth
 import androidx.compose.remote.creation.compose.modifier.padding
-import androidx.compose.remote.creation.compose.modifier.rememberRemoteScrollState
-import androidx.compose.remote.creation.compose.modifier.verticalScroll
 import androidx.compose.remote.creation.compose.shapes.RemoteRoundedCornerShape
 import androidx.compose.remote.creation.compose.state.RemoteColor
 import androidx.compose.remote.creation.compose.state.rc
@@ -51,9 +49,9 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * The Date Book widget. The large card is a scrolling list of the appointments still to come,
- * each in a bubble of its own under the header of its day, today's first, then the count of the
- * To Dos due; the card itself is clear, after the Google widgets. The small card is one white
+ * The Date Book widget. The large card lists the count of the To Dos due and the appointments
+ * still to come that fit, each in a bubble of its own under the header of its day, today's
+ * first; the card itself is clear, after the Google widgets. The small card is one white
  * bubble with the next appointment. A tap opens the watch screen (AgendaActivity). Black on white
  * in the bubbles, as on the Palm. The text uses the system font: Remote Compose resolves a font by
  * name on the watch, so the Palm OS font of the app cannot reach it.
@@ -110,26 +108,27 @@ internal fun cardBrush(small: Boolean): WearWidgetBrush =
     WearWidgetBrush.color(if (small) White else Color.Transparent.rc)
 
 /**
- * The most entries a large card lists. A naive cap that keeps the Remote Compose document small;
- * past it the watch screen shows the rest. Raise it if the watch scrolls a longer list well.
+ * The most rows (headers and bubbles) of a large card: the rows that fit the large card of the
+ * 41 mm watch. A widget cannot scroll (Glance Wear allows no scroll operation; a document with
+ * one shows black), so the watch screen shows the rest. Tune it on a larger watch.
  */
-internal const val MAX_ENTRIES = 20
+internal const val MAX_ROWS = 5
 
 /**
  * The bubble of one entry of a large card, after the Google widgets: the full width, a light gray
  * fill with round corners, and the text clear of the edge.
  */
 internal fun RemoteModifier.bubble(): RemoteModifier =
-    fillMaxWidth().clip(RemoteRoundedCornerShape(12.rdp)).background(Color(0xFFE0E0E0).rc)
-        .padding(horizontal = 10.rdp, vertical = 6.rdp)
+    fillMaxWidth().clip(RemoteRoundedCornerShape(10.rdp)).background(Color(0xFFE0E0E0).rc)
+        .padding(horizontal = 8.rdp, vertical = 3.rdp)
 
-/** The column of a large card: the full card, scrolling when its bubbles are taller than it. */
+/** The column of a large card: the full card, its rows with a gap between them. */
 @Composable
 @RemoteComposable
-internal fun ScrollList(content: @RemoteComposable @Composable () -> Unit) {
+internal fun CardList(content: @RemoteComposable @Composable () -> Unit) {
     RemoteColumn(
-        modifier = RemoteModifier.fillMaxSize().verticalScroll(rememberRemoteScrollState()),
-        verticalArrangement = RemoteArrangement.spacedBy(4.rdp),
+        modifier = RemoteModifier.fillMaxSize(),
+        verticalArrangement = RemoteArrangement.spacedBy(3.rdp),
     ) { content() }
 }
 
@@ -169,22 +168,33 @@ internal fun Line(
 @Composable
 @RemoteComposable
 private fun LargeCard(today: Long, events: List<Pair<Long, AgendaEvent>>, due: Int) {
-    // Each bubble and header opens the screen, so the column itself takes no tap from the scroll.
+    // Each bubble and header opens the screen; the clear gaps between them take no tap.
     val open = openScreen()
-    val header = RemoteModifier.fillMaxWidth().padding(horizontal = 10.rdp).clickable(open)
+    val header = RemoteModifier.fillMaxWidth().padding(horizontal = 8.rdp).clickable(open)
     val bubble = RemoteModifier.bubble().clickable(open)
-    ScrollList {
+    CardList {
         // Today's header shows even with no appointment, as the date of the card.
         Line(Fmt.dowDate(today), 14, bold = true, modifier = header, color = White)
-        if (events.isEmpty()) Line("No appointments", 13, modifier = bubble)
-        if (due > 0) Line(if (due == 1) "1 To Do due" else "$due To Dos due", 13, bold = true, modifier = bubble)
+        var rows = 1
+        if (events.isEmpty()) {
+            Line("No appointments", 13, modifier = bubble)
+            rows++
+        }
+        if (due > 0) {
+            Line(if (due == 1) "1 To Do due" else "$due To Dos due", 13, bold = true, modifier = bubble)
+            rows++
+        }
         var shown = today
-        for ((day, e) in events.take(MAX_ENTRIES)) {
+        for ((day, e) in events) {
+            // A later day takes a header row and a bubble row; stop at the rows that fit.
+            val need = if (day != shown) 2 else 1
+            if (rows + need > MAX_ROWS) break
             if (day != shown) {
                 Line(Fmt.dowDate(day), 14, bold = true, modifier = header, color = White)
                 shown = day
             }
             Line(line(e), 13, modifier = bubble)
+            rows += need
         }
     }
 }

@@ -35,7 +35,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * The To Do widget. The large card is a scrolling list of the open To Dos in the order of the
+ * The To Do widget. The large card lists the first open To Dos that fit, in the order of the
  * phone's To Do List, each in a bubble of its own on a clear card; the small card is one white
  * bubble with the first one. A tap on a check box completes the To Do (TodoCheck); a tap
  * on its text opens the watch screen at the To Dos, where the whole text shows.
@@ -58,11 +58,12 @@ class TodoWidget : GlanceWearWidget() {
                     else TodoRow(todos.first(), today, RemoteModifier.fillMaxWidth())
                 }
             } else {
-                ScrollList {
+                CardList {
                     Line("To Do", 14, bold = true, color = White,
-                        modifier = RemoteModifier.fillMaxWidth().padding(horizontal = 10.rdp).clickable(open))
+                        modifier = RemoteModifier.fillMaxWidth().padding(horizontal = 8.rdp).clickable(open))
                     if (todos.isEmpty()) Line("No To Do items", 13, modifier = RemoteModifier.bubble().clickable(open))
-                    for (t in todos.take(MAX_ENTRIES)) TodoRow(t, today, RemoteModifier.bubble())
+                    // The title takes one row; the To Dos take the rest that fit.
+                    for (t in todos.take(MAX_ROWS - 1)) TodoRow(t, today, RemoteModifier.bubble())
                 }
             }
         }
