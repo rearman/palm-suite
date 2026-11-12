@@ -1,6 +1,8 @@
 package com.rearman.datebook
 
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -362,6 +364,15 @@ object Fmt {
     }
 
     fun ld(day: Long): LocalDate = LocalDate.ofEpochDay(day)
+
+    /**
+     * The local epoch day and the minutes since midnight (the start-time unit of an event) of the
+     * time [millis], now by default. Both come from one clock reading, so they agree at midnight.
+     */
+    fun dayAndMinutes(millis: Long = System.currentTimeMillis()): Pair<Long, Int> {
+        val t = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDateTime()
+        return t.toLocalDate().toEpochDay() to t.toLocalTime().toSecondOfDay() / 60
+    }
 
     /** Day view title, "YY MMM D": "26 Oct 13", "26 Oct 5". */
     fun dayTitle(day: Long): String {

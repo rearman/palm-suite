@@ -15,8 +15,6 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.text.format.DateFormat
-import java.time.LocalDate
-import java.time.ZoneId
 
 /**
  * Palm-style alarms: one system alarm is set for the next reminder.
@@ -100,7 +98,7 @@ object Alarms {
         clock(ctx)
         val store = Store.get(ctx)
         val now = System.currentTimeMillis()
-        val today = LocalDate.now().toEpochDay()
+        val today = Fmt.dayAndMinutes(now).first
         var best = Long.MAX_VALUE
         var live = Long.MAX_VALUE
         for (e in store.events) {
@@ -123,7 +121,7 @@ object Alarms {
         }
         am(ctx).cancel(pi(ctx, ACTION_LIVE, "live"))
         if (live != Long.MAX_VALUE) setExact(ctx, live, pi(ctx, ACTION_LIVE, "live"))
-        if (liveOn()) refreshLive(ctx, store, now)
+        if (liveOn()) refreshLive(ctx, store, today, now)
     }
 
     /**
@@ -131,12 +129,11 @@ object Alarms {
      * The chronometer counts down to the end, so the notification needs no update while it shows.
      * Before API 36.1, or when the system refuses promotion, it shows as an ordinary one. A
      * notification the system rejects is left out: this runs in onResume and at boot, so a
-     * throw here would stop the app at every start.
+     * throw here would stop the app at every start. [today] is the local day of [now].
      */
-    private fun refreshLive(ctx: Context, store: Store, now: Long) {
+    private fun refreshLive(ctx: Context, store: Store, today: Long, now: Long) {
         if (Build.VERSION.SDK_INT < 36) return
         val nm = ctx.getSystemService(NotificationManager::class.java)
-        val today = LocalDate.now().toEpochDay()
         val active = store.events.filter {
             hasLive(it) && Recur.occursOn(it, today) && at(today, it.start) <= now && now < at(today, it.end)
         }
@@ -209,8 +206,7 @@ object Alarms {
     /** All occurrences whose alarm rings at this time (to the minute). */
     fun dueAt(ctx: Context, time: Long): List<Occ> {
         val store = Store.get(ctx)
-        val zone = ZoneId.systemDefault()
-        val fireDay = java.time.Instant.ofEpochMilli(time).atZone(zone).toLocalDate().toEpochDay()
+        val fireDay = Fmt.dayAndMinutes(time).first
         val out = mutableListOf<Occ>()
         for (e in store.events) {
             if (!e.alarm) continue

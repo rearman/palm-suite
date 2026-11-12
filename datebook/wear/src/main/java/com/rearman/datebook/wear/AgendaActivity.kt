@@ -19,8 +19,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.LocalTime
 
 /**
  * The watch screen, which the tiles open: one scrolling list of the appointments still to come
@@ -82,8 +80,7 @@ class AgendaActivity : Activity() {
 
     private fun build(agenda: WearAgenda) {
         list.removeAllViews()
-        val today = LocalDate.now().toEpochDay()
-        val now = LocalTime.now().let { it.hour * 60 + it.minute }
+        val (today, now) = Fmt.dayAndMinutes()
         val events = agenda.upcoming(today, now)
         if (events.isEmpty()) list.addView(text("No appointments"))
         var shown = -1L

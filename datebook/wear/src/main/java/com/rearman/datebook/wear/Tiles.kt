@@ -46,8 +46,6 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.rearman.datebook.Fmt
 import com.rearman.datebook.Recur
 import com.rearman.datebook.WearAgenda
-import java.time.LocalDate
-import java.time.LocalTime
 import kotlin.math.ceil
 import kotlin.math.min
 
@@ -232,8 +230,7 @@ abstract class DateBookTileService : TileService() {
         SuspendToFutureAdapter.launchFuture {
             val agenda = AgendaStore.load(this@DateBookTileService)
             Fmt.h24 = DateFormat.is24HourFormat(this@DateBookTileService)
-            val today = LocalDate.now().toEpochDay()
-            val now = LocalTime.now().let { it.hour * 60 + it.minute }
+            val (today, now) = Fmt.dayAndMinutes()
             // The late mark of a To Do's due date also changes at midnight.
             AgendaTick.schedule(this@DateBookTileService, agenda, today, now)
             build(requestParams, screen(this@DateBookTileService, requestParams), agenda, today, now)

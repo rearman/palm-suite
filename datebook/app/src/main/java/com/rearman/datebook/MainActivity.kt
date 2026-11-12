@@ -36,7 +36,6 @@ import android.widget.ScrollView
 import android.widget.TextClock
 import android.widget.TextView
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.temporal.WeekFields
 import kotlin.math.abs
 
@@ -125,7 +124,7 @@ open class MainActivity : Activity() {
         prefs = Prefs(this)
         ShortCuts.list = prefs.shortCuts
         ShortCuts.date = { Fmt.shortDate(LocalDate.now().toEpochDay()) }
-        ShortCuts.time = { LocalTime.now().let { Fmt.time(it.hour * 60 + it.minute) } }
+        ShortCuts.time = { Fmt.time(Fmt.dayAndMinutes().second) }
         val app = applicationContext
         store.onWrite = {
             if (Prefs(app).syncOn) {
@@ -879,7 +878,10 @@ open class MainActivity : Activity() {
             alarm = prefs.presetOn, alarmAdvance = prefs.presetAdvance, alarmUnit = prefs.presetUnit
         )
 
-    private fun defaultStart(): Int = if (day == today) minOf((java.time.LocalTime.now().hour + 1) * 60, 23 * 60) else prefs.dayStart * 60
+    private fun defaultStart(): Int {
+        val (d, min) = Fmt.dayAndMinutes()
+        return if (day == d) minOf((min / 60 + 1) * 60, 23 * 60) else prefs.dayStart * 60
+    }
 
     /** Palm "New": choose a time, then type the description on the new line. */
     private fun newEvent(start: Int?) {

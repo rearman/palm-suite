@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import com.rearman.palmsync.SyncClient
 import com.rearman.palmui.*
-import java.time.LocalDateTime
 
 /**
  * Sync with the sync server. The wire format and the endpoints are in sync-server/PROTOCOL.md.
@@ -157,9 +156,8 @@ object SyncEngine {
     private fun adapter(ctx: Context): AndroidSyncStore = AndroidSyncStore(Store.get(ctx), Prefs(ctx))
 
     private fun lastSyncText(): String {
-        val now = LocalDateTime.now()
-        return "Last sync: " + Fmt.dowDate(now.toLocalDate().toEpochDay()) + " " +
-            Fmt.time(now.hour * 60 + now.minute)
+        val (day, min) = Fmt.dayAndMinutes()
+        return "Last sync: " + Fmt.dowDate(day) + " " + Fmt.time(min)
     }
 
     private fun report(done: (String?) -> Unit, msg: String?) {
