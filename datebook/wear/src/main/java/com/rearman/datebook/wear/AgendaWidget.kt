@@ -124,6 +124,15 @@ internal class Fit(ctx: Context, params: WearWidgetParams) {
     // The first row has no gap above it, so the gap of one row comes back.
     private var left = params.heightDp - 2 * params.verticalPaddingDp + GAP
 
+    // TEMPORARY diagnostic: the card's real size, to tune the fit. Remove in the fix commit.
+    init {
+        android.util.Log.i(
+            "DateBookFit",
+            "heightDp=${params.heightDp} verticalPaddingDp=${params.verticalPaddingDp} " +
+                "fontScale=$scale density=${ctx.resources.displayMetrics.density} left=$left params=$params"
+        )
+    }
+
     fun text(sp: Int): Float = sp * scale * LINE
     fun bubble(sp: Int): Float = text(sp) + 2 * PAD_V
 
