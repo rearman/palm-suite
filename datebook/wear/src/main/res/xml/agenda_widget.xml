@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <wearwidget-provider
     description="@string/widget_description"
-    icon="@drawable/ic_agenda"
+    icon="@drawable/ic_agenda_widget"
     label="@string/widget_label"
     preferredType="LARGE">
 

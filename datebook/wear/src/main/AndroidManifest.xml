@@ -17,7 +17,7 @@
         <service
             android:name=".AgendaWidgetService"
             android:exported="true"
-            android:icon="@drawable/ic_agenda"
+            android:icon="@drawable/ic_agenda_widget"
             android:label="@string/widget_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <!-- The watch's widget host finds providers through the Tiles action and binds with a
@@ -38,7 +38,7 @@
         <service
             android:name=".TodoWidgetService"
             android:exported="true"
-            android:icon="@drawable/ic_todo"
+            android:icon="@drawable/ic_todo_widget"
             android:label="@string/todo_widget_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>

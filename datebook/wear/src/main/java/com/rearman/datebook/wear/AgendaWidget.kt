@@ -108,30 +108,24 @@ internal fun cardBrush(small: Boolean): WearWidgetBrush =
     WearWidgetBrush.color(if (small) White else Color.Transparent.rc)
 
 /** The text sizes of the cards, in sp: a day header, an entry, and a To Do's check box. */
-internal const val HEAD_SP = 14
-internal const val ENTRY_SP = 15
-internal const val CHECK_SP = 20
+internal const val HEAD_SP = 13
+internal const val ENTRY_SP = 14
+internal const val CHECK_SP = 16
 
 /**
  * The rows that fit a large card. A widget cannot scroll (Glance Wear allows no scroll operation;
  * a document with one shows black), so a card takes rows while their height fits its content
  * area, and the watch screen shows the rest. The row heights are an estimate: the system font's
  * line height taken as [LINE] times its size, which may run off on another watch or font; tune
- * the values here on the watch, or measure the text if Remote Compose gains a way.
+ * the values here on the watch, or measure the text if Remote Compose gains a way. On the Pixel
+ * Watch 5 (2026-11-11) the large card is 113 dp high, centered on the screen, with 8 dp of
+ * vertical padding that the host applies, so 97 dp hold the rows: three To Dos, or two days of
+ * one appointment each.
  */
 internal class Fit(ctx: Context, params: WearWidgetParams) {
     private val scale = ctx.resources.configuration.fontScale
     // The first row has no gap above it, so the gap of one row comes back.
     private var left = params.heightDp - 2 * params.verticalPaddingDp + GAP
-
-    // TEMPORARY diagnostic: the card's real size, to tune the fit. Remove in the fix commit.
-    init {
-        android.util.Log.i(
-            "DateBookFit",
-            "heightDp=${params.heightDp} verticalPaddingDp=${params.verticalPaddingDp} " +
-                "fontScale=$scale density=${ctx.resources.displayMetrics.density} left=$left params=$params"
-        )
-    }
 
     fun text(sp: Int): Float = sp * scale * LINE
     fun bubble(sp: Int): Float = text(sp) + 2 * PAD_V
@@ -145,10 +139,10 @@ internal class Fit(ctx: Context, params: WearWidgetParams) {
     }
 
     companion object {
-        const val LINE = 1.2f
+        const val LINE = 1.25f
         const val GAP = 4
         const val PAD_H = 12
-        const val PAD_V = 8
+        const val PAD_V = 4
         const val CORNER = 16
     }
 }
