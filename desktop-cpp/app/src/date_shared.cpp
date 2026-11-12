@@ -370,10 +370,18 @@ void draw_diamond(int cx, int cy) {
 	}
 }
 
-void draw_hour_label(std::int32_t min, int w, int x, int mid, bool h24) {
+bool hour_label_shows(int mid, int top) {
+	fl_font(theme::fonts().sans, 11);
+	return mid - fl_height() / 2 >= top;
+}
+
+void draw_hour_label(std::int32_t min, int w, int x, int mid, bool h24, bool suffix) {
 	fl_font(theme::fonts().sans, 11);
 	fl_color(FL_BLACK);
-	const std::string label = time_label(min, h24);
+	std::string label = time_label(min, h24);
+	if (!h24 && !suffix) {
+		label.pop_back();
+	}
 	const int asc = fl_height() - fl_descent();
 	const int desc = fl_descent();
 	fl_draw(label.c_str(), x + w - 10 - draw::text_w(label), mid + (asc - desc) / 2);

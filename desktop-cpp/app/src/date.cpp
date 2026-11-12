@@ -542,6 +542,7 @@ void draw_grid(const Fl_Box& f, const DayModel& m) {
 	const int top = y - m.offset;
 	const draw::Clip clip(x, y, w, h);
 	fl_rectf(x, y, w, h, FL_WHITE);
+	bool labeled = false;
 	for (int hour = 0; hour < 24; ++hour) {
 		const int hy = top + y_of(hour * 60);
 		if (hy > y + h || hy + 2 * HALF < y) {
@@ -550,7 +551,9 @@ void draw_grid(const Fl_Box& f, const DayModel& m) {
 		date_shared::raised_cell(x, hy, TIME_W, y_of((hour + 1) * 60) - y_of(hour * 60));
 		fl_color(date_shared::HOUR_LINE);
 		fl_line(x + TIME_W, hy, x + w, hy);
-		date_shared::draw_hour_label(hour * 60, TIME_W, x, hy + HALF, m.h24);
+		const bool first = !labeled && date_shared::hour_label_shows(hy + HALF, y);
+		labeled = labeled || first;
+		date_shared::draw_hour_label(hour * 60, TIME_W, x, hy + HALF, m.h24, first || hour == 12);
 	}
 	fl_color(date_shared::HOUR_LINE);
 	fl_line(x + TIME_W, top + y_of(24 * 60), x + w, top + y_of(24 * 60));

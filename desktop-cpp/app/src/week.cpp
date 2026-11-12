@@ -185,13 +185,16 @@ void draw_grid(std::int32_t x, std::int32_t y, std::int32_t w, std::int32_t h, c
 			const std::int32_t hy = top + m.hour_y(hour);
 			fl_line(x, hy, x + w, hy);
 		}
+		bool labeled = false;
 		for (std::int32_t hour = 0; hour < 24; ++hour) {
 			const std::int32_t hy = top + m.hour_y(hour);
 			if (hy > y + h || hy + HOUR_H < y) {
 				continue;
 			}
 			date_shared::raised_cell(x, hy, date::TIME_W, HOUR_H);
-			date_shared::draw_hour_label(hour * 60, date::TIME_W, x, hy + HOUR_H / 2, m.h24);
+			const bool first = !labeled && date_shared::hour_label_shows(hy + HOUR_H / 2, hours_y);
+			labeled = labeled || first;
+			date_shared::draw_hour_label(hour * 60, date::TIME_W, x, hy + HOUR_H / 2, m.h24, first || hour == 12);
 		}
 		fl_color(FL_BLACK);
 		for (std::int32_t i = 0; i <= 7; ++i) {

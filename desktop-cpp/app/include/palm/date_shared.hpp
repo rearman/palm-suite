@@ -121,9 +121,13 @@ void raised_cell(int x, int y, int w, int h);
 // The diamond that marks the untimed rows, centered at (cx, cy).
 void draw_diamond(int cx, int cy);
 
+// True when the whole hour label centered at `mid` lies below `top`, the top edge of the time column's clip.
+bool hour_label_shows(int mid, int top);
+
 // Draws the hour labels of a time column of `w` px: the label and its tick sit in the middle of the hour, as in
-// Palm Desktop.
-void draw_hour_label(std::int32_t min, int w, int x, int mid, bool h24);
+// Palm Desktop. On the 12-hour clock only a label with `suffix` ends in "a" or "p": Palm Desktop gives it to the
+// top label in view and to noon.
+void draw_hour_label(std::int32_t min, int w, int x, int mid, bool h24, bool suffix);
 
 // Asks Current or All for a repeating event: true the current occurrence, false all, nullopt Cancel.
 std::optional<bool> ask_repeat_scope(std::string_view text);
