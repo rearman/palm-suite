@@ -13,47 +13,39 @@
             android:name="com.google.android.wearable.standalone"
             android:value="false" />
 
-        <!-- The Date Book widget (Wear OS 7). -->
+        <!-- The Date Book tile. -->
         <service
-            android:name=".AgendaWidgetService"
+            android:name=".AgendaTileService"
             android:exported="true"
-            android:icon="@drawable/ic_agenda_widget"
-            android:label="@string/widget_label"
+            android:description="@string/agenda_tile_description"
+            android:icon="@drawable/ic_agenda_tile"
+            android:label="@string/agenda_tile_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
-            <!-- The watch's widget host finds providers through the Tiles action and binds with a
-                 widget identifier; the Glance action alone does not list the widget. -->
             <intent-filter>
-                <action android:name="androidx.glance.wear.action.BIND_WIDGET_PROVIDER" />
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
             </intent-filter>
-            <meta-data
-                android:name="androidx.glance.wear.widget.provider"
-                android:resource="@xml/agenda_widget" />
             <meta-data
                 android:name="androidx.wear.tiles.PREVIEW"
                 android:resource="@drawable/ic_agenda" />
         </service>
 
-        <!-- The To Do widget: the same bind actions and meta-data as the Date Book widget. -->
+        <!-- The To Do tile. -->
         <service
-            android:name=".TodoWidgetService"
+            android:name=".TodoTileService"
             android:exported="true"
-            android:icon="@drawable/ic_todo_widget"
-            android:label="@string/todo_widget_label"
+            android:description="@string/todo_tile_description"
+            android:icon="@drawable/ic_todo_tile"
+            android:label="@string/todo_tile_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>
-                <action android:name="androidx.glance.wear.action.BIND_WIDGET_PROVIDER" />
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
             </intent-filter>
-            <meta-data
-                android:name="androidx.glance.wear.widget.provider"
-                android:resource="@xml/todo_widget" />
             <meta-data
                 android:name="androidx.wear.tiles.PREVIEW"
                 android:resource="@drawable/ic_todo" />
         </service>
 
-        <!-- The watch screen that the widgets open: the appointments of 7 days and the To Dos. -->
+        <!-- The watch screen that the tiles open: the appointments of 7 days and the To Dos. -->
         <activity
             android:name=".AgendaActivity"
             android:exported="true"
@@ -66,14 +58,9 @@
             </intent-filter>
         </activity>
 
-        <!-- Moves the widgets on at the end of an appointment and at midnight. -->
+        <!-- Moves the tiles on at the end of an appointment and at midnight. -->
         <receiver
             android:name=".AgendaTick"
-            android:exported="false" />
-
-        <!-- Completes the To Do whose check box was tapped on the To Do widget. -->
-        <receiver
-            android:name=".TodoCheck"
             android:exported="false" />
 
         <!-- Receives the agenda from the phone (WearBridge in datebook/app). -->

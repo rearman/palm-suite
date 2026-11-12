@@ -97,12 +97,13 @@ The project has a fixed signing key (`app/debug.keystore`). Thus a new build ins
 
 The watch app (`watch.apk`) is for a watch with Wear OS 7, for example the Pixel Watch 5. Install `handheld.apk` on the phone and `watch.apk` on the watch.
 
-- Add the Date Book widget on the watch. The large card shows the appointments that are to come. Each appointment, and each item of the To Do widget, is in a gray bubble of its own. It shows the appointments of today that did not end first, then the appointments of the next days. The appointments of each day are below the date of that day. The card shows only the appointments that fit. Tap the card to see all of them. The small card shows the next appointment.
-- Add the To Do widget on the watch. The large card shows the To Do items that are not completed, in the sequence of the To Do List on the phone. It shows only the items that fit. Tap the card to see all of them. The small card shows the first item. Each line shows the priority, the description and the due date. An exclamation mark after the date shows that the item is late.
+- Add the Date Book tile on the watch. The tile shows the appointments that are to come. It shows the appointments of today that did not end first, then the appointments of the next days. The appointments of each day are below the date of that day. Each appointment is in a gray bubble of its own. The tile shows only the appointments that fit. Tap the tile to see all of them.
+- Add the To Do tile on the watch. The tile shows the To Do items that are not completed, in the sequence of the To Do List on the phone. Each item is in a gray bubble of its own. The tile shows only the items that fit. Tap an item to see all of them. Each line shows the priority, the description and the due date. An exclamation mark after the date shows that the item is late.
 - Tap the check box of a To Do item to mark it completed. The item goes from the watch immediately. The phone marks the item completed when it is connected to the watch.
-- Tap a widget to open the watch screen. The screen shows the appointments of 7 days and all the To Do items that the phone sent, with their full text. You can also mark a To Do item completed there. The watch screen is also in the app list of the watch as Date Book.
-- The phone sends the appointments of 7 days, the To Do items that are due in these days and the To Do items with no due date to the watch about 2 seconds after a change, after a sync, when the phone starts and at midnight. The widgets change to the next day at midnight.
-- When there are no appointments, the Date Book widget shows "No appointments". When there are no To Do items, the To Do widget shows "No To Do items".
+- Tap a tile to open the watch screen. The screen shows the appointments of 7 days and all the To Do items that the phone sent, with their full text. You can also mark a To Do item completed there. The watch screen is also in the app list of the watch as Date Book.
+- The phone sends the appointments of 7 days, the To Do items that are due in these days and the To Do items with no due date to the watch about 2 seconds after a change, after a sync, when the phone starts and at midnight. The tiles change to the next day at midnight.
+- When there are no appointments, the Date Book tile shows "No appointments". When there are no To Do items, the To Do tile shows "No To Do items".
+- Version 1.2 of the watch app changes the widgets to tiles. After you install it, add the tiles on the watch.
 - A masked private To Do item shows as "Private" and has no check box on the watch.
 - Private records follow the Security setting of the phone: Hide Records removes them from the watch, and Mask Records shows "Private" in their place.
 

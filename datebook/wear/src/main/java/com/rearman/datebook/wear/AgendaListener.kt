@@ -5,11 +5,10 @@ import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.WearableListenerService
 import com.rearman.datebook.WearAgenda
-import kotlinx.coroutines.runBlocking
 
-/** Saves each agenda that the phone sends (WearBridge in datebook/app) and updates the widgets. */
+/** Saves each agenda that the phone sends (WearBridge in datebook/app) and updates the tiles. */
 class AgendaListener : WearableListenerService() {
-    // A worker thread of the service: the update runs to its end before the service may stop.
+    // A worker thread of the service; the tile update is a request, which returns at once.
     override fun onDataChanged(events: DataEventBuffer) {
         var got = false
         for (ev in events) {
@@ -18,6 +17,6 @@ class AgendaListener : WearableListenerService() {
             AgendaStore.save(this, json)
             got = true
         }
-        if (got) runBlocking { Widgets.updateAll(this@AgendaListener) }
+        if (got) Tiles.updateAll(this)
     }
 }

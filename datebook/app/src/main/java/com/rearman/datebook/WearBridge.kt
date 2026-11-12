@@ -58,7 +58,7 @@ object WearBridge {
             }
         }
         val last = today + DAYS - 1
-        // The open To Dos due by the last day, and those with no date (the To Do widget lists them).
+        // The open To Dos due by the last day, and those with no date (the To Do tile lists them).
         val open = store.todos.filter { !it.done && it.due <= last && !(hide && it.isPrivate) }
         val todos = store.sortTodos(open, prefs.sortMode).map {
             // A masked To Do goes with no uid, so the watch cannot complete it.

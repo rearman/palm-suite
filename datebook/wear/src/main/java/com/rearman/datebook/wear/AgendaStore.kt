@@ -17,6 +17,7 @@ import kotlin.coroutines.resume
 object AgendaStore {
     private const val PREFS = "agenda"
     private const val DONE = "done"
+    private const val CLICK = "click"
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -65,6 +66,16 @@ object AgendaStore {
             Wearable.getDataClient(ctx.applicationContext).putDataItem(req)
                 .addOnCompleteListener { cont.resume(Unit) }
         }
+    }
+
+    /**
+     * True the first time the tile click [id] comes, false after: a later tile request may carry
+     * the last clicked id again, and the id holds a nonce of the tile that showed it.
+     */
+    fun takeClick(ctx: Context, id: String): Boolean {
+        if (prefs(ctx).getString(CLICK, null) == id) return false
+        prefs(ctx).edit().putString(CLICK, id).apply()
+        return true
     }
 
     private suspend fun fetch(ctx: Context): String? = suspendCancellableCoroutine { cont ->

@@ -1,7 +1,6 @@
 package com.rearman.datebook.wear
 
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -14,7 +13,6 @@ import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import com.rearman.datebook.AgendaEvent
 import com.rearman.datebook.Fmt
 import com.rearman.datebook.WearAgenda
 import kotlinx.coroutines.CoroutineScope
@@ -25,7 +23,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * The watch screen, which the widgets open: one scrolling list of the appointments still to come
+ * The watch screen, which the tiles open: one scrolling list of the appointments still to come
  * in the 7 days from the phone, under a line for each day, and then the open To Dos with their
  * check boxes. Plain Android Views, black on white, with the whole text of each record.
  */
@@ -34,7 +32,7 @@ class AgendaActivity : Activity() {
     private lateinit var scroll: ScrollView
     private lateinit var list: LinearLayout
 
-    // The first To Do line, to which the To Do widget scrolls. Used one time.
+    // The first To Do line, to which the To Do tile scrolls. Used one time.
     private var toTodos = false
 
     override fun onCreate(saved: Bundle?) {
@@ -82,8 +80,6 @@ class AgendaActivity : Activity() {
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 
-    private fun eventLine(e: AgendaEvent) = if (e.untimed) e.title else "${Fmt.time(e.start)} ${e.title}"
-
     private fun build(agenda: WearAgenda) {
         list.removeAllViews()
         val today = LocalDate.now().toEpochDay()
@@ -96,7 +92,7 @@ class AgendaActivity : Activity() {
                 list.addView(text(Fmt.dowDate(day), bold = true, top = if (shown < 0) 0 else 6))
                 shown = day
             }
-            list.addView(text(eventLine(e)))
+            list.addView(text(eventText(e)))
         }
         val todos = AgendaStore.openTodos(this, agenda)
         val head = text("To Do", bold = true, top = 10)
@@ -126,25 +122,19 @@ class AgendaActivity : Activity() {
         }
     }
 
-    /** Takes the checked To Do off the list, tells the phone, and updates the widgets. */
+    /** Takes the checked To Do off the list, tells the phone, and updates the tiles. */
     private fun complete(row: View, uid: String) {
         val app = applicationContext
         // A scope of its own: the put must end although the screen may close first.
         CoroutineScope(Dispatchers.Main).launch {
             AgendaStore.markDone(app, uid)
-            Widgets.updateAll(app)
+            Tiles.updateAll(app)
         }
         list.postDelayed({ list.removeView(row) }, 400)
     }
 
     companion object {
-        private const val EXTRA_TODOS = "todos"
-
-        /** The data makes the two intents differ, so each widget keeps its own PendingIntent. */
-        fun intent(ctx: Context, todos: Boolean): Intent =
-            Intent(ctx, AgendaActivity::class.java)
-                .setData(android.net.Uri.fromParts("agenda", if (todos) "todos" else "events", null))
-                .putExtra(EXTRA_TODOS, todos)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        // The tile's LaunchAction sets it to open the screen at the To Dos.
+        internal const val EXTRA_TODOS = "todos"
     }
 }

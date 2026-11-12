@@ -4,7 +4,7 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- The widget icon: a dark glyph, since the watch draws it on a white disc above the card. -->
+    <!-- The tile icon: a dark glyph, since the watch draws it on a white disc above the tile. -->
     <!-- Two check boxes, each with its line of text. -->
     <path android:fillColor="#FF202124"
         android:pathData="M4,5h6v1h-6z M4,10h6v1h-6z M4,5h1v6h-1z M9,5h1v6h-1z M12,7h8v2h-8z M4,14h6v1h-6z M4,19h6v1h-6z M4,14h1v6h-1z M9,14h1v6h-1z M12,16h8v2h-8z" />

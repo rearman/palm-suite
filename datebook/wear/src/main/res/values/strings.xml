@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Date Book</string>
-    <string name="widget_label">Date Book</string>
-    <string name="widget_description">The next appointments, by day</string>
-    <string name="todo_widget_label">To Do</string>
-    <string name="todo_widget_description">The first To Do items, with check boxes</string>
+    <string name="agenda_tile_label">Date Book</string>
+    <string name="agenda_tile_description">The next appointments, by day</string>
+    <string name="todo_tile_label">To Do</string>
+    <string name="todo_tile_description">The first To Do items, with check boxes</string>
 </resources>

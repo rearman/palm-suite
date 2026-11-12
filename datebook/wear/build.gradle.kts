@@ -1,23 +1,22 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// The Date Book watch app for Wear OS 7: the Date Book and To Do widgets (Glance Wear and Remote
-// Compose) and the screen they open (plain Android Views). It
-// shares the applicationId and the key of datebook/app, which the Wear Data Layer requires, so the
-// phone's WearBridge can send it the agenda. This module alone uses AndroidX and Compose.
+// The Date Book watch app for Wear OS 7: the Date Book and To Do tiles (Tiles and ProtoLayout
+// Material 3) and the screen they open (plain Android Views). It shares the applicationId and the
+// key of datebook/app, which the Wear Data Layer requires, so the phone's WearBridge can send it
+// the agenda. This module alone uses AndroidX.
 android {
     namespace = "com.rearman.datebook.wear"
     compileSdk = 37
 
     defaultConfig {
         applicationId = "com.rearman.datebook"
-        // Wear OS 7 (API 37): Wear Widgets exist only there.
+        // Wear OS 7 (API 37), the watch of the user.
         minSdk = 37
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     // The key of datebook/app, by path: the Data Layer pairs only apps with the same key.
@@ -40,10 +39,6 @@ android {
         }
     }
 
-    buildFeatures {
-        compose = true
-    }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -56,13 +51,16 @@ kotlin {
     }
 }
 
-// Alpha releases, pinned: the versions of the Wear Widgets get-started guide (2026-11).
+// Stable releases, pinned (2026-11).
 dependencies {
     // WearAgenda (the payload codec the phone shares) and Fmt (the Date Book date and time text).
     implementation(project(":sync-core"))
-    implementation("androidx.glance.wear:wear:1.0.0-alpha22")
-    implementation("androidx.glance.wear:wear-core:1.0.0-alpha22")
-    implementation("androidx.compose.remote:remote-creation-compose:1.0.0-alpha23")
-    implementation("androidx.compose.remote:remote-core:1.0.0-alpha23")
+    implementation("androidx.wear.tiles:tiles:1.6.2")
+    implementation("androidx.wear.protolayout:protolayout:1.4.2")
+    implementation("androidx.wear.protolayout:protolayout-material3:1.4.2")
+    // SuspendToFutureAdapter: a tile request as a suspend function.
+    implementation("androidx.concurrent:concurrent-futures-ktx:1.3.0")
+    // Dispatchers.Main of the watch screen.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("com.google.android.gms:play-services-wearable:20.0.1")
 }
