@@ -1,6 +1,7 @@
 package com.rearman.datebook.wear
 
 import androidx.wear.protolayout.LayoutElementBuilders.LayoutElement
+import androidx.wear.protolayout.DeviceParametersBuilders.DeviceParameters
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders.Tile
 import com.rearman.datebook.AgendaEvent
@@ -14,10 +15,12 @@ import com.rearman.datebook.WearAgenda
  * watch screen (AgendaActivity).
  */
 class AgendaTileService : DateBookTileService() {
-    override suspend fun build(request: RequestBuilders.TileRequest, agenda: WearAgenda, today: Long, now: Int): Tile {
+    override suspend fun build(
+        request: RequestBuilders.TileRequest, params: DeviceParameters, agenda: WearAgenda, today: Long, now: Int,
+    ): Tile {
         val events = agenda.upcoming(today, now)
         val open = openScreen(this)
-        val fit = Fit(request.deviceConfiguration)
+        val fit = Fit(params)
         val entry = fit.bubble(ENTRY_SP)
         val items = mutableListOf<LayoutElement>()
         if (events.isEmpty()) {
@@ -36,7 +39,7 @@ class AgendaTileService : DateBookTileService() {
             }
             items += bubble(line(eventText(e), ENTRY_SP), entry, open)
         }
-        return page(this, request, getString(R.string.agenda_tile_label), items, open)
+        return page(this, params, getString(R.string.agenda_tile_label), items, open)
     }
 }
 

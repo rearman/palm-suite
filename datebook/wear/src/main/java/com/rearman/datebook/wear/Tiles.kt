@@ -7,10 +7,12 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.text.format.DateFormat
 import androidx.concurrent.futures.SuspendToFutureAdapter
 import androidx.wear.protolayout.ActionBuilders
 import androidx.wear.protolayout.ColorBuilders.argb
+import androidx.wear.protolayout.DeviceParametersBuilders
 import androidx.wear.protolayout.DeviceParametersBuilders.DeviceParameters
 import androidx.wear.protolayout.DimensionBuilders.dp
 import androidx.wear.protolayout.DimensionBuilders.expand
@@ -206,11 +208,11 @@ internal fun openScreen(ctx: Context, todos: Boolean = false): Clickable =
         .build()
 
 /**
- * The tile of [request]: [title] under the icon and the [items] of the main slot, top first. A tap
- * outside the rows' own taps does [open].
+ * The tile for the screen [params]: [title] under the icon and the [items] of the main slot, top
+ * first. A tap outside the rows' own taps does [open].
  */
-internal fun page(ctx: Context, request: RequestBuilders.TileRequest, title: String, items: List<LayoutElement>, open: Clickable): Tile {
-    val layout = materialScope(ctx, request.deviceConfiguration) {
+internal fun page(ctx: Context, params: DeviceParameters, title: String, items: List<LayoutElement>, open: Clickable): Tile {
+    val layout = materialScope(ctx, params) {
         primaryLayout(
             titleSlot = { text(title.layoutString) },
             mainSlot = { column(items) },
@@ -234,14 +236,41 @@ abstract class DateBookTileService : TileService() {
             val now = LocalTime.now().let { it.hour * 60 + it.minute }
             // The late mark of a To Do's due date also changes at midnight.
             AgendaTick.schedule(this@DateBookTileService, agenda, today, now)
-            build(requestParams, agenda, today, now)
+            build(requestParams, screen(this@DateBookTileService, requestParams), agenda, today, now)
         }
 
     override fun onTileResourcesRequest(requestParams: RequestBuilders.ResourcesRequest): ListenableFuture<Resources> =
         SuspendToFutureAdapter.launchFuture { Resources.Builder().setVersion(RESOURCES).build() }
 
-    /** The tile of [request] for [agenda], on the epoch day [today] at [now] minutes. */
-    protected abstract suspend fun build(request: RequestBuilders.TileRequest, agenda: WearAgenda, today: Long, now: Int): Tile
+    /** The tile of [request] on the screen [params], for [agenda], on the epoch day [today] at [now] minutes. */
+    protected abstract suspend fun build(
+        request: RequestBuilders.TileRequest, params: DeviceParameters, agenda: WearAgenda, today: Long, now: Int,
+    ): Tile
+}
+
+/**
+ * The screen of [request]. A request with no device configuration gets an empty one, with a screen
+ * of 0 dp, and the primary layout, which takes the screen's size, then draws nothing: the tile
+ * showed only its icon after the watch screen closed (2026-11-11). Such a request takes the
+ * watch's own screen size, density, and font scale, with the renderer version it carries.
+ */
+internal fun screen(ctx: Context, request: RequestBuilders.TileRequest): DeviceParameters {
+    val given = request.deviceConfiguration
+    if (given.screenHeightDp > 0 && given.screenWidthDp > 0) return given
+    Log.w("DateBookTile", "tile request with no screen size; using the watch's own")
+    val m = ctx.resources.displayMetrics
+    return DeviceParameters.Builder()
+        .setScreenWidthDp((m.widthPixels / m.density).toInt())
+        .setScreenHeightDp((m.heightPixels / m.density).toInt())
+        .setScreenDensity(m.density)
+        .setFontScale(ctx.resources.configuration.fontScale)
+        .setDevicePlatform(DeviceParametersBuilders.DEVICE_PLATFORM_WEAR_OS)
+        .setScreenShape(
+            if (ctx.resources.configuration.isScreenRound) DeviceParametersBuilders.SCREEN_SHAPE_ROUND
+            else DeviceParametersBuilders.SCREEN_SHAPE_RECT
+        )
+        .setRendererSchemaVersion(given.rendererSchemaVersion)
+        .build()
 }
 
 /** The tiles of the watch app. */

@@ -9,6 +9,7 @@ import androidx.wear.protolayout.LayoutElementBuilders.LayoutElement
 import androidx.wear.protolayout.ModifiersBuilders.Clickable
 import androidx.wear.protolayout.ModifiersBuilders.Modifiers
 import androidx.wear.protolayout.ModifiersBuilders.Padding
+import androidx.wear.protolayout.DeviceParametersBuilders.DeviceParameters
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders.Tile
 import com.rearman.datebook.AgendaTodo
@@ -22,7 +23,9 @@ import com.rearman.datebook.WearAgenda
  * watch screen at the To Dos, where the whole text shows.
  */
 class TodoTileService : DateBookTileService() {
-    override suspend fun build(request: RequestBuilders.TileRequest, agenda: WearAgenda, today: Long, now: Int): Tile {
+    override suspend fun build(
+        request: RequestBuilders.TileRequest, params: DeviceParameters, agenda: WearAgenda, today: Long, now: Int,
+    ): Tile {
         val clicked = request.currentState.lastClickableId
         // A later request may carry the last clicked id again; takeClick lets each id act once, and
         // only a To Do still open is marked done.
@@ -32,7 +35,7 @@ class TodoTileService : DateBookTileService() {
         }
         val todos = AgendaStore.openTodos(this, agenda)
         val open = openScreen(this, todos = true)
-        val fit = Fit(request.deviceConfiguration)
+        val fit = Fit(params)
         // The check box is the tallest text of a row.
         val row = fit.bubble(maxOf(CHECK_SP, ENTRY_SP))
         // The nonce of this tile's check box ids.
@@ -42,9 +45,9 @@ class TodoTileService : DateBookTileService() {
         for (t in todos) {
             // Stop at the first row that does not fit.
             if (!fit.take(row)) break
-            items += bubble(todoRow(t, today, open, "$DONE${t.uid}/$nonce", fit.text(CHECK_SP), request.deviceConfiguration.fontScale), row)
+            items += bubble(todoRow(t, today, open, "$DONE${t.uid}/$nonce", fit.text(CHECK_SP), params.fontScale), row)
         }
-        return page(this, request, getString(R.string.todo_tile_label), items, open)
+        return page(this, params, getString(R.string.todo_tile_label), items, open)
     }
 
     private companion object {
