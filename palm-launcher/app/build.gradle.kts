@@ -10,8 +10,8 @@ android {
 		applicationId = "com.rearman.palmlauncher"
 		minSdk = 26
 		targetSdk = 34
-		versionCode = 8
-		versionName = "1.7"
+		versionCode = 9
+		versionName = "1.8"
 	}
 
 	// A fixed key, kept in the repository, so that each new build
