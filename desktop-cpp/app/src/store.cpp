@@ -587,7 +587,13 @@ std::expected<std::string, std::string> DesktopStore::to_json() const {
 				if (!plain) {
 					return std::unexpected(std::format("No live record for {} {}", TABLES[t], id));
 				}
-				row["plain"] = *plain;
+				// The record goes in as an object, so the file reads and edits without escaped quotes.
+				auto record = json::parse_value(*plain);
+				if (!record) {
+					return std::unexpected(
+					    std::format("The record {} {} does not read: {}", TABLES[t], id, record.error()));
+				}
+				row["plain"] = *std::move(record);
 			}
 			rows.push_back(row);
 		}
@@ -597,12 +603,11 @@ std::expected<std::string, std::string> DesktopStore::to_json() const {
 		nlohmann::json s = {{"name", name}, {"text", txt}};
 		shortcuts.push_back(s);
 	}
-	nlohmann::json root = {{"version", 1},         {"since", since_},           {"scRev", sc_rev_},
-	                       {"scDirty", sc_dirty_}, {"shortcuts", shortcuts},    {"rows", rows},
-	                       {"addressSync", true},  {"syncFormat", sync_format_}};
-	// serde_json writes compact text with raw UTF-8, so the dump matches it. A string with bytes that are not UTF-8
-	// gets U+FFFD for each bad byte; the save then goes on, as a Rust save of the same text would.
-	return json::dump(root);
+	nlohmann::json root = {{"version", 2},         {"since", since_},        {"scRev", sc_rev_},
+	                       {"scDirty", sc_dirty_}, {"shortcuts", shortcuts}, {"rows", rows}};
+	// One tab per level, so the file reads and diffs a line at a time. The text is raw UTF-8; a string with bytes
+	// that are not UTF-8 gets U+FFFD for each bad byte, and the save goes on.
+	return json::dump(root, 1, '\t');
 }
 
 void DesktopStore::persist() {
@@ -632,7 +637,6 @@ std::expected<void, std::string> DesktopStore::load(std::string_view text) {
 	since_ = json::opt_i64(root, "since", 0);
 	sc_rev_ = json::opt_i64(root, "scRev", 0);
 	sc_dirty_ = json::opt_bool(root, "scDirty");
-	sync_format_ = json::opt_i64(root, "syncFormat", 1);
 	short_cut_list_.clear();
 	if (const auto* sc = json::opt_array(root, "shortcuts")) {
 		for (const nlohmann::json& s : *sc) {
@@ -698,7 +702,13 @@ std::expected<void, std::string> DesktopStore::load(std::string_view text) {
 		if (deleted) {
 			continue;
 		}
-		auto plain = json::get_str(*o, "plain");
+		// The record is an object since 0.30, and a JSON text in the files before.
+		std::expected<std::string, std::string> plain;
+		if (const nlohmann::json* p = field(*o, "plain"); p != nullptr && p->is_object()) {
+			plain = json::dump(*p);
+		} else {
+			plain = json::get_str(*o, "plain");
+		}
 		if (!plain) {
 			return std::unexpected(plain.error());
 		}
@@ -743,26 +753,6 @@ std::expected<void, std::string> DesktopStore::load(std::string_view text) {
 	model::sort_categories(address_categories);
 	std::stable_sort(memos.begin(), memos.end(),
 	                 [](const model::Memo& a, const model::Memo& b) { return a.pos < b.pos; });
-	// Desktop 0.10 skipped the address rows but still moved the sync position past them. A file without the
-	// addressSync key came from 0.10, so the next sync reads all rows again.
-	if (!root.contains("addressSync")) {
-		since_ = 0;
-	}
-	// A format 1 store has uploaded its rows in format 1. Upload every live row once more in format 2. The
-	// ShortCuts list goes up too, but only when it synced before, so it never replaces another list with defaults.
-	if (sync_format_ < 2) {
-		for (auto& map : meta_) {
-			for (auto& [id, m] : map) {
-				if (!m.deleted) {
-					m.dirty = true;
-				}
-			}
-		}
-		if (sc_rev_ > 0) {
-			sc_dirty_ = true;
-		}
-		sync_format_ = 2;
-	}
 	return {};
 }
 

@@ -790,12 +790,12 @@ namespace {
 
 // Writes one value as dump does: nlohmann's layout, which matches serde_json's (no spaces on one line; with an
 // indent, one member per line and ": " after each key), with floats in serde_json's form.
-void write_value(std::string& out, const nlohmann::json& v, int indent, int depth) {
+void write_value(std::string& out, const nlohmann::json& v, int indent, char fill, int depth) {
 	const bool pretty = indent >= 0;
 	auto newline = [&](int level) {
 		if (pretty) {
 			out += '\n';
-			out.append(static_cast<std::size_t>(indent * level), ' ');
+			out.append(static_cast<std::size_t>(indent * level), fill);
 		}
 	};
 	if (v.is_object() || v.is_array()) {
@@ -816,7 +816,7 @@ void write_value(std::string& out, const nlohmann::json& v, int indent, int dept
 				out += nlohmann::json(it.key()).dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
 				out += pretty ? ": " : ":";
 			}
-			write_value(out, *it, indent, depth + 1);
+			write_value(out, *it, indent, fill, depth + 1);
 		}
 		newline(depth);
 		out += obj ? '}' : ']';
@@ -829,9 +829,9 @@ void write_value(std::string& out, const nlohmann::json& v, int indent, int dept
 
 } // namespace
 
-std::string dump(const nlohmann::json& v, int indent) {
+std::string dump(const nlohmann::json& v, int indent, char fill) {
 	std::string out;
-	write_value(out, v, indent, 0);
+	write_value(out, v, indent, fill, 0);
 	return out;
 }
 

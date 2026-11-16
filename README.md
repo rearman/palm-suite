@@ -217,7 +217,9 @@ The desktop keeps the Address Book records for sync.
   works offline. Each save keeps the file as it was before in
   `desktop-data.json.bak`; if `desktop-data.json` ever fails to read, the app
   offers to restore that copy and keeps the damaged file as
-  `desktop-data.json.bad`.
+  `desktop-data.json.bad`. Since 0.30 the file is indented and holds each
+  record as a JSON object, so it reads in a text editor; versions before
+  0.30 cannot open a file that 0.30 or later has saved.
 - To set up sync, choose Sync > Options..., enter the server, the device
   token and the sync passphrase, and click Set Up. The app saves the token
   and the sync key in a file that only your user account can read.

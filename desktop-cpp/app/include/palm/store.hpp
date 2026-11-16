@@ -1,7 +1,8 @@
 // The Palm Desktop record store, as desktop-rs/app/src/store.rs (DesktopStore.kt). It keeps the records in memory
-// and saves them to one JSON file (desktop-data.json, the same format as the Swing app) after each write. The previous
-// file stays as desktop-data.json.bak. A synced record that was deleted stays as a tombstone in the sync state until
-// sync removes it; tombstones are not in the record lists.
+// and saves them to one JSON file (desktop-data.json) after each write. Each row holds its record as a JSON object
+// under "plain"; the files of 0.29 and before, and of the Swing app, hold it as a JSON text, which load still reads.
+// The previous file stays as desktop-data.json.bak. A synced record that was deleted stays as a tombstone in the sync
+// state until sync removes it; tombstones are not in the record lists.
 #pragma once
 
 #include "palm/codec.hpp"
@@ -205,8 +206,6 @@ private:
 	std::int64_t since_ = 0;
 	std::int64_t sc_rev_ = 0;
 	bool sc_dirty_ = false;
-	// The sync format that persist writes. A file without the key is format 1.
-	std::int64_t sync_format_ = 2;
 };
 
 } // namespace palm::store

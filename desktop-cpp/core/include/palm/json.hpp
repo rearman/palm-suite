@@ -53,10 +53,10 @@ std::expected<std::string, std::string> get_str(const Obj& o, std::string_view k
 // serde_json's error text ("expected value at line 1 column 1"), the 128-level recursion limit included.
 std::expected<nlohmann::json, std::string> parse_value(std::string_view text);
 
-// The JSON text of a value, as serde_json writes it: raw UTF-8, `indent` spaces per level (-1 for one line), and
-// floats as format_double gives them. A string that holds invalid UTF-8 (which a Rust String cannot) gets U+FFFD
+// The JSON text of a value, as serde_json writes it: raw UTF-8, `indent` copies of `fill` per level (-1 for one line),
+// and floats as format_double gives them. A string that holds invalid UTF-8 (which a Rust String cannot) gets U+FFFD
 // in place of each bad byte, so a save never throws.
-std::string dump(const nlohmann::json& v, int indent = -1);
+std::string dump(const nlohmann::json& v, int indent = -1, char fill = ' ');
 
 // The text of a double as serde_json 1.0.154 writes it ("1.0", "1e+16", "0.00001", "1e-6"); null when not finite.
 std::string format_double(double f);

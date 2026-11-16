@@ -350,7 +350,7 @@ std::pair<fs::path, DesktopStore> fixture_store() {
 	return {path, std::move(s)};
 }
 
-TEST_CASE("format_1_file_loads_and_uploads_again") {
+TEST_CASE("a_file_with_records_as_json_texts_loads_and_saves_them_as_objects") {
 	auto [path, s] = fixture_store();
 	// The categories load first, so the To Do and the memo find theirs although their rows come earlier.
 	auto work_it = std::ranges::find_if(s.categories, [](const model::Category& c) { return c.name == "Work"; });
@@ -369,21 +369,30 @@ TEST_CASE("format_1_file_loads_and_uploads_again") {
 	CHECK(s.memos[1].category == 9);
 	REQUIRE(!s.events.empty());
 	CHECK(s.events[0].exceptions == std::set<std::int64_t>{20'757});
-	// A file without addressSync reads all rows again; a format 1 file uploads every live row again.
-	CHECK(s.sync_since() == 0);
+	// The sync state loads as it was: only the tombstone waits to go up.
+	CHECK(s.sync_since() == 250);
 	const auto dirty = s.dirty_rows();
-	CHECK(dirty.size() == 7);
-	CHECK(std::ranges::any_of(dirty, [](const runner::SyncRow& r) { return r.uid == "e-3" && r.deleted; }));
-	CHECK(s.short_cuts_dirty());
+	REQUIRE(dirty.size() == 1);
+	CHECK(dirty[0].uid == "e-3");
+	CHECK(dirty[0].deleted);
+	CHECK(!s.short_cuts_dirty());
 	REQUIRE(s.short_cuts().size() > 1);
 	CHECK(s.short_cuts()[1] == std::pair<std::string, std::string>{"dts", "{date} {time}"});
 
 	s.persist();
 	CHECK(s.save_error == std::nullopt);
-	const nlohmann::json root = nlohmann::json::parse(read_text(path));
-	CHECK(root.at("syncFormat").is_number_integer());
-	CHECK(root["syncFormat"] == 2);
-	CHECK(root["addressSync"] == true);
+	const std::string text = read_text(path);
+	CHECK(text.find("\n\t\"rows\": [") != std::string::npos);
+	const nlohmann::json root = nlohmann::json::parse(text);
+	CHECK(root["version"] == 2);
+	CHECK(!root.contains("syncFormat"));
+	CHECK(!root.contains("addressSync"));
+	for (const nlohmann::json& row : root["rows"]) {
+		CHECK(row.contains("plain") == !row["deleted"].get<bool>());
+		if (row.contains("plain")) {
+			CHECK(row["plain"].is_object());
+		}
+	}
 	auto r = DesktopStore::open(path).value();
 	CHECK(r.todos == s.todos);
 	CHECK(r.memos == s.memos);
@@ -479,8 +488,14 @@ TEST_CASE("real_files_round_trip") {
 	s.persist();
 	CHECK(s.save_error == std::nullopt);
 	const std::string written = read_text(path);
-	const auto [root_a, rows_a] = rows_of(original);
-	const auto [root_b, rows_b] = rows_of(written);
+	auto [root_a, rows_a] = rows_of(original);
+	auto [root_b, rows_b] = rows_of(written);
+	// The keys of the earlier layout go, and the version names the layout.
+	for (const char* key : {"version", "addressSync", "syncFormat"}) {
+		root_a.erase(key);
+	}
+	CHECK(root_b["version"] == 2);
+	root_b.erase("version");
 	CHECK(same_values(root_a, root_b));
 	CHECK(rows_a.size() == rows_b.size());
 	for (const auto& [key, a] : rows_a) {
