@@ -106,14 +106,11 @@ client::SyncResult empty_result(std::initializer_list<std::string> conflicts) {
 	return r;
 }
 
-// A pre-collect step that never fails.
-const session::BeforeCollect no_prep = [] { return std::expected<void, std::string>{}; };
-
 // Drives a run to its end with `send` answering each round; returns the Done step and the round count.
 template <typename Answer>
 std::pair<session::Step, std::uint32_t> drive(session::SyncSession& sess, MemStore& store, Answer send) {
 	const auto k = key();
-	std::optional<session::Step> first = sess.start(store, k, no_prep);
+	std::optional<session::Step> first = sess.start(store, k);
 	REQUIRE(first.has_value());
 	session::Step step = *first;
 	std::uint32_t rounds = 0;
@@ -121,7 +118,7 @@ std::pair<session::Step, std::uint32_t> drive(session::SyncSession& sess, MemSto
 		runner::SyncPlan plan = std::move(std::get<session::Send>(step).plan);
 		++rounds;
 		Net net = send(sess);
-		step = sess.applied(store, k, plan, std::move(net), no_prep).second;
+		step = sess.applied(store, k, plan, std::move(net)).second;
 	}
 	return {step, rounds};
 }
@@ -343,7 +340,7 @@ TEST_CASE("start_while_running_gives_none") {
 	const auto run = drive(sess, store, [&inner](session::SyncSession& s) -> Net {
 		const MemStore other{};
 		const auto k = key();
-		inner = !s.start(other, k, no_prep).has_value();
+		inner = !s.start(other, k).has_value();
 		return empty_result({});
 	});
 	CHECK(inner == std::optional<bool>{true});
@@ -397,18 +394,4 @@ TEST_CASE("conflicts_run_up_to_max_rounds") {
 	CHECK(run.second == runner::MAX_ROUNDS);
 	const Ended want{std::nullopt, false, false};
 	CHECK(done(run.first) == want);
-}
-
-TEST_CASE("before_collect_error_ends_the_run") {
-	session::SyncSession sess;
-	MemStore store;
-	const session::BeforeCollect fail = []() -> std::expected<void, std::string> {
-		return std::unexpected(std::string("Store busy."));
-	};
-	const auto k = key();
-	const std::optional<session::Step> step = sess.start(store, k, fail);
-	REQUIRE(step.has_value());
-	const Ended want{std::string("Store busy."), false, false};
-	CHECK(done(*step) == want);
-	CHECK_FALSE(sess.running());
 }

@@ -11,7 +11,6 @@
 
 #include <cstdint>
 #include <expected>
-#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -19,9 +18,6 @@
 #include <variant>
 
 namespace palm::session {
-
-// Runs before each collect. An error there ends the run with its text.
-using BeforeCollect = std::function<std::expected<void, std::string>()>;
 
 // Send these push items on the worker thread, then pass the answer to SyncSession::applied.
 struct Send {
@@ -48,23 +44,21 @@ public:
 	bool running() const;
 
 	// Starts a run and collects its first round. nullopt, and no change, when a run is in progress.
-	// `before_collect` runs before each collect; an error there ends the run with its text.
-	std::optional<Step> start(const runner::SyncStore& store, std::span<const std::uint8_t> key,
-	                          const BeforeCollect& before_collect);
+	std::optional<Step> start(const runner::SyncStore& store, std::span<const std::uint8_t> key);
 
 	// Asks for one more run when the run in progress ends. Does nothing when no run is in progress.
 	void request_again();
 
 	// Applies the answer to the plan of the last Send step (or the send error) and returns the next step,
 	// with the outcome of the round when it applied.
-	std::pair<std::optional<runner::SyncOutcome>, Step>
-	applied(runner::SyncStore& store, std::span<const std::uint8_t> key, const runner::SyncPlan& plan,
-	        std::expected<client::SyncResult, std::string> net, const BeforeCollect& before_collect);
+	std::pair<std::optional<runner::SyncOutcome>, Step> applied(runner::SyncStore& store,
+	                                                            std::span<const std::uint8_t> key,
+	                                                            const runner::SyncPlan& plan,
+	                                                            std::expected<client::SyncResult, std::string> net);
 
 private:
 	// Collects the next round. A Done step when the collect fails.
-	Step next_round(const runner::SyncStore& store, std::span<const std::uint8_t> key,
-	                const BeforeCollect& before_collect);
+	Step next_round(const runner::SyncStore& store, std::span<const std::uint8_t> key);
 
 	// Ends the run with `error` and reports whether another run was requested.
 	Step finish(std::optional<std::string> error);

@@ -46,8 +46,7 @@ std::optional<client::SyncClient> server() {
 // One full sync run of `store` against the server; fails the test on an error.
 bool run_sync(const client::SyncClient& server_client, MemStore& store, std::span<const std::uint8_t> key) {
 	session::SyncSession sess;
-	const session::BeforeCollect prep = [] { return std::expected<void, std::string>{}; };
-	std::optional<session::Step> first = sess.start(store, key, prep);
+	std::optional<session::Step> first = sess.start(store, key);
 	REQUIRE(first.has_value());
 	session::Step step = *first;
 	while (std::holds_alternative<session::Send>(step)) {
@@ -56,7 +55,7 @@ bool run_sync(const client::SyncClient& server_client, MemStore& store, std::spa
 		    server_client.sync(plan.since, plan.items).transform_error([](const client::SyncError& e) {
 			    return e.message;
 		    });
-		step = sess.applied(store, key, plan, std::move(net), prep).second;
+		step = sess.applied(store, key, plan, std::move(net)).second;
 	}
 	const auto& done = std::get<session::Done>(step);
 	REQUIRE_MESSAGE(!done.error.has_value(), done.error.value_or(""));

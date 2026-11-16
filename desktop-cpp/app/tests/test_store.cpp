@@ -385,8 +385,6 @@ TEST_CASE("a_file_with_records_as_json_texts_loads_and_saves_them_as_objects") {
 	CHECK(text.find("\n\t\"rows\": [") != std::string::npos);
 	const nlohmann::json root = nlohmann::json::parse(text);
 	CHECK(root["version"] == 2);
-	CHECK(!root.contains("syncFormat"));
-	CHECK(!root.contains("addressSync"));
 	for (const nlohmann::json& row : root["rows"]) {
 		CHECK(row.contains("plain") == !row["deleted"].get<bool>());
 		if (row.contains("plain")) {
@@ -490,10 +488,8 @@ TEST_CASE("real_files_round_trip") {
 	const std::string written = read_text(path);
 	auto [root_a, rows_a] = rows_of(original);
 	auto [root_b, rows_b] = rows_of(written);
-	// The keys of the earlier layout go, and the version names the layout.
-	for (const char* key : {"version", "addressSync", "syncFormat"}) {
-		root_a.erase(key);
-	}
+	// The version names the layout.
+	root_a.erase("version");
 	CHECK(root_b["version"] == 2);
 	root_b.erase("version");
 	CHECK(same_values(root_a, root_b));

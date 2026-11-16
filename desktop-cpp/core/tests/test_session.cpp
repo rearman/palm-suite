@@ -6,8 +6,6 @@
 
 #include <cstdint>
 #include <doctest/doctest.h>
-#include <expected>
-#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -45,9 +43,8 @@ public:
 TEST_CASE("start with an empty store sends an empty plan") {
 	EmptyStore store;
 	session::SyncSession s{};
-	const session::BeforeCollect before = [] { return std::expected<void, std::string>{}; };
 	const std::span<const std::uint8_t> key{};
-	const std::optional<session::Step> step = s.start(store, key, before);
+	const std::optional<session::Step> step = s.start(store, key);
 	REQUIRE(step.has_value());
 	REQUIRE(std::holds_alternative<session::Send>(*step));
 	const runner::SyncPlan& plan = std::get<session::Send>(*step).plan;

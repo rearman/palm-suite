@@ -36,8 +36,6 @@ class SyncSession(
      * @property key the sync key.
      * @property send sends the push items on the worker thread and returns the server answer.
      *   It throws when the call fails. The message of the exception is the error text of the run.
-     * @property beforeCollect runs on the UI thread before each collect, for example to prepare
-     *   the rows after a format change. An exception here ends the run with its message.
      * @property afterRound runs on the UI thread after each applied round, with what it changed.
      * @property finish runs once on the UI thread when the run ends. It gets the error text, or null
      *   on success, and true when any round changed records.
@@ -48,7 +46,6 @@ class SyncSession(
         val store: SyncStore,
         val key: ByteArray,
         val send: (since: Long, items: List<PushItem>) -> SyncResult,
-        val beforeCollect: () -> Unit = {},
         val afterRound: (SyncOutcome) -> Unit = {},
         val finish: (error: String?, changed: Boolean) -> Unit,
         val again: () -> Unit = {},
@@ -78,7 +75,6 @@ class SyncSession(
     private fun nextRound(r: Run) {
         rounds++
         val plan = try {
-            r.beforeCollect()
             SyncRunner.collect(r.store, r.key)
         } catch (e: Exception) {
             finish(r, e.message ?: "Sync failed.")

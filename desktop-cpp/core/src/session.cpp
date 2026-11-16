@@ -21,15 +21,14 @@ bool SyncSession::running() const {
 	return running_;
 }
 
-std::optional<Step> SyncSession::start(const runner::SyncStore& store, std::span<const std::uint8_t> key,
-                                       const BeforeCollect& before_collect) {
+std::optional<Step> SyncSession::start(const runner::SyncStore& store, std::span<const std::uint8_t> key) {
 	if (running_) {
 		return std::nullopt;
 	}
 	running_ = true;
 	rounds = 0;
 	changed = false;
-	return next_round(store, key, before_collect);
+	return next_round(store, key);
 }
 
 void SyncSession::request_again() {
@@ -38,13 +37,8 @@ void SyncSession::request_again() {
 	}
 }
 
-Step SyncSession::next_round(const runner::SyncStore& store, std::span<const std::uint8_t> key,
-                             const BeforeCollect& before_collect) {
+Step SyncSession::next_round(const runner::SyncStore& store, std::span<const std::uint8_t> key) {
 	rounds += 1;
-	const std::expected<void, std::string> ready = before_collect();
-	if (!ready) {
-		return finish(ready.error());
-	}
 	std::expected<runner::SyncPlan, std::string> plan = runner::collect(store, key);
 	if (!plan) {
 		return finish(plan.error());
@@ -54,7 +48,7 @@ Step SyncSession::next_round(const runner::SyncStore& store, std::span<const std
 
 std::pair<std::optional<runner::SyncOutcome>, Step>
 SyncSession::applied(runner::SyncStore& store, std::span<const std::uint8_t> key, const runner::SyncPlan& plan,
-                     std::expected<client::SyncResult, std::string> net, const BeforeCollect& before_collect) {
+                     std::expected<client::SyncResult, std::string> net) {
 	if (!net) {
 		std::string e = net.error();
 		if (e.empty()) {
@@ -70,8 +64,7 @@ SyncSession::applied(runner::SyncStore& store, std::span<const std::uint8_t> key
 	if (outcome.changed) {
 		changed = true;
 	}
-	Step step = (outcome.no_conflicts || rounds >= runner::MAX_ROUNDS) ? finish(std::nullopt)
-	                                                                   : next_round(store, key, before_collect);
+	Step step = (outcome.no_conflicts || rounds >= runner::MAX_ROUNDS) ? finish(std::nullopt) : next_round(store, key);
 	return {outcome, std::move(step)};
 }
 

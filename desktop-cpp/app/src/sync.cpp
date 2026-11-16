@@ -24,11 +24,6 @@ namespace {
 // The key of a set up: the sync key of the passphrase, or the error text of the call.
 using KeyResult = std::expected<std::optional<std::vector<std::uint8_t>>, std::string>;
 
-// The check that runs before each collect. A sync from here has nothing to check.
-std::expected<void, std::string> no_check() {
-	return {};
-}
-
 // "10/22/26 3:49 pm" for the status bar.
 std::string now_text(bool h24) {
 	const std::chrono::zoned_time now{platform::local_zone(), std::chrono::system_clock::now()};
@@ -114,7 +109,7 @@ std::vector<Effect> DesktopSync::sync_now(store::DesktopStore& store, settings::
 	}
 	std::vector<std::uint8_t> key = *key_bytes;
 	reports_.push_back(report);
-	auto first = session_.start(store, key, no_check);
+	auto first = session_.start(store, key);
 	if (!first) {
 		throw std::runtime_error("no run is in progress");
 	}
@@ -144,7 +139,7 @@ std::vector<Effect> DesktopSync::answer(store::DesktopStore& store, settings::Se
 	}
 	Pending p = std::move(*pending_);
 	pending_.reset();
-	auto [outcome, next] = session_.applied(store, p.key, p.plan, std::move(net), no_check);
+	auto [outcome, next] = session_.applied(store, p.key, p.plan, std::move(net));
 	std::vector<Effect> effects;
 	if (outcome && outcome->changed) {
 		effects.push_back(Refresh{});

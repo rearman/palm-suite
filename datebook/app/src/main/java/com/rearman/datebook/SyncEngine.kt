@@ -85,16 +85,6 @@ object SyncEngine {
                 store = adapter(ctx),
                 key = key,
                 send = { since, items -> SyncClient(url, tokenText).sync(since, items) },
-                beforeCollect = {
-                    // Format 2 is a new wire format, so each live record goes up once more in it. The ShortCuts list
-                    // goes up too, but only when it synced before: a new device must not replace the list with its defaults.
-                    val p = Prefs(ctx)
-                    if (p.syncFormat < 2) {
-                        Store.get(ctx).markAllForUpload()
-                        if (p.shortCutsRev > 0) p.shortCutsDirty = true
-                        p.syncFormat = 2
-                    }
-                },
                 afterRound = { o -> if (o.shortCutsChanged) ShortCuts.list = Prefs(ctx).shortCuts },
                 finish = { error, changed ->
                     Prefs(ctx).syncLast = if (error == null) lastSyncText() else "Sync failed: $error"
