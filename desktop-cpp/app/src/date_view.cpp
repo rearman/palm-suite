@@ -329,6 +329,12 @@ void DateView::switch_mode(view::Ctx& ctx, msg::DateMode next) {
 	refresh(ctx);
 }
 
+void DateView::follow_merges(const std::vector<category::Merge>& merges) {
+	if (todo_cat_id_) {
+		todo_cat_id_ = category::after_merges(*todo_cat_id_, merges);
+	}
+}
+
 void DateView::refresh(view::Ctx& ctx) {
 	const std::int64_t day = ctx.day;
 	if (typing_ && typing_->day != day) {
@@ -671,7 +677,7 @@ std::optional<std::int64_t> DateView::calendar_day(int x, int y) const {
 	}
 	const int col = std::min(lx / cw, 6);
 	const auto& p = *pane_;
-	return detail::calendar_start(p.day, p.begins) + (row * 7 + col);
+	return date_picker::detail::calendar_start(p.day, p.begins) + (row * 7 + col);
 }
 
 void DateView::seek_address(const view::Ctx& ctx) {
@@ -722,13 +728,7 @@ void DateView::end_title_edit_ctx(view::Ctx& ctx, bool save) {
 }
 
 void DateView::add_event(view::Ctx& ctx, std::string_view title, std::int64_t day, std::int32_t min, bool untimed) {
-	model::Event e;
-	e.title = std::string(title);
-	e.date = day;
-	e.untimed = untimed;
-	e.start = untimed ? 8 * 60 : min;
-	e.end = untimed ? 9 * 60 : min + 60;
-	apply_alarm_preset(e, ctx.settings);
+	model::Event e = new_event(title, day, untimed ? std::nullopt : std::optional<std::int32_t>(min), ctx.settings);
 	ctx.store.save_event(e);
 	selected_id_ = e.id;
 }
@@ -738,36 +738,18 @@ void DateView::field_event(view::Ctx& ctx, msg::FieldEv f) {
 		week_->field_event(ctx, f);
 		return;
 	}
-	switch (f) {
-	case msg::FieldEv::Enter:
-		end_typing_ctx(ctx, true);
-		end_title_edit_ctx(ctx, true);
-		break;
-	case msg::FieldEv::Escape:
-		end_typing_ctx(ctx, false);
-		end_title_edit_ctx(ctx, false);
-		break;
-	case msg::FieldEv::Lost: {
-		// A focus loss saves, unless the focus went to a dialog of the field itself.
-		Fl_Widget* focused = Fl::focus();
-		if (typing_ && static_cast<Fl_Widget*>(typing_->field.input) != focused) {
-			end_typing_ctx(ctx, true);
-		}
-		if (title_edit_ && static_cast<Fl_Widget*>(title_edit_->field.input) != focused) {
-			end_title_edit_ctx(ctx, true);
-		}
-		break;
+	Fields v{
+	    .typing = typing_ ? static_cast<const Fl_Widget*>(typing_->field.input) : nullptr,
+	    .title = title_edit_ ? static_cast<const Fl_Widget*>(title_edit_->field.input) : nullptr,
+	    .end_typing = [this, &ctx](bool save) { end_typing_ctx(ctx, save); },
+	    .end_title = [this, &ctx](bool save) { end_title_edit_ctx(ctx, save); },
+	    .dialog = std::nullopt,
+	};
+	// A double click in the field of an empty hour opens Edit Event, as on the hour; an untimed row opens nothing.
+	if (typing_ && !typing_->untimed) {
+		v.dialog = std::pair{typing_->day, std::optional<std::int32_t>(typing_->min)};
 	}
-	case msg::FieldEv::Double:
-		// A double click in the field of an empty hour opens Edit Event, as on the hour.
-		if (typing_ && !typing_->untimed) {
-			const std::int64_t day = typing_->day;
-			const std::int32_t min = typing_->min;
-			end_typing_ctx(ctx, false);
-			event_dialog::edit(ctx, std::nullopt, day, min, "");
-		}
-		break;
-	}
+	detail::field_event(ctx, f, v);
 }
 
 void DateView::start_typing(view::Ctx& ctx, std::int32_t min, bool untimed) {
@@ -864,7 +846,9 @@ void DateView::day_mouse(view::Ctx& ctx, bool header, msg::Mouse m) {
 				selected_id_ = hit->first.event.id;
 				edit_b_->activate();
 				sync_model();
-				box_action(ctx, hit->first);
+				if (box_action(ctx, hit->first)) {
+					selected_id_.reset();
+				}
 			}
 			return;
 		}
@@ -938,7 +922,7 @@ void DateView::day_mouse(view::Ctx& ctx, bool header, msg::Mouse m) {
 					const std::int32_t start = d.new_start;
 					change_occurrence(ctx.store, d.occ, CHANGE_TEXT, [start, len](model::Event& x) {
 						x.start = start;
-						x.end = start + len;
+						x.end = std::min(start + len, LAST_MIN);
 					});
 				}
 				return;
@@ -982,29 +966,6 @@ void DateView::click(view::Ctx& ctx, bool header, std::int32_t lx, std::int32_t 
 	}
 }
 
-void DateView::box_action(view::Ctx& ctx, const Occ& occ) {
-	const auto action = event_menu();
-	if (!action) {
-		return;
-	}
-	switch (*action) {
-	case date_shared::BoxAction::Delete:
-		if (delete_occurrence(ctx.store, ctx.settings, ctx.no_confirm, occ)) {
-			selected_id_.reset();
-		}
-		break;
-	case date_shared::BoxAction::Note:
-		edit_note(ctx.store, occ);
-		break;
-	case date_shared::BoxAction::Alarm:
-		edit_alarm(ctx.store, occ);
-		break;
-	case date_shared::BoxAction::Edit:
-		event_dialog::edit(ctx, occ.event, occ.day, std::nullopt, "");
-		break;
-	}
-}
-
 std::optional<Rect> DateView::update_drag(Drag& d, int x, int y, std::int32_t /*lx*/, std::int32_t /*ly*/) const {
 	const model::Event& e = d.occ.event;
 	if (d.resize) {
@@ -1019,7 +980,7 @@ std::optional<Rect> DateView::update_drag(Drag& d, int x, int y, std::int32_t /*
 	const int gy = y - grid_->y() + scroller_.offset();
 	const int w = grid_->w();
 	if (d.resize) {
-		d.new_end = std::min(std::max(e.start + 30, round_half(min_at(gy))), 1440);
+		d.new_end = std::min(std::max(e.start + 30, round_half(min_at(gy))), LAST_MIN);
 		return outline_box(e.start, d.new_end, w);
 	}
 	if (!e.untimed) {
@@ -1039,6 +1000,10 @@ void DateView::pane_mouse(view::Ctx& ctx, msg::Mouse m) {
 		const auto hit = list->cell_under_cursor();
 		const int row = hit ? hit->first : -1;
 		pane_press_ = std::tuple<std::int32_t, std::int32_t, std::int32_t, bool>{lx, ly, row, false};
+		pane_press_todo_.reset();
+		if (!address && row >= 0 && static_cast<std::size_t>(row) < pane_todos_.size()) {
+			pane_press_todo_ = pane_todos_[static_cast<std::size_t>(row)].id;
+		}
 		return;
 	}
 	if (std::holds_alternative<msg::mouse::Drag>(m.kind)) {
@@ -1097,8 +1062,8 @@ void DateView::pane_mouse(view::Ctx& ctx, msg::Mouse m) {
 			if (m.double_click && row_index < pane_addrs_.size()) {
 				address_dialog::edit(ctx, pane_addrs_[row_index], category::UNFILED);
 			}
-		} else {
-			todo_click(ctx, row_index, lx, m.double_click);
+		} else if (pane_press_todo_) {
+			todo_click(ctx, *pane_press_todo_, lx, m.double_click);
 		}
 	}
 }
@@ -1119,25 +1084,30 @@ std::optional<std::pair<bool, std::int32_t>> DateView::drop_target(int x, int y)
 	return std::nullopt;
 }
 
-void DateView::todo_click(view::Ctx& ctx, std::size_t row, std::int32_t lx, bool double_click) {
-	if (row >= pane_todos_.size()) {
+void DateView::todo_click(view::Ctx& ctx, std::int64_t id, std::int32_t lx, bool double_click) {
+	const auto it =
+	    std::find_if(pane_todos_.begin(), pane_todos_.end(), [id](const model::Todo& x) { return x.id == id; });
+	if (it == pane_todos_.end()) {
 		return;
 	}
-	model::Todo t = pane_todos_[row];
+	model::Todo t = *it;
 	const auto [pri, due] = pane_parts(*pane_, records::inner_w(*todo_list_));
 	const std::int64_t today = platform::today();
 	if (lx < 20) {
-		// The check box.
-		todo::mark_done(t, !t.done, ctx.settings, today);
-		ctx.store.save_todo(t);
+		// The check box. The second click of a double click is ignored: the first one acted, and a completed item
+		// that hides moves the next one under the pointer.
+		if (!double_click) {
+			todo::mark_done(t, !t.done, ctx.settings, today);
+			ctx.store.save_todo(t);
+		}
 	} else if (!double_click && pri && lx >= pri->first && lx < pri->second) {
 		const std::array<std::string_view, 5> levels{"1", "2", "3", "4", "5"};
-		if (const auto i = popup(levels)) {
+		if (const auto i = draw::popup(levels)) {
 			t.priority = static_cast<std::int32_t>(*i) + 1;
 			ctx.store.save_todo(t);
 		}
 	} else if (!double_click && due && lx >= due->first && lx < due->second) {
-		if (const auto pick = popup(todo::DUE_NAMES)) {
+		if (const auto pick = draw::popup(todo::DUE_NAMES)) {
 			if (const auto d = todo::due_for(*pick, t.due, today, ctx.settings)) {
 				t.due = *d;
 				ctx.store.save_todo(t);

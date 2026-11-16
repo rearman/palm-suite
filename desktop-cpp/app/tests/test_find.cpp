@@ -3,6 +3,7 @@
 // The tests of desktop-rs/app/src/find.rs that need no display: the whole-word rule and the order of the result rows.
 #include "palm/find.hpp"
 
+#include "palm/days.hpp"
 #include "palm/model.hpp"
 
 #include <doctest/doctest.h>
@@ -55,4 +56,12 @@ TEST_CASE("results list address then date then todo then memo") {
 	    ResultKey{3, 0, 0},
 	};
 	CHECK(keys == expected);
+}
+
+TEST_CASE("a timed result shows its time in the clock form of the settings") {
+	using palm::find::detail::row_parts;
+	const std::int64_t day = palm::days::epoch_day(2026, 10, 19);
+	CHECK(row_parts(event(day, 13 * 60 + 5, false), false, false).right == "10/19/2026 1:05 pm");
+	CHECK(row_parts(event(day, 13 * 60 + 5, false), false, true).right == "10/19/2026 13:05");
+	CHECK(row_parts(event(day, 0, true), false, false).right == "10/19/2026");
 }

@@ -2,7 +2,6 @@ package com.rearman.palmlauncher
 
 import com.rearman.palmui.*
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -10,9 +9,9 @@ import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
 import android.os.BatteryManager
 import android.os.Bundle
+import android.os.UserHandle
 import android.provider.Settings
 import android.text.TextUtils
 import android.util.TypedValue
@@ -32,7 +31,7 @@ import android.widget.TextView
 class MainActivity : Activity() {
 	lateinit var state: LauncherState
 	var apps: List<AppEntry> = emptyList()
-	var receiver: BroadcastReceiver? = null
+	var watch: Apps.Watch? = null
 	var hasFocus = false
 	private var scroll: ScrollView? = null
 	// The screen root. On a tall screen it keeps the keyboard open (TypingRoot.editor).
@@ -42,7 +41,7 @@ class MainActivity : Activity() {
 	private var appHolder: FrameLayout? = null
 	private var categoryText: TextView? = null
 	private var dockHolder: FrameLayout? = null
-	// App cells by component, with their measured widths for list view. A category change reuses them.
+	// App cells by key (AppEntry.key), with their measured widths for list view. A category change reuses them.
 	// render() and a package change clear them. Limit: the cells of all apps stay in memory, as when All shows.
 	private val cellCache = HashMap<String, View>()
 	private val cellWidth = HashMap<String, Int>()
@@ -59,8 +58,6 @@ class MainActivity : Activity() {
 	private val match = ViewGroup.LayoutParams.MATCH_PARENT
 	private val wrap = ViewGroup.LayoutParams.WRAP_CONTENT
 
-	fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-
 	// The screen is always Green LCD: Palm.paper, and a darker green for the dock.
 	internal fun paper() = Palm.paper
 	private fun dockColor() = 0xFFB5BF94.toInt()
@@ -71,14 +68,23 @@ class MainActivity : Activity() {
 		Palm.intoCutout = true
 		state = Store.load(this)
 		reload()
-		receiver = Apps.watch(this) { pkg -> reload(pkg); showApps(keepScroll = true); showDock() }
+		watch = Apps.watch(this,
+			onChange = { pkg, user -> reload(pkg, user); showApps(keepScroll = true); showDock() },
+			onRemoved = { pkg, user ->
+				state.forgetPackage(pkg, Apps.profile(this, user))
+				save()
+				showApps(keepScroll = true)
+				showDock()
+			})
 		render()
 		window.hideStatusBar()
 	}
 
 	override fun onDestroy() {
+		// An open form, menu bar, or list would leak its window (a rotation, a theme change).
+		closePalmWindows()
+		watch?.stop(this)
 		super.onDestroy()
-		receiver?.let { unregisterReceiver(it) }
 	}
 
 	override fun onResume() {
@@ -109,10 +115,14 @@ class MainActivity : Activity() {
 
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
+		if (intent.action != Intent.ACTION_MAIN) return
+		// Home closes an open form, menu bar, or list, whether or not the launcher has focus (a form has it).
+		// Read the focus first: closing a form gives the launcher focus back.
+		val onHome = hasFocus && (intent.flags and Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT) == 0
+		if (closePalmWindows()) return
 		// Home pressed while the launcher already shows: cycle the Palm category.
-		if (intent.action == Intent.ACTION_MAIN && hasFocus &&
-			(intent.flags and Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT) == 0) {
-			state.selected = state.nextCategory(apps.map { it.component })
+		if (onHome) {
+			state.selected = state.nextCategory(apps.map { it.key })
 			save()
 			showApps()
 		}
@@ -144,15 +154,19 @@ class MainActivity : Activity() {
 	override fun onBackPressed() {
 	}
 
-	// Loads all apps, or with `pkg` only the apps of that package (a package was added, changed or removed).
-	fun reload(pkg: String? = null) {
-		apps = if (pkg == null) Apps.load(this) else apps.filter { it.packageName != pkg } + Apps.load(this, pkg)
-		if (pkg == null) cellCache.clear() else cellCache.keys.removeAll { it.startsWith("$pkg/") }
-		cellWidth.keys.retainAll(cellCache.keys)
-		if (apps.isNotEmpty()) {
-			state.prune(apps.map { it.component }.toSet())
-			save()
+	// Loads all apps, or with `pkg` and `user` only the apps of that package in that profile (a package was added,
+	// changed, or removed). It keeps the categories and dock slots of apps missing from the load: only
+	// Apps.watch's onRemoved (a package removed with its data) drops them.
+	fun reload(pkg: String? = null, user: UserHandle? = null) {
+		if (pkg == null || user == null) {
+			apps = Apps.load(this)
+			cellCache.clear()
+		} else {
+			val old = apps.filter { it.packageName == pkg && it.user == user }
+			apps = apps - old.toSet() + Apps.load(this, pkg, user)
+			old.forEach { cellCache.remove(it.key) }
 		}
+		cellWidth.keys.retainAll(cellCache.keys)
 	}
 
 	fun save() = Store.save(this, state)
@@ -204,10 +218,10 @@ class MainActivity : Activity() {
 
 	// Scrolls the app list so the row of the first shown app that starts with `ch` is at the top.
 	private fun scrollToLetter(ch: Char) {
-		val shown = state.filter(apps, { it.component }, { it.label })
+		val shown = state.filter(apps, { it.key }, { it.label })
 		val i = firstStartingWith(shown.map { it.label }, ch)
 		if (i < 0) return
-		val row = cellCache[shown[i].component]?.parent as? View ?: return
+		val row = cellCache[shown[i].key]?.parent as? View ?: return
 		scroll?.smoothScrollTo(0, row.top)
 	}
 
@@ -234,8 +248,6 @@ class MainActivity : Activity() {
 		holder.removeAllViews()
 		holder.addView(dock(), FrameLayout.LayoutParams(match, wrap))
 	}
-
-	private fun lp(w: Int, h: Int, weight: Float = 0f) = LinearLayout.LayoutParams(w, h, weight)
 
 	private fun rule() = View(this).apply { setBackgroundColor(Color.BLACK) }
 
@@ -315,7 +327,7 @@ class MainActivity : Activity() {
 	// The Palm menu bar, after the Palm OS 3.5 Applications menus. Each App command opens a list of
 	// the apps in the selected category.
 	private fun menus(): List<Pair<String, List<MenuItem>>> {
-		val shown = state.filter(apps, { it.component }, { it.label })
+		val shown = state.filter(apps, { it.key }, { it.label })
 		val app: List<MenuItem> = listOf(
 			MenuItem("Category...", 'Y') { pickApp(this, shown, "Category") { changeCategory(it) } },
 			MenuItem("Info...", 'I') { pickApp(this, shown, "Info") { showInfo(it) } },
@@ -385,16 +397,16 @@ class MainActivity : Activity() {
 	private fun appArea(): ScrollView {
 		val grid = state.viewMode == ViewMode.GRID
 		val cols = if (grid) state.gridColumns else 2
-		val shown = state.filter(apps, { it.component }, { it.label })
+		val shown = state.filter(apps, { it.key }, { it.label })
 		val cells = shown.map { e ->
-			cellCache.getOrPut(e.component) { cell(e) }.also { v -> (v.parent as? ViewGroup)?.removeView(v) }
+			cellCache.getOrPut(e.key) { cell(e) }.also { v -> (v.parent as? ViewGroup)?.removeView(v) }
 		}
 		// List view: the two columns together are centered on the screen (null widths: equal columns).
 		// Limit: it measures against the full screen width, so in split-screen mode the columns can be cut off.
 		val widths = if (grid) null else {
 			val spec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
 			columnWidths(shown.mapIndexed { i, e ->
-				cellWidth.getOrPut(e.component) { cells[i].measure(spec, spec); cells[i].measuredWidth }
+				cellWidth.getOrPut(e.key) { cells[i].measure(spec, spec); cells[i].measuredWidth }
 			}, cols, resources.displayMetrics.widthPixels)
 		}
 		val list = LinearLayout(this).apply {
@@ -451,7 +463,7 @@ class MainActivity : Activity() {
 			LinearLayout.LayoutParams(0, wrap, 1f).apply { marginStart = dp(8) }
 		}
 		cell.addView(label, labelParams)
-		cell.setOnClickListener { Apps.launch(this, e.component) }
+		cell.setOnClickListener { Apps.launch(this, e) }
 		cell.setOnLongClickListener { v -> appMenu(v, e); true }
 		return cell
 	}
@@ -462,7 +474,7 @@ class MainActivity : Activity() {
 			when (i) {
 				0 -> changeCategory(e)
 				1, 2, 3, 4 -> {
-					state.dock[i - 1] = e.component
+					state.dock[i - 1] = e.key
 					save()
 					showDock()
 				}
@@ -472,27 +484,15 @@ class MainActivity : Activity() {
 		}
 	}
 
-	private fun changeCategory(e: AppEntry) = pickCategory(this, state, state.categoryOf(e.component)) { id ->
-		state.assign(e.component, id)
+	private fun changeCategory(e: AppEntry) = pickCategory(this, state, state.categoryOf(e.key)) { id ->
+		state.assign(e.key, id)
 		save()
 		showApps(keepScroll = true)
 	}
 
-	private fun showInfo(e: AppEntry) = startSafely(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-		Uri.fromParts("package", e.packageName, null)))
+	private fun showInfo(e: AppEntry) = Apps.showInfo(this, e)
 
-	private fun deleteApp(e: AppEntry) = startSafely(Intent(Intent.ACTION_DELETE,
-		Uri.fromParts("package", e.packageName, null)))
-
-	/** Starts [intent]. False when no activity on this device handles it. */
-	private fun startSafely(intent: Intent): Boolean {
-		return try {
-			startActivity(intent)
-			true
-		} catch (ex: ActivityNotFoundException) {
-			false
-		}
-	}
+	private fun deleteApp(e: AppEntry) = startSafely(Apps.deleteIntent(e))
 
 	private fun dock(): LinearLayout {
 		val bar = LinearLayout(this).apply {
@@ -502,12 +502,12 @@ class MainActivity : Activity() {
 		}
 		val iconSize = (dp(48) * state.iconSize.scale).toInt()
 		for (i in state.dock.indices) {
-			val app = apps.find { it.component == state.dock[i] }
+			val app = apps.find { it.key == state.dock[i] }
 			val slot = FrameLayout(this)
 			if (app != null) {
 				val icon = ImageView(this).apply { setImageDrawable(app.icon) }
 				slot.addView(icon, FrameLayout.LayoutParams(iconSize, iconSize, Gravity.CENTER))
-				slot.setOnClickListener { Apps.launch(this, app.component) }
+				slot.setOnClickListener { Apps.launch(this, app) }
 				slot.setOnLongClickListener { v -> dockMenu(v, i); true }
 			}
 			// 8 dp above and below the icon, as at Normal size (48 dp icon in a 64 dp slot).

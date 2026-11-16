@@ -19,12 +19,19 @@ object AgendaStore {
     private const val DONE = "done"
     private const val CLICK = "click"
 
+    // Each read, change, and write of a saved value holds this lock: save runs on the listener's
+    // thread, markDone and takeClick on the main thread or a tile request's, and the one would undo
+    // the other's change. apply() updates the values in memory at once, so the lock covers it all.
+    private val lock = Any()
+
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** Saves an agenda from the phone. A checked To Do that it no longer lists is settled. */
     fun save(ctx: Context, json: String) {
         val listed = WearAgenda.parse(json).todos.map { it.uid }.toSet()
-        prefs(ctx).edit().putString(WearAgenda.KEY, json).putStringSet(DONE, done(ctx) intersect listed).apply()
+        synchronized(lock) {
+            prefs(ctx).edit().putString(WearAgenda.KEY, json).putStringSet(DONE, done(ctx) intersect listed).apply()
+        }
     }
 
     private fun saved(ctx: Context): String? = prefs(ctx).getString(WearAgenda.KEY, null)
@@ -55,8 +62,9 @@ object AgendaStore {
      */
     suspend fun markDone(ctx: Context, uid: String) {
         if (uid.isEmpty()) return
-        val done = done(ctx) + uid
-        prefs(ctx).edit().putStringSet(DONE, done).apply()
+        val done = synchronized(lock) {
+            (done(ctx) + uid).also { prefs(ctx).edit().putStringSet(DONE, it).apply() }
+        }
         val req = PutDataMapRequest.create(WearAgenda.DONE_PATH).apply {
             dataMap.putStringArray(WearAgenda.DONE_KEY, done.toTypedArray())
             // The time makes each put a new item, so the phone hears of it.
@@ -72,10 +80,10 @@ object AgendaStore {
      * True the first time the tile click [id] comes, false after: a later tile request may carry
      * the last clicked id again, and the id holds a nonce of the tile that showed it.
      */
-    fun takeClick(ctx: Context, id: String): Boolean {
+    fun takeClick(ctx: Context, id: String): Boolean = synchronized(lock) {
         if (prefs(ctx).getString(CLICK, null) == id) return false
         prefs(ctx).edit().putString(CLICK, id).apply()
-        return true
+        true
     }
 
     private suspend fun fetch(ctx: Context): String? = suspendCancellableCoroutine { cont ->

@@ -69,7 +69,8 @@ std::expected<SyncMeta, std::string> parse_meta(std::string_view text);
 class SyncClient {
 public:
 	// A client for a server address that starts with https://. Plain http is allowed for a loopback
-	// address only (127.0.0.1, [::1], localhost), where the test server runs.
+	// address only (127.0.0.1, [::1], localhost) with a port, where the test server runs. An address with
+	// a user name or password is refused.
 	static std::expected<SyncClient, std::string> new_client(std::string_view base_url, std::string_view token);
 
 	// Reads the setup values. Fails on any status other than 200.

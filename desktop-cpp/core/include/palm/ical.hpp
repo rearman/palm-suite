@@ -26,6 +26,13 @@ void fold(std::string_view s, std::string& out);
 // Reverses escape: "\n" and "\N" become LF, and any other escaped character stands for itself.
 std::string unescape(std::string_view s);
 
+// The lines of `text`, split at LF with the CR before it dropped, after a UTF-8 BOM, as Kotlin's ICal.lines. Each
+// view points into `text`. The iCalendar and vCard readers join their folds from these lines.
+std::vector<std::string_view> lines(std::string_view text);
+
+// Whether line `l` starts with a space or tab, so it continues the line before it.
+bool continues(std::string_view l);
+
 // The events of a file, and the number of file events that Date Book could not show in full.
 struct Parsed {
 	std::vector<model::Event> events;

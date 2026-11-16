@@ -1,8 +1,8 @@
 // The Palm Desktop record store, as desktop-rs/app/src/store.rs (DesktopStore.kt). It keeps the records in memory
-// and saves them to one JSON file (desktop-data.json) after each write. Each row holds its record as a JSON object
-// under "plain"; the files of 0.29 and before, and of the Swing app, hold it as a JSON text, which load still reads.
-// The previous file stays as desktop-data.json.bak. A synced record that was deleted stays as a tombstone in the sync
-// state until sync removes it; tombstones are not in the record lists.
+// and saves them to one JSON file (desktop-data.json) after each write, or once at the end of a Batch. Each row holds
+// its record as a JSON object under "plain"; the files of 0.29 and before, and of the Swing app, hold it as a JSON
+// text, which load still reads. The previous file stays as desktop-data.json.bak. A synced record that was deleted
+// stays as a tombstone in the sync state until sync removes it; tombstones are not in the record lists.
 #pragma once
 
 #include "palm/codec.hpp"
@@ -51,11 +51,29 @@ private:
 // The backup of a data file: the file as it was before the last save (desktop-data.json.bak).
 std::filesystem::path backup_path(const std::filesystem::path& file);
 
-// Where restore_backup keeps a data file that does not read (desktop-data.json.bad).
+// Where restore_backup keeps a data file that does not read: the first of desktop-data.json.bad, .bad.1, .bad.2, ...
+// that does not exist yet, so an older bad file is never overwritten.
 std::filesystem::path bad_path(const std::filesystem::path& file);
 
-// Puts the backup in place of a data file that does not read. The file that does not read moves to bad_path.
-std::expected<void, std::string> restore_backup(const std::filesystem::path& file);
+// Puts the backup in place of a data file that does not read, and returns where the file that does not read is kept
+// (bad_path). The backup is copied to a flushed temp file that then moves over the data file, so a failure at any step
+// leaves the data file as it was.
+std::expected<std::filesystem::path, std::string> restore_backup(const std::filesystem::path& file);
+
+// How write_atomic writes a file.
+struct WriteOptions {
+	// Keeps the file before the write as backup_path(file).
+	bool backup = true;
+	// Only the user can read the file. On Linux the temp file is 0600 before its first byte is written; Windows keeps
+	// the access list of the folder, which is the user's own.
+	bool owner_only = false;
+};
+
+// Writes `text` to a temp file beside `file` and flushes it to the disk, then moves it over `file`, so a crash or
+// power loss leaves the old file or the new one, never a short one. Returns the error, if any; on an error `file` is
+// as it was.
+std::optional<std::string> write_atomic(const std::filesystem::path& file, const std::string& text,
+                                        WriteOptions options = {});
 
 // A new random uid in the form of Java's UUID.randomUUID().
 std::string new_uid();
@@ -113,11 +131,36 @@ public:
 	// Replaces the ShortCuts list after a local edit. The list syncs on the next run.
 	void set_short_cuts(codec::ShortCuts list);
 
+	// Sets whether the ShortCuts list is due for upload.
+	void set_short_cuts_dirty(bool dirty);
+
+	// Readies the ShortCuts list for a new server, as SyncEngine.finishSetUp on the phone: rev 0, and due for upload
+	// only when it differs from the Palm default list, so a new computer does not replace the list of the other
+	// devices. An empty list (a store that never synced; the desktop has no ShortCuts editor) is never due.
+	void set_up_short_cuts();
+
 	// ---- the file ----
 
 	// Writes the whole store: a temp file flushed to the disk, the old file kept as the backup, then a move over the
 	// old file. A failure keeps the old file and goes to save_error.
 	void persist();
+
+	// Defers the saves of the store to the end of an operation that writes many records (a sync round, an import):
+	// the writes inside a batch save the file once, when the outermost batch ends, so the backup is the file from
+	// before the whole operation, and on_change runs once. The end saves on every way out, an exception included;
+	// on_change is skipped while an exception unwinds.
+	class Batch {
+	public:
+		explicit Batch(DesktopStore& store);
+		~Batch() noexcept(false);
+		Batch(const Batch&) = delete;
+		Batch& operator=(const Batch&) = delete;
+
+	private:
+		DesktopStore& store_;
+		// std::uncaught_exceptions() at the start, to tell an unwind from a normal end.
+		int uncaught_;
+	};
 
 	// ---- public state, as the Rust fields ----
 
@@ -148,6 +191,9 @@ public:
 	void mark_synced(std::string_view table, std::string_view uid, std::int64_t rev, bool clean) override;
 	void put_remote(runner::Record record, std::int64_t rev) override;
 	void drop_remote(std::string_view table, std::string_view uid) override;
+	void put_tombstone(std::string_view table, std::string_view uid, std::int64_t rev) override;
+	// Also clears sync_since, so the next round pulls from rev 0.
+	void reset_sync() override;
 	void save_copy(runner::Record record) override;
 	codec::ShortCuts short_cuts() const override;
 	bool short_cuts_dirty() const override;
@@ -171,8 +217,10 @@ private:
 	std::vector<model::Category>& categories_for_mut(std::int32_t app);
 	// The first category of any app with this id, or nullptr.
 	const model::Category* find_category(std::int64_t id) const;
-	// Saves after a local write: the file, then on_change.
+	// Saves after a local write: the file, then on_change. Inside a batch both wait for its end.
 	void changed();
+	// Saves after a sync write: the file, or at the end of the batch.
+	void save();
 	void add_default_categories();
 	// Adds a dirty category and does not save.
 	model::Category new_category(std::string_view name, std::int32_t app);
@@ -206,6 +254,10 @@ private:
 	std::int64_t since_ = 0;
 	std::int64_t sc_rev_ = 0;
 	bool sc_dirty_ = false;
+	// The open batches, and what waits for the end of the outermost one.
+	int batch_depth_ = 0;
+	bool save_pending_ = false;
+	bool change_pending_ = false;
 };
 
 } // namespace palm::store

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"time"
 )
 
 const (
@@ -34,6 +35,10 @@ type Version struct {
 	Rev     int64  `json:"rev"`
 	Deleted bool   `json:"deleted"`
 	Blob    string `json:"blob,omitempty"` // base64 ciphertext; empty for a tombstone
+
+	// raw is Blob decoded, when the caller has decoded it already, so Append does not decode it
+	// again. Append drops it, so the versions in memory hold only Blob.
+	raw []byte
 }
 
 // Meta holds the key salt and the passphrase check blob that the first device sets.
@@ -57,6 +62,10 @@ type Store struct {
 	size int64 // length of the log after the last good append
 	rev  int64
 	meta Meta
+
+	// broken is set when a failed append left bytes after size that could not be cut off.
+	// Append refuses to write until a cut succeeds.
+	broken bool
 
 	// Shortcut: all live versions are in memory and Since scans them all.
 	// This is fine for thousands of records. Upgrade path: SQLite with an index on rev.
@@ -318,26 +327,44 @@ func (s *Store) Append(vs []Version) error {
 	if len(vs) == 0 {
 		return nil
 	}
+	if s.broken {
+		// A record after the bytes of a failed write would make the log unreadable at the next start.
+		if err := s.log.Truncate(s.size); err != nil {
+			return fmt.Errorf("log holds a failed write that cannot be cut off: %w", err)
+		}
+		s.broken = false
+	}
 	data, err := encodeRecords(nil, vs)
 	if err != nil {
 		return err
 	}
 	if _, err := s.log.Write(data); err != nil {
-		s.log.Truncate(s.size) // drop a partial write, so the next record does not follow bad bytes
-		return err
+		return s.dropFailed(err)
 	}
 	if err := s.log.Sync(); err != nil {
-		s.log.Truncate(s.size)
-		return err
+		return s.dropFailed(err)
 	}
 	s.size += int64(len(data))
 	for _, v := range vs {
+		v.raw = nil
 		s.live[v.ID] = v
 		if v.Rev > s.rev {
 			s.rev = v.Rev
 		}
 	}
 	return nil
+}
+
+// dropFailed cuts the log back to the end of the last good append after a failed write or
+// fsync, so the next record does not follow bad bytes. When the cut fails too, the store is
+// marked broken and the next Append tries the cut again first. It returns cause, joined with
+// the cut's error when there is one.
+func (s *Store) dropFailed(cause error) error {
+	if err := s.log.Truncate(s.size); err != nil {
+		s.broken = true
+		return errors.Join(cause, fmt.Errorf("cut the log back: %w", err))
+	}
+	return cause
 }
 
 // Meta returns the meta loaded at open, or the last value set by SetMeta.
@@ -365,6 +392,51 @@ func LoadTokens(dir string) ([]Token, error) {
 		return nil, err
 	}
 	return ts, nil
+}
+
+// UpdateTokens reads dir/tokens.json, passes the tokens to change, and writes the tokens it
+// returns, all under an exclusive lock, so two token commands at once do not lose a change.
+// When change fails, the file is left as it was.
+func UpdateTokens(dir string, change func([]Token) ([]Token, error)) error {
+	unlock, err := lockFile(filepath.Join(dir, tokensName+".lock"))
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	ts, err := LoadTokens(dir)
+	if err != nil {
+		return err
+	}
+	ts, err = change(ts)
+	if err != nil {
+		return err
+	}
+	return SaveTokens(dir, ts)
+}
+
+// lockWait is how long lockFile waits for a lock that another process holds.
+const lockWait = 10 * time.Second
+
+// lockFile takes an exclusive lock by creating path, which must not exist yet. It retries
+// until lockWait has passed, then fails. The returned func releases the lock by removing path.
+// Shortcut: a lock file left by a run that crashed blocks later runs until it is removed by
+// hand. Upgrade path: flock on Linux, which the kernel releases when the process exits.
+func lockFile(path string) (func(), error) {
+	deadline := time.Now().Add(lockWait)
+	for {
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err == nil {
+			f.Close()
+			return func() { os.Remove(path) }, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return nil, err
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("%s is held by another command; remove it if no palmsync token command is running", path)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // SaveTokens writes ts to dir/tokens.json.
@@ -401,9 +473,13 @@ func encodeRecords(buf []byte, vs []Version) ([]byte, error) {
 // appendRecord appends one record to buf: a uvarint body length, then the body.
 // The body holds the id, the rev, a flags byte, and the blob as raw bytes.
 func appendRecord(buf []byte, v Version) ([]byte, error) {
-	blob, err := base64.StdEncoding.DecodeString(v.Blob)
-	if err != nil {
-		return nil, fmt.Errorf("record %q: blob is not base64: %w", v.ID, err)
+	blob := v.raw
+	if blob == nil {
+		var err error
+		blob, err = base64.StdEncoding.DecodeString(v.Blob)
+		if err != nil {
+			return nil, fmt.Errorf("record %q: blob is not base64: %w", v.ID, err)
+		}
 	}
 	var body []byte
 	body = binary.AppendUvarint(body, uint64(len(v.ID)))
@@ -481,10 +557,21 @@ func readJSON(path string, v any) error {
 }
 
 // writeFileAtomic writes data to a temp file, fsyncs it, renames it over path, and fsyncs the directory.
+// The temp file has a unique name, so two writers of one path never share it. A failed write removes it.
 func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, perm)
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
 	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	renamed := false
+	defer func() {
+		if !renamed {
+			os.Remove(tmp)
+		}
+	}()
+	if err := f.Chmod(perm); err != nil {
+		f.Close()
 		return err
 	}
 	if _, err := f.Write(data); err != nil {
@@ -501,6 +588,7 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	if err := os.Rename(tmp, path); err != nil {
 		return err
 	}
+	renamed = true
 	return syncDir(filepath.Dir(path))
 }
 

@@ -4,7 +4,7 @@
 	%LOCALAPPDATA%\Palm Desktop and keeps the upgrade code of the Swing MSI, so a newer version replaces the
 	Swing install in place. The upgrade code must never change.
 	Variables: Version (a.b.c), Icon (the .ico file), and the include path of files.wxi, which package.sh
-	writes with one File element for the program and each DLL beside it.
+	writes with the component group Files: one component for the program and one for each DLL beside it.
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
 	<Product Id="*" Name="Palm Desktop" Language="1033" Version="$(var.Version)" Manufacturer="rearman"
@@ -17,9 +17,27 @@
 		<Icon Id="PalmDesktop.ico" SourceFile="$(var.Icon)" />
 		<Property Id="ARPPRODUCTICON" Value="PalmDesktop.ico" />
 		<Property Id="ARPNOMODIFY" Value="1" />
-		<!-- The shortcut boxes start checked; a silent install makes both shortcuts. -->
+		<!--
+			The shortcut boxes start checked on a first install, and a silent first install makes both shortcuts.
+			A declined shortcut leaves a value DesktopShortcutDeclined or MenuShortcutDeclined in HKCU (the
+			components DesktopDeclined and MenuDeclined); an upgrade finds it before the old version goes and clears
+			the box, so the upgrade keeps the user's choice. PALMNOVALUE is never set: a property set to it is
+			removed, which unchecks its box.
+		-->
 		<Property Id="DESKTOPSHORTCUT" Value="1" />
 		<Property Id="MENUSHORTCUT" Value="1" />
+		<Property Id="DESKTOPDECLINED" Secure="yes">
+			<RegistrySearch Id="DesktopDeclinedSearch" Root="HKCU" Key="Software\rearman\Palm Desktop"
+				Name="DesktopShortcutDeclined" Type="raw" />
+		</Property>
+		<Property Id="MENUDECLINED" Secure="yes">
+			<RegistrySearch Id="MenuDeclinedSearch" Root="HKCU" Key="Software\rearman\Palm Desktop"
+				Name="MenuShortcutDeclined" Type="raw" />
+		</Property>
+		<SetProperty Id="DESKTOPSHORTCUT" Value="[PALMNOVALUE]" After="AppSearch" Sequence="first">
+			DESKTOPDECLINED = "1"</SetProperty>
+		<SetProperty Id="MENUSHORTCUT" Value="[PALMNOVALUE]" After="AppSearch" Sequence="first">
+			MENUDECLINED = "1"</SetProperty>
 
 		<Directory Id="TARGETDIR" Name="SourceDir">
 			<Directory Id="LocalAppDataFolder">
@@ -31,13 +49,27 @@
 			<Directory Id="DesktopFolder" />
 		</Directory>
 
-		<!-- A per-user component keeps its key path in HKCU, and removes the folders it made in the profile. -->
+		<!--
+			A per-user component keeps its key path in HKCU, and removes the folders it made in the profile. Each
+			file has a component of its own (files.wxi), whose GUID WiX derives from its registry key path, so a
+			DLL that comes or goes between builds changes no other component.
+		-->
+		<?include files.wxi ?>
 		<DirectoryRef Id="INSTALLDIR">
-			<Component Id="App" Guid="3eabed4d-6fc3-41c0-9028-f9f569785fd6" Win64="yes">
-				<?include files.wxi ?>
+			<Component Id="InstallDir" Guid="*" Win64="yes">
 				<RemoveFolder Id="RemoveInstallDir" On="uninstall" />
-				<RegistryValue Root="HKCU" Key="Software\rearman\Palm Desktop" Name="App" Type="integer" Value="1"
-					KeyPath="yes" />
+				<RegistryValue Root="HKCU" Key="Software\rearman\Palm Desktop" Name="InstallDir" Type="integer"
+					Value="1" KeyPath="yes" />
+			</Component>
+			<Component Id="DesktopDeclined" Guid="*" Win64="yes">
+				<Condition>NOT DESKTOPSHORTCUT</Condition>
+				<RegistryValue Root="HKCU" Key="Software\rearman\Palm Desktop" Name="DesktopShortcutDeclined"
+					Type="string" Value="1" KeyPath="yes" />
+			</Component>
+			<Component Id="MenuDeclined" Guid="*" Win64="yes">
+				<Condition>NOT MENUSHORTCUT</Condition>
+				<RegistryValue Root="HKCU" Key="Software\rearman\Palm Desktop" Name="MenuShortcutDeclined"
+					Type="string" Value="1" KeyPath="yes" />
 			</Component>
 		</DirectoryRef>
 		<DirectoryRef Id="PalmMenuFolder">
@@ -61,9 +93,12 @@
 		</DirectoryRef>
 
 		<Feature Id="Main" Title="Palm Desktop" Level="1">
-			<ComponentRef Id="App" />
+			<ComponentGroupRef Id="Files" />
+			<ComponentRef Id="InstallDir" />
 			<ComponentRef Id="MenuShortcut" />
 			<ComponentRef Id="DesktopShortcut" />
+			<ComponentRef Id="DesktopDeclined" />
+			<ComponentRef Id="MenuDeclined" />
 		</Feature>
 
 		<!-- The dialogs of WixUI_Minimal without the license, and a page with the two shortcut boxes. -->

@@ -8,6 +8,7 @@
 #include <FL/Fl_Button.H>
 #include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Menu_.H>
+#include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_Round_Button.H>
 #include <FL/Fl_Widget.H>
 #include <FL/fl_draw.H>
@@ -405,6 +406,30 @@ void style_menu(Fl_Menu_* m) {
 	m->textsize(11);
 	m->textcolor(FL_BLACK);
 	m->selection_color(theme::SELECT);
+}
+
+std::optional<std::size_t> popup(std::span<const std::string_view> labels, std::span<const std::size_t> dividers,
+                                 std::span<const std::size_t> grayed) {
+	Fl_Menu_Button mb(0, 0, 0, 0);
+	mb.type(Fl_Menu_Button::POPUP3);
+	for (const std::string_view label : labels) {
+		mb.add(std::string(label).c_str());
+	}
+	for (const std::size_t i : dividers) {
+		mb.mode(static_cast<int>(i), mb.mode(static_cast<int>(i)) | FL_MENU_DIVIDER);
+	}
+	for (const std::size_t i : grayed) {
+		mb.mode(static_cast<int>(i), mb.mode(static_cast<int>(i)) | FL_MENU_INACTIVE);
+	}
+	draw::style_menu(&mb);
+	if (mb.popup() == nullptr) {
+		return std::nullopt;
+	}
+	const int v = mb.value();
+	if (v < 0) {
+		return std::nullopt;
+	}
+	return static_cast<std::size_t>(v);
 }
 
 Fl_Check_Button* check(int x, int y, int w, int h, std::string_view label) {

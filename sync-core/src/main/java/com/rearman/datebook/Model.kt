@@ -253,14 +253,40 @@ object Recur {
     private fun monthsBetween(a: LocalDate, b: LocalDate): Long =
         ((b.year - a.year) * 12 + (b.monthValue - a.monthValue)).toLong()
 
-    /** The first day [e] occurs, exceptions aside. A weekly event can start on a day that is not one of its days. */
+    /**
+     * The first day [e] occurs, exceptions aside. A weekly event can start on a day that is not one of its
+     * days. [e].date when the event never occurs.
+     */
     fun firstDay(e: Event): Long {
         if (e.repeat != Repeat.WEEK || e.weekDays == 0 ||
             (e.weekDays and (1 shl dow(LocalDate.ofEpochDay(e.date)))) != 0
         ) return e.date
-        val plain = e.copy(exceptions = mutableSetOf())
-        val stop = e.date + 7L * (maxOf(1, e.every) + 1)
-        return (e.date until stop).firstOrNull { occursOn(plain, it) } ?: e.date
+        val d = firstWeekDay(e.date, e.weekDays, e.every, 0)
+        return if (e.repeatEnd >= 0 && d > e.repeatEnd) e.date else d
+    }
+
+    /**
+     * The first day on or after [date] of a repeat every [every] weeks on the days of [mask], where a week
+     * starts on day [weekStart] (0 = Sunday) and the week of [date] is the first. [date] when [mask] has no day.
+     */
+    fun firstWeekDay(date: Long, mask: Int, every: Int, weekStart: Int): Long {
+        val days = mask and 0x7F
+        if (days == 0) return date
+        // A search that would run past the last day finds none, as the day-by-day scan before it did.
+        if (date + 7L * (maxOf(1, every) + 1) < date) return date
+        fun has(i: Int) = (days and (1 shl ((weekStart + i) % 7))) != 0
+        val into = Math.floorMod(dow(LocalDate.ofEpochDay(date)) - weekStart, 7)
+        val weekBegin = date - into
+        for (i in into..6) if (has(i)) return weekBegin + i
+        val next = weekBegin + 7L * maxOf(1, every)
+        return next + (0..6).first { has(it) }
+    }
+
+    /** The weekday bits of [mask], moved [k] days later (earlier when [k] is negative). */
+    fun rotateWeekDays(mask: Int, k: Long): Int {
+        val s = Math.floorMod(k, 7L).toInt()
+        val m = mask and 0x7F
+        return ((m shl s) or (m ushr (7 - s))) and 0x7F
     }
 
     fun occursOn(e: Event, day: Long): Boolean {
@@ -377,13 +403,13 @@ object Fmt {
     /** Day view title, "YY MMM D": "26 Oct 13", "26 Oct 5". */
     fun dayTitle(day: Long): String {
         val d = ld(day)
-        return "${"%02d".format(d.year % 100)} ${monthShort[d.monthValue - 1]} ${d.dayOfMonth}"
+        return "${"%02d".format(Locale.ROOT, d.year % 100)} ${monthShort[d.monthValue - 1]} ${d.dayOfMonth}"
     }
 
     /** "10/12/26". */
     fun shortDate(day: Long): String {
         val d = ld(day)
-        return "${d.monthValue}/${d.dayOfMonth}/${"%02d".format(d.year % 100)}"
+        return "${d.monthValue}/${d.dayOfMonth}/${"%02d".format(Locale.ROOT, d.year % 100)}"
     }
 
     /** "Mon 10/12/26". */
@@ -393,18 +419,18 @@ object Fmt {
     fun time(min: Int): String {
         val h = (min / 60) % 24
         val m = min % 60
-        if (h24) return "%d:%02d".format(h, m)
+        if (h24) return "%d:%02d".format(Locale.ROOT, h, m)
         val h12 = if (h % 12 == 0) 12 else h % 12
-        return "%d:%02d %s".format(h12, m, if (h < 12) "am" else "pm")
+        return "%d:%02d %s".format(Locale.ROOT, h12, m, if (h < 12) "am" else "pm")
     }
 
     /** Short time for the Day view time column: "8:00". */
     fun timeShort(min: Int): String {
         val h = (min / 60) % 24
         val m = min % 60
-        if (h24) return "%d:%02d".format(h, m)
+        if (h24) return "%d:%02d".format(Locale.ROOT, h, m)
         val h12 = if (h % 12 == 0) 12 else h % 12
-        return "%d:%02d".format(h12, m)
+        return "%d:%02d".format(Locale.ROOT, h12, m)
     }
 
     fun range(e: Event): String =
@@ -427,5 +453,18 @@ fun splitFuture(orig: Event, occDay: Long, work: Event): Pair<Event?, Event> {
         exceptions = work.exceptions.filter { it >= occDay }.map { it + shift }.toMutableSet()
     }
     return shortened to series
+}
+
+/**
+ * [e] with its series moved [shift] days later, for a move with All: the repeat end moves with the date, a
+ * weekly series turns its week days with it, and each exception moves with the occurrence it removed.
+ * Shortcut: a series every 2 or more weeks whose days cross from Saturday to Sunday keeps Date Book's
+ * Sunday weeks, so those days land a week off. Upgrade path: a week start in Event.
+ */
+fun moveSeries(e: Event, shift: Long): Event = e.deepCopy().apply {
+    date = e.date + shift
+    if (e.repeatEnd >= 0) repeatEnd = e.repeatEnd + shift
+    if (repeat == Repeat.WEEK) weekDays = Recur.rotateWeekDays(e.weekDays, shift)
+    exceptions = e.exceptions.mapTo(mutableSetOf()) { it + shift }
 }
 

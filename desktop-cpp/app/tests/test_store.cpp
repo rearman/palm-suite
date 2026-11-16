@@ -20,6 +20,7 @@
 #include <iterator>
 #include <map>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -174,6 +175,26 @@ TEST_CASE("new_store_has_the_default_categories") {
 		ids.push_back(c.id);
 	}
 	CHECK(ids == std::vector<std::int32_t>{3, 4});
+}
+
+TEST_CASE("set_up_short_cuts_uploads_only_a_custom_list") {
+	auto s = DesktopStore::open(file()).value();
+	// A store that never synced has no list, which must not replace the list of the other devices.
+	s.set_short_cuts_from_sync({}, 40);
+	s.set_up_short_cuts();
+	CHECK(s.short_cuts_rev() == 0);
+	CHECK_FALSE(s.short_cuts_dirty());
+	const codec::ShortCuts defaults = {
+	    {"br", "Breakfast"}, {"di", "Dinner"},  {"ds", "{date}"}, {"dts", "{date} {time}"},
+	    {"lu", "Lunch"},     {"me", "Meeting"}, {"ts", "{time}"},
+	};
+	s.set_short_cuts_from_sync(defaults, 41);
+	s.set_up_short_cuts();
+	CHECK_FALSE(s.short_cuts_dirty());
+	s.set_short_cuts_from_sync({{"ad", "Address"}}, 42);
+	s.set_up_short_cuts();
+	CHECK(s.short_cuts_rev() == 0);
+	CHECK(s.short_cuts_dirty());
 }
 
 TEST_CASE("save_then_reopen_keeps_records") {
@@ -429,13 +450,139 @@ TEST_CASE("restore_backup_keeps_the_bad_file_and_puts_the_backup_in_its_place") 
 	s.save_memo(second);
 	write_text(path, "{\"rows\": 5}");
 	REQUIRE(!DesktopStore::open(path).has_value());
-	REQUIRE(st::restore_backup(path).has_value());
-	CHECK(read_text(st::bad_path(path)) == "{\"rows\": 5}");
+	const fs::path bad = st::bad_path(path);
+	const auto kept = st::restore_backup(path);
+	REQUIRE(kept.has_value());
+	CHECK(*kept == bad);
+	CHECK(read_text(bad) == "{\"rows\": 5}");
 	const auto r = DesktopStore::open(path).value();
 	REQUIRE(r.memos.size() == 1);
 	CHECK(r.memos[0].text == "First");
 	// The backup stays, so a second failure can restore it again.
 	CHECK(fs::exists(st::backup_path(path)));
+	CHECK(!fs::exists(path.string() + ".tmp"));
+}
+
+TEST_CASE("a_second_restore_numbers_its_bad_file_and_keeps_the_first") {
+	const fs::path path = file();
+	auto s = DesktopStore::open(path).value();
+	model::Memo first{};
+	first.text = "First";
+	s.save_memo(first);
+	model::Memo second{};
+	second.text = "Second";
+	s.save_memo(second);
+	write_text(path, "bad one");
+	REQUIRE(st::restore_backup(path).value() == path.string() + ".bad");
+	write_text(path, "bad two");
+	REQUIRE(st::restore_backup(path).value() == path.string() + ".bad.1");
+	write_text(path, "bad three");
+	REQUIRE(st::restore_backup(path).value() == path.string() + ".bad.2");
+	CHECK(read_text(path.string() + ".bad") == "bad one");
+	CHECK(read_text(path.string() + ".bad.1") == "bad two");
+	CHECK(read_text(path.string() + ".bad.2") == "bad three");
+	CHECK(DesktopStore::open(path).value().memos.size() == 1);
+}
+
+TEST_CASE("a_failed_restore_leaves_the_data_file_in_place") {
+	const fs::path path = file();
+	auto s = DesktopStore::open(path).value();
+	model::Memo first{};
+	first.text = "First";
+	s.save_memo(first);
+	write_text(path, "bad one");
+	// No backup: the restore fails, and the data file and the bad names are as they were.
+	REQUIRE(!fs::exists(st::backup_path(path)));
+	CHECK(!st::restore_backup(path).has_value());
+	CHECK(read_text(path) == "bad one");
+	CHECK(!fs::exists(path.string() + ".bad"));
+}
+
+TEST_CASE("a_batch_saves_once_at_its_end_and_backs_up_the_file_before_it") {
+	const fs::path path = file();
+	auto s = DesktopStore::open(path).value();
+	model::Memo first{};
+	first.text = "First";
+	s.save_memo(first);
+	const std::string before = read_text(path);
+	int changes = 0;
+	s.on_change = [&changes] { ++changes; };
+	const std::uint64_t version = s.version;
+	{
+		DesktopStore::Batch batch(s);
+		for (int i = 0; i < 3; ++i) {
+			model::Memo m{};
+			m.text = std::format("Local {}", i);
+			s.save_memo(m);
+		}
+		{
+			// A nested batch saves nothing at its end.
+			DesktopStore::Batch inner(s);
+			model::Memo remote{};
+			remote.uid = "m-remote";
+			remote.text = "Remote";
+			s.put_remote(remote, 7);
+			s.set_sync_since(7);
+		}
+		CHECK(read_text(path) == before);
+		CHECK(s.version == version);
+		CHECK(changes == 0);
+	}
+	CHECK(s.version == version + 1);
+	CHECK(changes == 1);
+	CHECK(s.save_error == std::nullopt);
+	const auto r = DesktopStore::open(path).value();
+	CHECK(r.memos.size() == 5);
+	CHECK(r.sync_since() == 7);
+	CHECK(read_text(st::backup_path(path)) == before);
+}
+
+TEST_CASE("put_tombstone_and_reset_sync_save_their_sync_state") {
+	const fs::path path = file();
+	auto s = DesktopStore::open(path).value();
+	model::Memo m{};
+	m.text = "Kept";
+	s.save_memo(m);
+	s.mark_synced("memos", m.uid, 5, true);
+	s.put_tombstone("memos", "m-gone", 9);
+	// A uid that has a row keeps it.
+	s.put_tombstone("memos", m.uid, 9);
+	s.set_sync_since(9);
+	auto r = DesktopStore::open(path).value();
+	const auto gone = r.sync_row("m-gone");
+	REQUIRE(gone.has_value());
+	CHECK((gone->deleted && gone->dirty && gone->rev == 9));
+	const auto kept = r.sync_row(m.uid);
+	REQUIRE(kept.has_value());
+	CHECK((!kept->deleted && !kept->dirty && kept->rev == 5));
+
+	s.reset_sync();
+	r = DesktopStore::open(path).value();
+	CHECK(!r.sync_row("m-gone").has_value());
+	CHECK(r.sync_since() == 0);
+	const auto again = r.sync_row(m.uid);
+	REQUIRE(again.has_value());
+	CHECK((again->dirty && again->rev == 0));
+	CHECK(r.memos.size() == 1);
+}
+
+TEST_CASE("a_batch_saves_what_changed_when_an_exception_ends_it") {
+	const fs::path path = file();
+	auto s = DesktopStore::open(path).value();
+	int changes = 0;
+	s.on_change = [&changes] { ++changes; };
+	try {
+		DesktopStore::Batch batch(s);
+		model::Memo m{};
+		m.text = "Kept";
+		s.save_memo(m);
+		throw std::runtime_error("import failed");
+	} catch (const std::runtime_error&) {
+	}
+	CHECK(changes == 0);
+	const auto r = DesktopStore::open(path).value();
+	REQUIRE(r.memos.size() == 1);
+	CHECK(r.memos[0].text == "Kept");
 }
 
 TEST_CASE("a_memo_with_bad_utf8_saves_as_replacement_characters") {

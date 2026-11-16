@@ -5,7 +5,6 @@
 
 #include <FL/Enumerations.H>
 #include <FL/Fl.H>
-#include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_Text_Buffer.H>
 
 #include <algorithm>
@@ -15,6 +14,8 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace palm::text_edit {
 namespace {
@@ -135,22 +136,21 @@ std::optional<TextAction> menu(const EditState& s) {
 	    {"Select &All", TextAction::SelectAll},
 	}};
 	const std::array<bool, ITEMS.size()> on{s.undo, s.cut, s.copy, s.paste, s.delete_text_edit, s.select_all};
-	Fl_Menu_Button mb(0, 0, 0, 0);
-	mb.type(Fl_Menu_Button::POPUP3);
+	std::array<std::string_view, ITEMS.size()> labels{};
+	std::vector<std::size_t> grayed;
 	for (std::size_t i = 0; i < ITEMS.size(); ++i) {
-		// A divider follows Undo and Delete.
-		const int flags = (on[i] ? 0 : FL_MENU_INACTIVE) | ((i == 0 || i == 4) ? FL_MENU_DIVIDER : 0);
-		mb.add(ITEMS[i].label, 0, nullptr, nullptr, flags);
+		labels[i] = ITEMS[i].label;
+		if (!on[i]) {
+			grayed.push_back(i);
+		}
 	}
-	draw::style_menu(&mb);
-	if (!mb.popup()) {
+	// A divider follows Undo and Delete.
+	static constexpr std::array<std::size_t, 2> DIVIDERS{0, 4};
+	const std::optional<std::size_t> pick = draw::popup(labels, DIVIDERS, grayed);
+	if (!pick) {
 		return std::nullopt;
 	}
-	const int v = mb.value();
-	if (v < 0) {
-		return std::nullopt;
-	}
-	return ITEMS[static_cast<std::size_t>(v)].action;
+	return ITEMS[*pick].action;
 }
 
 } // namespace
@@ -189,25 +189,26 @@ void popup(const Field& field) {
 }
 
 int Editor::handle(int event) {
-	// FLTK's own handler runs first; the menu then sees the push, and its result joins FLTK's, as fltk-rs does.
-	const int ret = Fl_Text_Editor::handle(event);
-	int local = 0;
-	if (event == FL_PUSH && Fl::event_button() == FL_RIGHT_MOUSE) {
-		popup(Field{this});
-		local = 1;
+	// FLTK 1.4 opens its own Cut/Copy/Paste menu on a right push, so that push and its release never reach FLTK:
+	// only this menu opens, and the caret stays put, as in a Windows edit box. All other events go to FLTK first.
+	if ((event == FL_PUSH || event == FL_RELEASE) && Fl::event_button() == FL_RIGHT_MOUSE) {
+		if (event == FL_PUSH) {
+			popup(Field{this});
+		}
+		return 1;
 	}
-	return ret | local;
+	return Fl_Text_Editor::handle(event);
 }
 
 int Input::handle(int event) {
-	// FLTK's own handler runs first; the menu then sees the push, and its result joins FLTK's, as fltk-rs does.
-	const int ret = Fl_Input::handle(event);
-	int local = 0;
-	if (event == FL_PUSH && Fl::event_button() == FL_RIGHT_MOUSE) {
-		popup(Field{this});
-		local = 1;
+	// As Editor::handle: the right push opens this menu only.
+	if ((event == FL_PUSH || event == FL_RELEASE) && Fl::event_button() == FL_RIGHT_MOUSE) {
+		if (event == FL_PUSH) {
+			popup(Field{this});
+		}
+		return 1;
 	}
-	return ret | local;
+	return Fl_Input::handle(event);
 }
 
 } // namespace palm::text_edit

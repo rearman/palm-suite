@@ -454,20 +454,18 @@ std::string full_date(std::int64_t day) {
 	return std::format("{}/{}/{}", d.month, d.day, d.year);
 }
 
+model::Event loaded(model::Event e) {
+	e.end = std::min(e.end, date_shared::LAST_MIN);
+	return e;
+}
+
 void edit(view::Ctx& ctx, std::optional<model::Event> orig, std::int64_t day, std::optional<std::int32_t> start_min,
           std::string_view title) {
-	const std::int32_t start = start_min.value_or(8 * 60);
-	model::Event work;
+	// The original reads as the form shows it, so an OK with no change still finds it unchanged.
 	if (orig) {
-		work = *orig;
-	} else {
-		work.title = std::string(title);
-		work.date = day;
-		work.start = start;
-		work.end = start + 60;
-		work.untimed = !start_min.has_value();
-		date_shared::apply_alarm_preset(work, ctx.settings);
+		orig = loaded(*orig);
 	}
+	model::Event work = orig ? *orig : date_shared::new_event(title, day, start_min, ctx.settings);
 	const bool h24 = ctx.h24;
 
 	// The answers of the buttons, and the storage that the window needs: the images, the description and the sends.

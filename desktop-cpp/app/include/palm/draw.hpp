@@ -11,6 +11,7 @@
 #include <functional>
 #include <initializer_list>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -105,6 +106,12 @@ inline constexpr Fl_Boxtype MENU_FRAME = FL_FREE_BOXTYPE;
 // Makes the popup of a menu, choice or menu button look like a Windows menu: the bordered white popup, Helvetica
 // (Microsoft Sans Serif) 11 px black text and the Windows selection blue.
 void style_menu(Fl_Menu_* m);
+
+// Shows a menu of `labels` at the pointer, styled as style_menu does, with a divider after each item of `dividers`
+// and each item of `grayed` gray, which cannot be picked; the index of the pick, or nullopt when the menu closes with
+// none.
+std::optional<std::size_t> popup(std::span<const std::string_view> labels, std::span<const std::size_t> dividers = {},
+                                 std::span<const std::size_t> grayed = {});
 
 // A check box at (x, y) with `label`: a 13x13 sunken box centered on the height of the widget, a 7x7 check mark
 // when set, and the label 17 px from the left. The default drawing is replaced, so no focus rectangle is drawn.

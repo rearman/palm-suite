@@ -14,6 +14,7 @@ import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.text.InputType
 import android.text.format.DateFormat
 import android.util.TypedValue
@@ -35,6 +36,8 @@ import android.widget.PopupWindow
 import android.widget.ScrollView
 import android.widget.TextClock
 import android.widget.TextView
+import java.io.File
+import java.io.IOException
 import java.time.LocalDate
 import java.time.temporal.WeekFields
 import kotlin.math.abs
@@ -50,6 +53,21 @@ open class MainActivity : Activity() {
         const val EXTRA_ADDRESS = "address"
         private const val REQ_EXPORT = 11
         private const val REQ_IMPORT = 12
+        // The saved instance state keys.
+        private const val STATE_MODE = "mode"
+        private const val STATE_DAY = "day"
+        private const val STATE_MEMO = "memo"
+        private const val STATE_MEMO_CAT = "memoCategory"
+        private const val STATE_ADDRESS = "address"
+        private const val STATE_EDIT = "addressEdit"
+        private const val STATE_EDIT_ID = "addressEditId"
+        private const val STATE_EDIT_UID = "addressEditUid"
+        private const val STATE_NOTE_TEXT = "noteText"
+        private const val STATE_NOTE_FOR = "noteFor"
+        private const val STATE_ROW_KEY = "rowKey"
+        private const val STATE_ROW_TEXT = "rowText"
+        private const val STATE_EXPORT = "exportFile"
+        private const val STATE_EXPORT_AFTER = "exportAfter"
         const val DAY = 0
         const val WEEK = 1
         const val MONTH = 2
@@ -100,8 +118,16 @@ open class MainActivity : Activity() {
     private var weekSel: Occ? = null
     /** The Week view event box, while it shows. */
     private var eventBox: PopupWindow? = null
-    private var pendingExport: String? = null
+    /** The cache file that holds the text of an export while the file picker is open. Its name is in the saved state. */
+    private var pendingExport: File? = null
+    /** The action after the export (the delete of Purge or Delete), which a recreated activity no longer has. */
     private var afterExport: (() -> Unit)? = null
+    /** True when the export had an action after it and the activity was recreated, so the action is gone. */
+    private var afterExportLost = false
+    /** The open Note view and its record ("e12" or "t5"), for the saved state. An Address Book note has none. */
+    private var noteOwner: Pair<NoteEdit, String>? = null
+    /** The key and unsaved text of the row in edit before the activity was recreated, until the row is built again. */
+    private var rowText: Pair<String, String>? = null
     private var swipeDir = 0
     /** The command buttons of the current screen, for [fitButtons]. */
     private val cmdButtons = mutableListOf<TextView>()
@@ -145,7 +171,9 @@ open class MainActivity : Activity() {
         }
         setContentView(root)
         window.hideStatusBar()
-        handleIntent(intent)
+        // A recreated activity keeps its own state. The intent was read when the activity was first
+        // made; after a process kill it holds its extras again, and they would undo the restored screen.
+        if (savedInstanceState == null) handleIntent(intent) else restoreState(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -169,6 +197,92 @@ open class MainActivity : Activity() {
     }
 
     /**
+     * Closes the open forms, menus, and pop-up lists, so a rotation does not leak their windows.
+     * The screen state is saved by then: onSaveInstanceState runs before onDestroy, and no Date Book
+     * form saves or changes that state when it closes.
+     */
+    override fun onDestroy() {
+        closePalmWindows()
+        super.onDestroy()
+    }
+
+    /**
+     * Keeps the screen and the typed work that is not saved yet through a rotation, a dark mode
+     * switch, a keyboard change, or a process kill: the mode and day, the open memo, address and
+     * Address Edit copy, the Note view text, the text of the row in edit, and the export file.
+     */
+    override fun onSaveInstanceState(out: Bundle) {
+        super.onSaveInstanceState(out)
+        out.putInt(STATE_MODE, mode)
+        out.putLong(STATE_DAY, day)
+        memoOpen?.let { out.putLong(STATE_MEMO, it.id); out.putInt(STATE_MEMO_CAT, it.category) }
+        addressOpen?.let { out.putLong(STATE_ADDRESS, it.id) }
+        addressEditing?.let {
+            out.putString(STATE_EDIT, SyncCodec.address(it, it.category.toString()))
+            out.putLong(STATE_EDIT_ID, it.id)
+            out.putString(STATE_EDIT_UID, it.uid)
+        }
+        noteOpen?.let { n ->
+            out.putString(STATE_NOTE_TEXT, n.text)
+            // The Address Book note is the only one opened without an owner key.
+            out.putString(STATE_NOTE_FOR, noteOwner?.takeIf { it.first === n }?.second ?: "a")
+        }
+        val ed = currentFocus as? EditText
+        val key = ed?.tag as? String
+        if (ed != null && key != null && key == focusKey) {
+            out.putString(STATE_ROW_KEY, key)
+            out.putString(STATE_ROW_TEXT, ed.text.toString())
+        }
+        pendingExport?.let {
+            out.putString(STATE_EXPORT, it.name)
+            out.putBoolean(STATE_EXPORT_AFTER, afterExport != null || afterExportLost)
+        }
+    }
+
+    /** Puts back the state of [onSaveInstanceState]. A record that is gone now is left closed. */
+    private fun restoreState(s: Bundle) {
+        mode = s.getInt(STATE_MODE, mode)
+        day = s.getLong(STATE_DAY, day)
+        if (s.containsKey(STATE_MEMO)) {
+            val id = s.getLong(STATE_MEMO)
+            memoOpen = if (id == 0L) Memo(category = s.getInt(STATE_MEMO_CAT)) else store.memo(id)
+        }
+        if (s.containsKey(STATE_ADDRESS)) addressOpen = store.address(s.getLong(STATE_ADDRESS))
+        s.getString(STATE_EDIT)?.let { text ->
+            addressEditing = try {
+                SyncCodec.toAddress(text, s.getString(STATE_EDIT_UID) ?: "") { it.toIntOrNull() ?: 0 }
+                    .apply { id = s.getLong(STATE_EDIT_ID) }
+            } catch (ex: Exception) {
+                null
+            }
+        }
+        s.getString(STATE_ROW_KEY)?.let { k ->
+            focusKey = k
+            rowText = k to (s.getString(STATE_ROW_TEXT) ?: "")
+        }
+        s.getString(STATE_EXPORT)?.let {
+            pendingExport = File(cacheDir, it)
+            afterExportLost = s.getBoolean(STATE_EXPORT_AFTER)
+        }
+        s.getString(STATE_NOTE_TEXT)?.let { text -> reopenNote(s.getString(STATE_NOTE_FOR), text) }
+    }
+
+    /** Opens the Note view of the record named by [key] ("e12", "t5", or "a"), with the unsaved [text]. */
+    private fun reopenNote(key: String?, text: String) {
+        val id = key?.drop(1)?.toLongOrNull() ?: 0L
+        when (key?.firstOrNull()) {
+            'e' -> store.event(id)?.let { openNote(Occ(it, day)) }
+            't' -> storeTodo(id)?.let { openTodoNote(it) }
+            'a' -> (addressEditing ?: addressOpen)?.let { openAddressNote(it) }
+        }
+        noteOpen?.text = text
+    }
+
+    /** The unsaved text of the row [key] from before the activity was recreated, one time only. */
+    private fun takeRowText(key: String): String? =
+        rowText?.takeIf { it.first == key }?.second?.also { rowText = null }
+
+    /**
      * Hides the status bar again (Android 10 and earlier show it after a focus change), and opens the
      * keyboard again on a tall screen when a dialog or another app closes.
      */
@@ -188,7 +302,7 @@ open class MainActivity : Activity() {
         if (i == null) return
         if (i.hasExtra(EXTRA_MEMO)) {
             val mid = i.getLongExtra(EXTRA_MEMO, 0)
-            memoOpen = store.memos.firstOrNull { it.id == mid }
+            memoOpen = store.memo(mid)
             if (memoOpen != null) prefs.memoCategory = -1
             i.removeExtra(EXTRA_MEMO)
         }
@@ -203,19 +317,20 @@ open class MainActivity : Activity() {
             val uri = i.data
             if (uri != null) {
                 // A vCard file opened from another app. The intent is cleared, so a rotation does not import it again.
-                val text = try {
-                    contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
+                // The bytes go to the reader whole: a vCard value names its own CHARSET.
+                val bytes = try {
+                    contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
                 } catch (ex: Exception) {
                     null
                 }
-                if (text == null) toast("Cannot read the file.") else importVCardText(text)
+                if (bytes == null) toast("Cannot read the file.") else importVCard(bytes)
                 i.setData(null)
                 i.setAction(null)
             }
         }
         if (i.hasExtra(EXTRA_TODO)) {
             val tid = i.getLongExtra(EXTRA_TODO, 0)
-            selectedTodo = store.todos.firstOrNull { it.id == tid }
+            selectedTodo = store.todo(tid)
             if (selectedTodo != null) prefs.todoCategory = -1
             i.removeExtra(EXTRA_TODO)
         }
@@ -228,10 +343,9 @@ open class MainActivity : Activity() {
         val id = i.getLongExtra(EXTRA_EVENT, 0)
         if (id != 0L) {
             Alarms.cancelRemind(this, id, day)
-            store.event(id)?.let { e ->
-                getSystemService(android.app.NotificationManager::class.java).cancel(Alarms.notifId(e, day))
-                selected = Occ(e, day)
-            }
+            // A deleted event's notification clears too.
+            getSystemService(android.app.NotificationManager::class.java).cancel(Alarms.notifId(id, day))
+            store.event(id)?.let { e -> selected = Occ(e, day) }
         }
         i.removeExtra(EXTRA_DAY)
     }
@@ -449,38 +563,89 @@ open class MainActivity : Activity() {
             store.save(work); selected = Occ(work, work.date); day = work.date
             changed(); after(Occ(work, work.date)); return
         }
+        // A sync can replace the event while a form or the repeat question is up. Each save starts
+        // from the store copy and takes from [work] only what the form changed against [orig].
+        // A gone event stays gone.
         val origView = orig.deepCopy().apply { date = occDay }
-        if (work == origView) { after(Occ(orig, occDay)); return }
+        fun edited(): Pair<Event, Event>? {
+            val cur = store.event(orig.id) ?: return null
+            return cur to mergeEdit(origView, work, cur.deepCopy().apply { date = occDay })
+        }
+        if (work == origView) { after(Occ(store.event(orig.id) ?: orig, occDay)); return }
+        val gone = { selected = null; changed() }
         if (!orig.repeats) {
-            work.id = orig.id
-            store.save(work); selected = Occ(work, work.date); day = work.date
-            changed(); after(Occ(work, work.date)); return
+            val (_, w) = edited() ?: return gone()
+            store.save(w); selected = Occ(w, w.date); day = w.date
+            changed(); after(Occ(w, w.date)); return
         }
         repeatForm(
             "Repeating Event", "Apply the changes to:\n-the Current record,\n-this & all Future records,\n-All occurrences?",
             current = {
-                orig.exceptions.add(occDay); store.save(orig)
-                val n = work.deepCopy().apply {
-                    id = 0; repeat = Repeat.NONE; repeatEnd = -1; exceptions.clear()
-                }
-                store.save(n); selected = Occ(n, n.date); day = n.date
-                changed(); after(Occ(n, n.date))
+                edited()?.let { (cur, w) ->
+                    cur.exceptions.add(occDay); store.save(cur)
+                    val n = w.deepCopy().apply {
+                        id = 0; uid = ""; repeat = Repeat.NONE; repeatEnd = -1; exceptions.clear()
+                    }
+                    store.save(n); selected = Occ(n, n.date); day = n.date
+                    changed(); after(Occ(n, n.date))
+                } ?: gone()
             },
             future = {
-                val (short, series) = splitFuture(orig, occDay, work)
-                if (short == null) store.delete(orig) else store.save(short)
-                store.save(series); selected = Occ(series, series.date); day = series.date
-                changed(); after(Occ(series, series.date))
+                edited()?.let { (cur, w) ->
+                    // A moved weekly series turns its week days with the date, and its repeat end moves
+                    // with it, unless the form set them.
+                    if (w.repeat == Repeat.WEEK && work.weekDays == origView.weekDays) {
+                        w.weekDays = Recur.rotateWeekDays(w.weekDays, w.date - occDay)
+                    }
+                    if (w.repeatEnd >= 0 && work.repeatEnd == origView.repeatEnd) w.repeatEnd += w.date - occDay
+                    val (short, series) = splitFuture(cur, occDay, w)
+                    // The new series is a new record, so it takes a uid of its own.
+                    series.uid = ""
+                    if (short == null) store.delete(cur) else store.save(short)
+                    store.save(series); selected = Occ(series, series.date); day = series.date
+                    changed(); after(Occ(series, series.date))
+                } ?: gone()
             },
             all = {
-                val m = work.deepCopy().apply {
-                    id = orig.id
-                    date = if (repeat == Repeat.NONE) work.date else orig.date + (work.date - occDay)
-                }
-                store.save(m); selected = Occ(m, work.date); day = work.date
-                changed(); after(Occ(m, work.date))
+                edited()?.let { (cur, w) ->
+                    // A moved series takes its week days, exceptions, and repeat end along, unless the form
+                    // set them.
+                    val m = if (w.repeat == Repeat.NONE) w.deepCopy()
+                    else moveSeries(w.deepCopy().apply { date = cur.date }, w.date - occDay).apply {
+                        if (work.weekDays != origView.weekDays) weekDays = w.weekDays
+                        if (work.exceptions != origView.exceptions) exceptions = w.exceptions.toMutableSet()
+                        if (work.repeatEnd != origView.repeatEnd) repeatEnd = w.repeatEnd
+                    }
+                    store.save(m); selected = Occ(m, w.date); day = w.date
+                    changed(); after(Occ(m, w.date))
+                } ?: gone()
             }
         )
+    }
+
+    /**
+     * Applies to [into] each group of fields in which [work] differs from [base], the event the form
+     * opened with: the description, the note, the date, the time, the alarm, the repeat (with its
+     * exceptions) and Private. A group moves whole, so a sync's change and the form's change never mix
+     * inside one group.
+     */
+    private fun mergeEdit(base: Event, work: Event, into: Event): Event = into.apply {
+        if (work.title != base.title) title = work.title
+        if (work.note != base.note) note = work.note
+        if (work.date != base.date) date = work.date
+        if (work.untimed != base.untimed || work.start != base.start || work.end != base.end) {
+            untimed = work.untimed; start = work.start; end = work.end
+        }
+        if (work.alarm != base.alarm || work.alarmAdvance != base.alarmAdvance || work.alarmUnit != base.alarmUnit) {
+            alarm = work.alarm; alarmAdvance = work.alarmAdvance; alarmUnit = work.alarmUnit
+        }
+        if (work.repeat != base.repeat || work.every != base.every || work.repeatEnd != base.repeatEnd ||
+            work.weekDays != base.weekDays || work.exceptions != base.exceptions
+        ) {
+            repeat = work.repeat; every = work.every; repeatEnd = work.repeatEnd
+            weekDays = work.weekDays; exceptions = work.exceptions.toMutableSet()
+        }
+        if (work.isPrivate != base.isPrivate) isPrivate = work.isPrivate
     }
 
     fun deleteEvent(e: Event, d: Long) {
@@ -488,17 +653,21 @@ open class MainActivity : Activity() {
         if (e.repeats) {
             repeatForm(
                 "Delete Repeating Event", "Delete the:\n-Current record,\n-this & all Future records,\n-All occurrences?",
-                current = { e.exceptions.add(d); store.save(e); done() },
+                // The store copy: a sync while the form is up can replace the event.
+                current = { store.event(e.id)?.let { it.exceptions.add(d); store.save(it) }; done() },
                 future = {
-                    if (d <= e.date) store.delete(e) else { e.repeatEnd = d - 1; store.save(e) }
+                    store.event(e.id)?.let { cur ->
+                        if (d <= cur.date) store.delete(cur) else { cur.repeatEnd = d - 1; store.save(cur) }
+                    }
                     done()
                 },
                 all = { store.delete(e); done() }
             )
         } else {
             palmAlert("Delete Event", "Delete selected\nevent?", 97, archiveY = 54) { archive ->
+                val cur = store.event(e.id)
                 val delete = { store.delete(e); done() }
-                if (archive) exportFile("datebook-archive", store.exportJson(listOf(e), emptyList(), emptyList())) { delete() } else delete()
+                if (archive && cur != null) exportFile("datebook-archive", store.exportJson(listOf(cur), emptyList(), emptyList())) { delete() } else delete()
             }
         }
     }
@@ -507,21 +676,29 @@ open class MainActivity : Activity() {
         val e = o.event
         // The store copy at Done: the row edit can save a new description while the note is open.
         openNoteView(e.title, e.note) { t -> store.event(e.id)?.let { it.note = t; store.save(it) } }
+        noteOwner = noteOpen?.let { it to "e${e.id}" }
     }
 
     fun saveTodo(t: Todo) { store.save(t); selectedTodo = t; render() }
 
+    /** The store copy of the To Do item [id]: a sync replaces the object a view captured. Null when it is gone. */
+    internal fun storeTodo(id: Long): Todo? = store.todo(id)
+
+    private fun storeTodo(t: Todo): Todo? = storeTodo(t.id)
+
     fun deleteTodo(t: Todo) {
-        val delete = { store.delete(t); selectedTodo = null; render() }
         palmAlert("Delete To Do", "Delete selected To Do\nitem?", 97, archiveY = 54) { archive ->
-            if (archive) exportFile("todo-archive", store.exportJson(emptyList(), listOf(t), emptyList())) { delete() } else delete()
+            val cur = storeTodo(t)
+            val delete = { cur?.let { store.delete(it) }; selectedTodo = null; render() }
+            if (archive && cur != null) exportFile("todo-archive", store.exportJson(emptyList(), listOf(cur), emptyList())) { delete() } else delete()
         }
     }
 
     fun openTodoNote(t: Todo) {
         openNoteView(t.title, t.note) { s ->
-            store.todos.firstOrNull { it.id == t.id }?.let { it.note = s; store.save(it) }
+            storeTodo(t)?.let { it.note = s; store.save(it) }
         }
+        noteOwner = noteOpen?.let { it to "t${t.id}" }
     }
 
     /** Switches to the To Do List app, as the Palm To Do button does. */
@@ -641,6 +818,8 @@ open class MainActivity : Activity() {
             PREFS -> buildPrefs(header, content, cmds)
             else -> buildTodo(header, content, cmds)
         }
+        // The restored row text goes only into the first build of its screen; a row that is gone drops it.
+        if (noteOpen == null) rowText = null
 
         root.addView(header, lp(MATCH))
         root.addView(View(this).apply { setBackgroundColor(Palm.INK) }, LP(MATCH, pp(2)))
@@ -800,6 +979,7 @@ open class MainActivity : Activity() {
                 slotEd = ed
                 val key = if (e != null) "e${e.id}" else "s${row.min}"
                 ed.tag = key
+                if (key == focusKey) takeRowText(key)?.let { ed.setText(it) }
                 ed.setOnFocusChangeListener { _, has ->
                     if (has) { selected = row.occ; focusKey = key; lastEdit = ed }
                     else commitDayRow(row, ed.text.toString())
@@ -942,7 +1122,8 @@ open class MainActivity : Activity() {
             root.post { changed() }
             return
         }
-        if (text.isEmpty() || text == e.title) {
+        // o.event holds the title the row showed: unchanged text keeps a title that a sync brought meanwhile.
+        if (text.isEmpty() || text == e.title || text == o.event.title) {
             if (text.isEmpty()) root.post { render() }
             return
         }
@@ -1177,7 +1358,7 @@ open class MainActivity : Activity() {
                 // The no-date bar sits at the center of where a date would be.
                 setPadding(pp(2) + ((paint.measureText("00/00") - paint.measureText("-")) / 2).toInt(), 0, pp(1), 0)
             }
-            setOnClickListener { tv -> endEdit(); pickDue(tv, t.due) { d -> t.due = d; saveTodo(t) } }
+            setOnClickListener { tv -> endEdit(); pickDue(tv, t.due) { d -> storeTodo(t)?.let { it.due = d; saveTodo(it) } } }
         }
     }
 
@@ -1199,7 +1380,7 @@ open class MainActivity : Activity() {
         maxWidth = w
         setOnClickListener { tv ->
             endEdit()
-            pickCategory(tv, t.category, includeAll = false) { id -> t.category = id; saveTodo(t) }
+            pickCategory(tv, t.category, includeAll = false) { id -> storeTodo(t)?.let { it.category = id; saveTodo(it) } }
         }
     }
 
@@ -1208,12 +1389,12 @@ open class MainActivity : Activity() {
             setPadding(pp(1), 0, pp(2), 0)
             setOnClickListener { tv ->
                 endEdit()
-                popupList(tv, listOf("1", "2", "3", "4", "5"), t.priority - 1) { i -> t.priority = i + 1; saveTodo(t) }
+                popupList(tv, listOf("1", "2", "3", "4", "5"), t.priority - 1) { i -> storeTodo(t)?.let { it.priority = i + 1; saveTodo(it) } }
             }
         }
 
     private fun completeTodo(t: Todo, done: Boolean) {
-        store.complete(t, done, if (prefs.recordCompletion) today else -1)
+        storeTodo(t)?.let { store.complete(it, done, if (prefs.recordCompletion) today else -1) }
         root.post { render() }
     }
 
@@ -1248,6 +1429,7 @@ open class MainActivity : Activity() {
                 ed.background = LinedBackground(this, ed)
                 val key = "t${t.id}"
                 ed.tag = key
+                if (key == focusKey) takeRowText(key)?.let { ed.setText(it) }
                 ed.setOnFocusChangeListener { _, has ->
                     if (has) { selectedTodo = t; focusKey = key; lastEdit = ed }
                     else commitTodo(t, ed.text.toString())
@@ -1267,7 +1449,7 @@ open class MainActivity : Activity() {
         cmd(cmds, "Details...") {
             endEdit()
             root.post {
-                val t = selectedTodo?.let { s -> store.todos.firstOrNull { it.id == s.id } }
+                val t = selectedTodo?.let { storeTodo(it) }
                 if (t != null) TodoDetails(this, t).show()
                 else ask("Select Item", "Tap an item first, then tap Details.", "OK" to {})
             }
@@ -1290,17 +1472,23 @@ open class MainActivity : Activity() {
         showKeyboardSoon()
     }
 
+    /**
+     * Saves the title typed in the row of [t], the object the row was built from. The save goes to
+     * the store copy, which a sync can have replaced, and changes only the title.
+     */
     private fun commitTodo(t: Todo, raw: String) {
         val text = raw.trim()
+        val cur = storeTodo(t) ?: return
         // An empty item stays while the Note view opened over it is up: the note can still fill it.
-        if (text.isEmpty() && t.note.isEmpty() && noteOpen == null) {
-            store.delete(t); if (selectedTodo?.id == t.id) selectedTodo = null
+        if (text.isEmpty() && cur.note.isEmpty() && noteOpen == null) {
+            store.delete(cur); if (selectedTodo?.id == cur.id) selectedTodo = null
             root.post { render() }
             return
         }
-        if (text.isEmpty() || text == t.title) return
-        t.title = text
-        store.save(t)
+        // t.title is the title the row showed: unchanged text keeps a title that a sync brought meanwhile.
+        if (text.isEmpty() || text == cur.title || text == t.title) return
+        cur.title = text
+        store.save(cur)
     }
 
     // ---------------- Menus ----------------
@@ -1343,8 +1531,13 @@ open class MainActivity : Activity() {
             MenuItem("Delete Note...", 'O') {
                 if (addrRec.note.isEmpty()) toast("This address has no note.")
                 else ask("Delete Note", "Delete the note?", "Yes" to {
-                    addrRec.note = ""
-                    if (addressEditing == null && addrRec.id != 0L) store.save(addrRec)
+                    if (addrRec === addressEditing || addrRec.id == 0L) addrRec.note = ""
+                    // The store copy: a sync can replace the address in the Address View. A gone address stays gone.
+                    else store.address(addrRec.id)?.let { cur ->
+                        cur.note = ""
+                        store.save(cur)
+                        if (addressOpen?.id == cur.id) addressOpen = cur
+                    }
                     render()
                 }, "No" to {})
             },
@@ -1357,12 +1550,16 @@ open class MainActivity : Activity() {
             },
             MenuItem("Share Business Card") { shareBusinessCard() }
         ) else if (todo) listOf(
-            MenuItem("Delete Item...", 'D') { selectedTodo?.let { deleteTodo(it) } ?: toast("Select an item first.") },
-            MenuItem("Attach Note", 'A') { selectedTodo?.let { openTodoNote(it) } ?: toast("Select an item first.") },
+            // The store copy of the selected item: a sync can replace the object the row was built from.
+            MenuItem("Delete Item...", 'D') { selectedTodo?.let { storeTodo(it) }?.let { deleteTodo(it) } ?: toast("Select an item first.") },
+            MenuItem("Attach Note", 'A') { selectedTodo?.let { storeTodo(it) }?.let { openTodoNote(it) } ?: toast("Select an item first.") },
             MenuItem("Delete Note...", 'O') {
-                selectedTodo?.let { t ->
+                selectedTodo?.let { storeTodo(it) }?.let { t ->
                     if (t.note.isEmpty()) toast("This item has no note.")
-                    else ask("Delete Note", "Delete the note?", "Yes" to { t.note = ""; store.save(t); render() }, "No" to {})
+                    else ask("Delete Note", "Delete the note?", "Yes" to {
+                        storeTodo(t)?.let { it.note = ""; store.save(it) }
+                        render()
+                    }, "No" to {})
                 } ?: toast("Select an item first.")
             },
             MenuItem("Purge...", 'E') { showPurgeTodos() },
@@ -1371,11 +1568,17 @@ open class MainActivity : Activity() {
         ) else listOf(
             MenuItem("New Event", 'N') { if (mode != DAY) { mode = DAY; render() }; newEvent(null) },
             MenuItem("Delete Event...", 'D') { selected?.let { deleteEvent(it.event, it.day) } ?: toast("Select an event first.") },
-            MenuItem("Attach Note", 'A') { selected?.let { openNote(it) } ?: toast("Select an event first.") },
+            // The store copy of the selected event: a sync can replace the object the row was built from.
+            MenuItem("Attach Note", 'A') {
+                selected?.let { o -> store.event(o.event.id)?.let { Occ(it, o.day) } }?.let { openNote(it) } ?: toast("Select an event first.")
+            },
             MenuItem("Delete Note...", 'O') {
-                selected?.let { o ->
-                    if (o.event.note.isEmpty()) toast("This event has no note.")
-                    else ask("Delete Note", "Delete the note?", "Yes" to { o.event.note = ""; store.save(o.event); render() }, "No" to {})
+                selected?.let { o -> store.event(o.event.id) }?.let { e ->
+                    if (e.note.isEmpty()) toast("This event has no note.")
+                    else ask("Delete Note", "Delete the note?", "Yes" to {
+                        store.event(e.id)?.let { it.note = ""; store.save(it) }
+                        render()
+                    }, "No" to {})
                 } ?: toast("Select an event first.")
             },
             MenuItem("Purge...", 'E') { showPurgeEvents() },
@@ -1565,11 +1768,22 @@ open class MainActivity : Activity() {
 
     // ---------------- Backup files ----------------
 
-    fun exportFile(base: String, text: String, after: () -> Unit = {}) =
+    fun exportFile(base: String, text: String, after: (() -> Unit)? = null) =
         saveFile("$base-${LocalDate.now()}.json", "application/json", text, after)
 
-    internal fun saveFile(name: String, type: String, text: String, after: () -> Unit = {}) {
-        pendingExport = text
+    /**
+     * Asks for a file with the system file picker and writes [text] to it, then runs [after]. The
+     * text waits in a cache file named in the saved state, so a rotation or a process kill while the
+     * picker is open does not lose it.
+     */
+    internal fun saveFile(name: String, type: String, text: String, after: (() -> Unit)? = null) {
+        dropPendingExport()
+        pendingExport = try {
+            File.createTempFile("export", ".tmp", cacheDir).apply { writeText(text) }
+        } catch (ex: Exception) {
+            ask("Export", "The file was not saved: ${ex.message}", "OK" to {})
+            return
+        }
         afterExport = after
         val i = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
@@ -1577,6 +1791,14 @@ open class MainActivity : Activity() {
             .putExtra(Intent.EXTRA_TITLE, name)
         @Suppress("DEPRECATION")
         startActivityForResult(i, REQ_EXPORT)
+    }
+
+    /** Deletes the cache file of an export and forgets the export. */
+    private fun dropPendingExport() {
+        pendingExport?.delete()
+        pendingExport = null
+        afterExport = null
+        afterExportLost = false
     }
 
     private fun importFile() {
@@ -1588,8 +1810,8 @@ open class MainActivity : Activity() {
     }
 
     /** Adds the events of an iCalendar file and tells what was added. */
-    private fun importIcs(text: String) {
-        val p = ICal.parse(text)
+    private fun importIcs(bytes: ByteArray) {
+        val p = ICal.parse(bytes)
         val (added, skipped) = store.addEvents(p.events)
         changed()
         var msg = "Added $added events."
@@ -1604,28 +1826,44 @@ open class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         val uri = data?.data
         if (resultCode != RESULT_OK || uri == null) {
-            if (requestCode == REQ_EXPORT) { pendingExport = null; afterExport = null; toast("Not saved.") }
+            if (requestCode == REQ_EXPORT) { dropPendingExport(); toast("Not saved.") }
             return
         }
         when (requestCode) {
             REQ_EXPORT -> {
+                val f = pendingExport
+                val after = afterExport
+                val lost = afterExportLost
+                pendingExport = null; afterExport = null; afterExportLost = false
                 try {
-                    contentResolver.openOutputStream(uri)?.use { it.write((pendingExport ?: "").toByteArray()) }
-                    toast("Saved.")
-                    afterExport?.invoke()
+                    if (f == null || !f.exists()) {
+                        // The text is gone (the cache was cleared). The picker made an empty file: remove it.
+                        try { DocumentsContract.deleteDocument(contentResolver, uri) } catch (ignored: Exception) {}
+                        ask("Export", "The file was not saved: the data to save was lost. Export again.", "OK" to {})
+                    } else {
+                        val out = contentResolver.openOutputStream(uri) ?: throw IOException("Cannot open the file.")
+                        out.use { o -> f.inputStream().use { it.copyTo(o) } }
+                        // A recreated activity has lost the delete that followed the archive copy.
+                        toast(if (lost) "Saved. The records were not deleted." else "Saved.")
+                        after?.invoke()
+                    }
                 } catch (ex: Exception) {
                     ask("Export", "The file was not saved: ${ex.message}", "OK" to {})
+                } finally {
+                    f?.delete()
                 }
-                pendingExport = null; afterExport = null
             }
             REQ_IMPORT -> {
                 try {
-                    val text = contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
+                    // vCard and iCalendar take the bytes, which they unfold before reading; UTF-8 text serves
+                    // the type check and the JSON backup.
+                    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
+                    val text = bytes.toString(Charsets.UTF_8)
                     val trimmed = text.trimStart('\uFEFF', ' ', '\t', '\r', '\n')
                     if (trimmed.startsWith("BEGIN:VCARD", ignoreCase = true)) {
-                        importVCardText(text)
+                        importVCard(bytes)
                     } else if (trimmed.startsWith("BEGIN:VCALENDAR", ignoreCase = true)) {
-                        importIcs(text)
+                        importIcs(bytes)
                     } else {
                         val (ne, nt, nm, ns, na) = store.importJson(text)
                         changed()

@@ -45,6 +45,7 @@ fun editCategories(act: MainActivity, state: LauncherState, onChange: () -> Unit
 		rename = { id, name -> state.renameCategory(id, name); onChange() },
 		deleteText = { "Delete category \"${it.name}\"? Its applications move to Unfiled." },
 		delete = { id -> state.deleteCategory(id); onChange() },
+		merge = { from, into -> state.mergeCategory(from, into); onChange() },
 		onClose = {},
 	)
 }

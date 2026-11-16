@@ -24,6 +24,10 @@ std::optional<std::int64_t> parse_short_date(std::string_view text);
 // The Windows short date with a four-digit year and no leading zeros: "5/3/2026".
 std::string full_date(std::int64_t day);
 
+// The event as Edit Event loads it: an end past 11:59 pm, which the Day and Week views stored before they capped it,
+// reads as 11:59 pm, so OK and Select Time take it.
+model::Event loaded(model::Event e);
+
 // Opens Edit Event for `orig`, the occurrence on `day`, or for a new event on `day` when `orig` is empty. A new event
 // starts at `start_min`, or is untimed at 8:00 am when it is empty; `title` is its description.
 void edit(view::Ctx& ctx, std::optional<model::Event> orig, std::int64_t day, std::optional<std::int32_t> start_min,

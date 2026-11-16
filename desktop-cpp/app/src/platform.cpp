@@ -343,6 +343,13 @@ std::string os_error_text(int code) {
 }
 
 std::string os_error_text(const std::error_code& ec) {
+#ifdef _WIN32
+	// FormatMessage reads Windows codes only. libstdc++ reports many filesystem errors as an errno in
+	// generic_category, which takes its own text.
+	if (ec.category() != std::system_category()) {
+		return ec.message() + " (os error " + std::to_string(ec.value()) + ")";
+	}
+#endif
 	return os_error_text(ec.value());
 }
 

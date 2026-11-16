@@ -405,12 +405,16 @@ void import(view::Ctx& ctx) {
 	}
 	const std::string_view body = trim_start_body(*loaded);
 	std::expected<std::string, std::string> message;
-	if (starts_with_ignore_case(body, "BEGIN:VCALENDAR")) {
-		message = import_ics(ctx, *loaded);
-	} else if (starts_with_ignore_case(body, "BEGIN:VCARD")) {
-		message = import_vcard(ctx, body);
-	} else {
-		message = import_json(ctx, body);
+	{
+		// The import saves the data file once, at its end, so the backup is the file from before the import.
+		store::DesktopStore::Batch batch(ctx.store);
+		if (starts_with_ignore_case(body, "BEGIN:VCALENDAR")) {
+			message = import_ics(ctx, *loaded);
+		} else if (starts_with_ignore_case(body, "BEGIN:VCARD")) {
+			message = import_vcard(ctx, body);
+		} else {
+			message = import_json(ctx, body);
+		}
 	}
 	if (message) {
 		dialogs::message("Palm Desktop", dialogs::Icon::Info, *message);

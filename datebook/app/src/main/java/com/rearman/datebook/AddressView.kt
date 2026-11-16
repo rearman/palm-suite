@@ -1,7 +1,6 @@
 package com.rearman.datebook
 
 import com.rearman.palmui.*
-import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -69,14 +68,14 @@ private fun MainActivity.phoneSection(a: Address): LinearLayout = vbox().apply {
         val lab = a.phoneLabels.getOrElse(i) { Address.WORK }
         val email = lab == Address.EMAIL
         val line = valueLine(value, prefix = Address.LABELS[lab] + ": ", link = true, onTap = {
-            if (email) openIntent(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + Uri.encode(value))))
-            else openIntent(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", value, null)))
+            if (email) startSafely(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + Uri.encode(value))), NO_APP)
+            else startSafely(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", value, null)), NO_APP)
         })
         if (!email && lab in smsLabels) {
             addView(hbox().apply {
                 addView(line, LP(0, WRAP, 1f))
                 addView(palmButton("Msg") {
-                    openIntent(Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", value, null)))
+                    startSafely(Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", value, null)), NO_APP)
                 }, LP(WRAP, pp(12)).apply { marginStart = pp(3) })
             }, lp(MATCH))
         } else {
@@ -93,7 +92,7 @@ private fun MainActivity.addressSection(a: Address): LinearLayout = vbox().apply
     if (lines.isEmpty()) return@apply
     val oneLine = lines.joinToString(", ")
     addView(valueLine(lines.joinToString("\n"), link = true, onTap = {
-        openIntent(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(oneLine))))
+        startSafely(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(oneLine))), NO_APP)
     }), lp(MATCH))
 }
 
@@ -137,11 +136,5 @@ private fun MainActivity.copyValue(value: String) {
     toast("Copied.")
 }
 
-/** Starts [intent] in a phone app. Shows a message when no app can take it. */
-private fun MainActivity.openIntent(intent: Intent) {
-    try {
-        startActivity(intent)
-    } catch (e: ActivityNotFoundException) {
-        toast("No app can do this.")
-    }
-}
+/** The message when no phone app can take a tap's intent (startSafely). */
+private const val NO_APP = "No app can do this."

@@ -161,11 +161,14 @@ struct App {
 	void handle(palm::msg::Msg msg);
 	// Reads the store again in every view.
 	void refresh_views();
+	// Edit Categories of `app` (0 To Do, 1 Memo Pad, 2 Address Book). A filter that showed a merged category shows
+	// the kept one; one that showed a deleted category falls back to All when the views read the store again.
+	void edit_categories(std::int32_t app);
 	// The focus owner, for the Edit commands.
 	Target focus_target() const;
 	void update_edit_state();
-	// Tells the window which record commands apply.
-	void update_record_state(const Target& target);
+	// The record commands that apply, for the window.
+	palm::window::RecordState record_state(const Target& target);
 	// The Edit menu and toolbar: the focused text field takes the text commands; the view takes the rest.
 	void edit(palm::msg::EditCmd cmd);
 	// Shows a record that Find found in its view, selected.
@@ -286,18 +289,18 @@ void App::handle(palm::msg::Msg msg) {
 	        },
 	        [this](palm::msg::Edit& m) { edit(m.cmd); },
 	        [](palm::msg::EditState&) {},
-	        [this](palm::msg::EditCategories& m) { palm::category::edit_categories(store, m.app); },
+	        [this](palm::msg::EditCategories& m) { edit_categories(m.app); },
 	        [this](palm::msg::Categories&) {
 		        switch (view) {
 		        case palm::msg::View::Memo:
-			        palm::category::edit_categories(store, 1);
+			        edit_categories(1);
 			        break;
 		        case palm::msg::View::Address:
-			        palm::category::edit_categories(store, 2);
+			        edit_categories(2);
 			        break;
 		        case palm::msg::View::Todo:
 		        case palm::msg::View::Date:
-			        palm::category::edit_categories(store, 0);
+			        edit_categories(0);
 			        break;
 		        }
 	        },
@@ -400,6 +403,28 @@ void App::handle(palm::msg::Msg msg) {
 	palm::mnemonics::refresh();
 }
 
+void App::edit_categories(std::int32_t app) {
+	const std::vector<palm::category::Merge> merges = palm::category::edit_categories(store, app);
+	if (merges.empty()) {
+		return;
+	}
+	const char* key = "todoCategory";
+	if (app == 1) {
+		key = "memoCategory";
+	} else if (app == 2) {
+		key = "addressCategory";
+	}
+	const auto shown = static_cast<std::int32_t>(settings.get_int(key, palm::category::ALL));
+	if (const std::int32_t kept = palm::category::after_merges(shown, merges); kept != shown) {
+		save_setting(key, std::to_string(kept));
+	}
+	if (app == 1) {
+		memo->follow_merges(merges);
+	} else if (app == 0) {
+		date->follow_merges(merges);
+	}
+}
+
 void App::refresh_views() {
 	shown_version = store.version;
 	auto ctx = make_ctx();
@@ -463,15 +488,14 @@ void App::update_edit_state() {
 	case TargetKind::None:
 		break;
 	}
-	ui.set_edit_state(s);
-	update_record_state(target);
+	ui.set_edit_state(s, record_state(target));
 	update_position();
 }
 
-// Tells the window which record commands apply: Delete when the view has a selected record or the focused field has a
+// The record commands that apply: Delete when the view has a selected record or the focused field has a
 // text selection, Select All when the view has records, and the Event items when the Date Book has a selected event.
 // DateView exposes no accessor for its selection or its records yet, so the Date Book passes true for all three.
-void App::update_record_state(const Target& target) {
+palm::window::RecordState App::record_state(const Target& target) {
 	const bool text_selected =
 	    target.kind == TargetKind::Text && palm::text_edit::state(*target.field).delete_text_edit;
 	bool del = false;
@@ -504,7 +528,7 @@ void App::update_record_state(const Target& target) {
 		break;
 	}
 	}
-	ui.set_record_state(del || text_selected, all, event);
+	return palm::window::RecordState{del || text_selected, all, event};
 }
 
 void App::edit(palm::msg::EditCmd cmd) {
@@ -839,11 +863,8 @@ int main(int argc, char** argv) {
 	palm::mnemonics::install();
 	a.ui.set_private_hidden(!a.show_private);
 
-	// The startView setting wins. Without it, the view of the last session opens.
-	std::string start = a.settings.get("startView", "");
-	if (start.empty()) {
-		start = a.settings.get("view", "date");
-	}
+	// The view of the last session opens.
+	const std::string start = a.settings.get("view", "date");
 	a.refresh_views();
 	a.show_view(palm::msg::from_key(start).value_or(palm::msg::View::Date));
 	// The window opens where it was at the end of the last session, else maximized. A capture keeps the built size.

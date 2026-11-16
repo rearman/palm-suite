@@ -373,6 +373,9 @@ public:
 	// Reads the store, the settings and the day again: every part of the view.
 	void refresh(view::Ctx& ctx);
 
+	// Points the To Do category of the pane at the kept category when Edit Categories merged the one it showed.
+	void follow_merges(const std::vector<category::Merge>& merges);
+
 	// True when the view shown has a selected event, for the Edit menu: Edit Event, Delete Event, Delete and Select All
 	// are gray without one, as in Palm Desktop 3.1.1.
 	bool has_selected_event() const;
@@ -446,8 +449,6 @@ private:
 	// A click on the header or the grid: a box is selected, and its markers, its bar or a double click act; a click on
 	// empty space types a new event.
 	void click(view::Ctx& ctx, bool header, std::int32_t lx, std::int32_t ly, bool double_click);
-	// The items of the menu of a box.
-	void box_action(view::Ctx& ctx, const date_shared::Occ& occ);
 	// Sets the target of `d` for the mouse at window point (x, y), local (lx, ly): a calendar day, or an outline in
 	// the grid, which it returns.
 	std::optional<date_shared::Rect> update_drag(detail::Drag& d, int x, int y, std::int32_t lx, std::int32_t ly) const;
@@ -456,9 +457,10 @@ private:
 	void pane_mouse(view::Ctx& ctx, msg::Mouse m);
 	// The header (true) or the grid under window point (x, y), with the grid row, for a drop.
 	std::optional<std::pair<bool, std::int32_t>> drop_target(int x, int y) const;
-	// A click on a To Do row of the pane: the check box marks the item done or not done, the priority and the due date
-	// open their menus, and a double click shows the item in the To Do List.
-	void todo_click(view::Ctx& ctx, std::size_t row, std::int32_t lx, bool double_click);
+	// A click on the To Do item `id` of the pane, the one pressed: the check box marks it done or not done, the
+	// priority and the due date open their menus, and a double click shows it in the To Do List. The second click of
+	// a double click on the check box does nothing.
+	void todo_click(view::Ctx& ctx, std::int64_t id, std::int32_t lx, bool double_click);
 
 	msg::Sender s_;
 	std::shared_ptr<msg::DateMode> tab_mode_;
@@ -498,6 +500,8 @@ private:
 	bool suppress_click_ = false;
 	// A press on a pane row: x, y, the row, and true once it drags.
 	std::optional<std::tuple<std::int32_t, std::int32_t, std::int32_t, bool>> pane_press_;
+	// The To Do item under that press, which its click acts on: the rows can move before the release.
+	std::optional<std::int64_t> pane_press_todo_;
 };
 
 } // namespace palm::date

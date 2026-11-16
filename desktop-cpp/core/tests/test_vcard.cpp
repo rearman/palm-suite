@@ -39,3 +39,25 @@ TEST_CASE("vcard_vectors") {
 		CHECK(cards == x.at("cards"));
 	}
 }
+
+TEST_CASE("charset_reads_the_plain_bytes") {
+	const std::vector<vcard::Parsed> c =
+	    vcard::parse("BEGIN:VCARD\r\nN;CHARSET=ISO-8859-1:M\xFCller;J\xF6rg\r\nEND:VCARD\r\n");
+	REQUIRE(c.size() == 1);
+	CHECK(c[0].address.last_name == "M\xC3\xBCller");
+	CHECK(c[0].address.first_name == "J\xC3\xB6rg");
+}
+
+TEST_CASE("a_fold_inside_a_utf8_sequence_joins_the_bytes") {
+	const std::vector<vcard::Parsed> c =
+	    vcard::parse("BEGIN:VCARD\r\nFN:Ann\r\nNOTE:M\xC3\r\n \xBCller\r\nEND:VCARD\r\n");
+	REQUIRE(c.size() == 1);
+	CHECK(c[0].address.note == "M\xC3\xBCller");
+}
+
+TEST_CASE("a_quoted_printable_line_end_is_lf") {
+	const std::vector<vcard::Parsed> c =
+	    vcard::parse("BEGIN:VCARD\r\nFN:Ann\r\nNOTE;ENCODING=QUOTED-PRINTABLE:a=0D=0Ab\r\nEND:VCARD\r\n");
+	REQUIRE(c.size() == 1);
+	CHECK(c[0].address.note == "a\nb");
+}

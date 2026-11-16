@@ -37,16 +37,16 @@ Palm reference: Handbook p.83 to 86. Code: `MainActivity.buildDay`.
 
 Palm reference: Handbook p.91 to 92. Code: `MainActivity.buildWeek`.
 
-| Kind   | Item                                                                   | Code      | Look         | Works | Notes |
-| ------ | ---------------------------------------------------------------------- | --------- | ------------ | ----- | ----- |
-| screen | Title tab: month & year                                                | tab       |              |       |       |
-| button | Week arrows ◀ ▶                                                        | buildWeek | 2026-10-30 M |       |       |
-| button | Day heading: opens the Day view                                        | buildWeek | 2026-10-30 M |       |       |
-| icon   | Event bar: tap shows the description, second tap opens the day         | WeekGrid  | 2026-10-30 M |       |       |
-| icon   | Event bar: drag to another time or day moves it, in 15 minute steps    | WeekGrid  | 2026-10-31 M |       |       |
-| icon   | Blank time: opens that day with the hour line selected for a new event | WeekGrid  | 2026-10-31 M |       |       |
-| icon   | View icons                                                             | viewIcons |              |       |       |
-| button | Go to                                                                  | buildWeek | 2026-10-31 M |       |       |
+| Kind   | Item                                                                                                                                                                                         | Code      | Look         | Works        | Notes |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------ | ------------ | ----- |
+| screen | Title tab: month & year                                                                                                                                                                      | tab       |              |              |       |
+| button | Week arrows ◀ ▶                                                                                                                                                                              | buildWeek | 2026-10-30 M |              |       |
+| button | Day heading: opens the Day view                                                                                                                                                              | buildWeek | 2026-10-30 M |              |       |
+| icon   | Event bar: tap shows the description, second tap opens the day                                                                                                                               | WeekGrid  | 2026-10-30 M |              |       |
+| icon   | Event bar: drag to another time or day moves it, in 15 minute steps; a weekly series moved with All or Future turns its week days, and with All keeps its exceptions on the same occurrences | WeekGrid  | 2026-10-31 M | 2026-11-16 M |       |
+| icon   | Blank time: opens that day with the hour line selected for a new event                                                                                                                       | WeekGrid  | 2026-10-31 M |              |       |
+| icon   | View icons                                                                                                                                                                                   | viewIcons |              |              |       |
+| button | Go to                                                                                                                                                                                        | buildWeek | 2026-10-31 M |              |       |
 
 ### Month view
 
@@ -153,25 +153,25 @@ Palm reference: Handbook p.90 (Repeating Event). Code: `MainActivity.repeatForm`
 
 Palm reference: Handbook p.64. Code: `MainActivity.deleteEvent`.
 
-| Kind   | Item                    | Code        | Look         | Works | Notes |
-| ------ | ----------------------- | ----------- | ------------ | ----- | ----- |
-| alert  | "Delete Event"          | deleteEvent | 2026-10-30 M |       |       |
-| check  | Save archive copy on PC | palmAlert   | 2026-10-30 M |       |       |
-| button | OK                      | palmAlert   | 2026-10-30 M |       |       |
-| button | Cancel                  | palmAlert   |              |       |       |
+| Kind   | Item                                                                                                                                        | Code        | Look         | Works        | Notes |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------ | ------------ | ----- |
+| alert  | "Delete Event"                                                                                                                              | deleteEvent | 2026-10-30 M |              |       |
+| check  | Save archive copy on PC: a rotation in the file picker saves the archive and keeps the records, with "Saved. The records were not deleted." | palmAlert   | 2026-10-30 M | 2026-11-16 M |       |
+| button | OK                                                                                                                                          | palmAlert   | 2026-10-30 M |              |       |
+| button | Cancel                                                                                                                                      | palmAlert   |              |              |       |
 
 ### Purge (events)
 
 Palm reference: Handbook p.65. Code: `showPurgeEvents`.
 
-| Kind    | Item                     | Code            | Look         | Works | Notes |
-| ------- | ------------------------ | --------------- | ------------ | ----- | ----- |
-| dialog  | "Purge"                  | showPurgeEvents | 2026-10-30 M |       |       |
-| icon    | Confirmation icon        | showPurgeEvents |              |       |       |
-| trigger | Delete events older than | showPurgeEvents | 2026-10-30 M |       |       |
-| check   | Save archive copy on PC  | showPurgeEvents | 2026-10-30 M |       |       |
-| button  | OK                       | showPurgeEvents | 2026-10-30 M |       |       |
-| button  | Cancel                   | showPurgeEvents |              |       |       |
+| Kind    | Item                                                                                                                                        | Code            | Look         | Works        | Notes |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------ | ------------ | ----- |
+| dialog  | "Purge"                                                                                                                                     | showPurgeEvents | 2026-10-30 M |              |       |
+| icon    | Confirmation icon                                                                                                                           | showPurgeEvents |              |              |       |
+| trigger | Delete events older than                                                                                                                    | showPurgeEvents | 2026-10-30 M |              |       |
+| check   | Save archive copy on PC: a rotation in the file picker saves the archive and keeps the records, with "Saved. The records were not deleted." | showPurgeEvents | 2026-10-30 M | 2026-11-16 M |       |
+| button  | OK                                                                                                                                          | showPurgeEvents | 2026-10-30 M |              |       |
+| button  | Cancel                                                                                                                                      | showPurgeEvents |              |              |       |
 
 ### Preferences
 
@@ -184,7 +184,7 @@ Palm reference: Handbook p.96. Code: `showPreferences`.
 | trigger | End Time                   | showPreferences |              |       | Kept: a pop-up list; the Palm has a time box with up and down arrows                |
 | trigger | Alarm Preset: advance unit | showPreferences | 2026-10-30 M |       | Kept: the advance & unit can be set with Alarm Preset off (asked 2026-11-04)        |
 | check   | Alarm Preset               | showPreferences | 2026-10-30 M |       | Kept: the advance & unit can be set with Alarm Preset off (asked 2026-11-04)        |
-| button  | Alarm Sound: Change...     | showPreferences |              |       | Kept: opens the Android alarm sound settings; the Palm has an Alarm Sound pick list |
+| button  | Change... (Alarm Sound)    | showPreferences |              |       | Kept: opens the Android alarm sound settings; the Palm has an Alarm Sound pick list |
 | trigger | Remind Me                  | showPreferences | 2026-10-30 M |       |                                                                                     |
 | trigger | Play Every                 | showPreferences | 2026-10-30 M |       |                                                                                     |
 | button  | OK                         | showPreferences | 2026-10-30 M |       |                                                                                     |
@@ -209,24 +209,25 @@ Palm reference: Handbook p.95. Code: `showDisplayOptions`.
 
 Palm reference: Handbook p.94 to 95. Code: `MainActivity.menus`.
 
-| Kind | Item                        | Code  | Look         | Works | Notes                                      |
-| ---- | --------------------------- | ----- | ------------ | ----- | ------------------------------------------ |
-| menu | Record: New Event           | menus | 2026-10-30 M |       |                                            |
-| menu | Record: Delete Event...     | menus | 2026-10-30 M |       |                                            |
-| menu | Record: Attach Note         | menus | 2026-10-30 M |       |                                            |
-| menu | Record: Delete Note...      | menus | 2026-10-30 M |       |                                            |
-| menu | Record: Purge...            | menus | 2026-10-30 M |       |                                            |
-| menu | Record: Export Backup...    | menus |              |       | Kept: Export and Import replace Beam Event |
-| menu | Record: Import Backup...    | menus |              |       |                                            |
-| menu | Record: Export iCalendar... | menus |              |       |                                            |
-| menu | Record: Import iCalendar... | menus |              |       |                                            |
-| menu | Options: Font...            | menus | 2026-10-30 M |       |                                            |
-| menu | Options: Preferences...     | menus | 2026-10-30 M |       |                                            |
-| menu | Options: Display Options... | menus | 2026-10-30 M |       |                                            |
-| menu | Options: Phone Lookup       | menus | 2026-10-31 M |       |                                            |
-| menu | Options: Sync...            | menus |              |       |                                            |
-| menu | Options: Security...        | menus | 2026-10-30 M |       |                                            |
-| menu | Options: About Date Book    | menus | 2026-10-30 M |       |                                            |
+| Kind  | Item                                                                                                                     | Code      | Look         | Works        | Notes                                      |
+| ----- | ------------------------------------------------------------------------------------------------------------------------ | --------- | ------------ | ------------ | ------------------------------------------ |
+| menu  | Record: New Event                                                                                                        | menus     | 2026-10-30 M |              |                                            |
+| menu  | Record: Delete Event...                                                                                                  | menus     | 2026-10-30 M |              |                                            |
+| menu  | Record: Attach Note                                                                                                      | menus     | 2026-10-30 M |              |                                            |
+| menu  | Record: Delete Note...                                                                                                   | menus     | 2026-10-30 M |              |                                            |
+| menu  | Record: Purge...                                                                                                         | menus     | 2026-10-30 M |              |                                            |
+| menu  | Record: Export Backup... (the export survives a rotation in the file picker; a lost export says so and saves nothing)    | menus     |              | 2026-11-16 M | Kept: Export and Import replace Beam Event |
+| menu  | Record: Import Backup...                                                                                                 | menus     |              |              |                                            |
+| menu  | Record: Export iCalendar... (the export survives a rotation in the file picker; a lost export says so and saves nothing) | menus     |              | 2026-11-16 M |                                            |
+| menu  | Record: Import iCalendar...                                                                                              | menus     |              |              |                                            |
+| menu  | Options: Font...                                                                                                         | menus     | 2026-10-30 M |              |                                            |
+| menu  | Options: Preferences...                                                                                                  | menus     | 2026-10-30 M |              |                                            |
+| menu  | Options: Display Options...                                                                                              | menus     | 2026-10-30 M |              |                                            |
+| menu  | Options: Phone Lookup                                                                                                    | menus     | 2026-10-31 M |              |                                            |
+| menu  | Options: Sync...                                                                                                         | menus     |              |              |                                            |
+| menu  | Options: Security...                                                                                                     | menus     | 2026-10-30 M |              |                                            |
+| menu  | Options: About Date Book                                                                                                 | menus     | 2026-10-30 M |              |                                            |
+| alert | "About Date Book"                                                                                                        | showAbout |              |              |                                            |
 
 ## To Do List
 
@@ -288,41 +289,42 @@ Palm reference: Handbook p.105 to 106. Code: `showShowOptions`.
 
 Palm reference: Handbook p.64. Code: `MainActivity.deleteTodo`.
 
-| Kind   | Item                    | Code       | Look         | Works | Notes |
-| ------ | ----------------------- | ---------- | ------------ | ----- | ----- |
-| alert  | "Delete To Do"          | deleteTodo |              |       |       |
-| check  | Save archive copy on PC | palmAlert  | 2026-10-30 M |       |       |
-| button | OK                      | palmAlert  | 2026-10-30 M |       |       |
-| button | Cancel                  | palmAlert  |              |       |       |
+| Kind   | Item                                                                                                                                        | Code       | Look         | Works        | Notes |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------ | ------------ | ----- |
+| alert  | "Delete To Do"                                                                                                                              | deleteTodo |              |              |       |
+| check  | Save archive copy on PC: a rotation in the file picker saves the archive and keeps the records, with "Saved. The records were not deleted." | palmAlert  | 2026-10-30 M | 2026-11-16 M |       |
+| button | OK                                                                                                                                          | palmAlert  | 2026-10-30 M |              |       |
+| button | Cancel                                                                                                                                      | palmAlert  |              |              |       |
 
 ### Purge (To Do)
 
 Palm reference: Handbook p.65. Code: `showPurgeTodos`.
 
-| Kind   | Item                    | Code           | Look         | Works | Notes |
-| ------ | ----------------------- | -------------- | ------------ | ----- | ----- |
-| alert  | "Purge"                 | showPurgeTodos |              |       |       |
-| check  | Save archive copy on PC | palmAlert      | 2026-10-30 M |       |       |
-| button | OK                      | palmAlert      | 2026-10-30 M |       |       |
-| button | Cancel                  | palmAlert      |              |       |       |
+| Kind   | Item                                                                                                                                        | Code           | Look         | Works        | Notes |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ------------ | ------------ | ----- |
+| alert  | "Purge"                                                                                                                                     | showPurgeTodos |              |              |       |
+| check  | Save archive copy on PC: a rotation in the file picker saves the archive and keeps the records, with "Saved. The records were not deleted." | palmAlert      | 2026-10-30 M | 2026-11-16 M |       |
+| button | OK                                                                                                                                          | palmAlert      | 2026-10-30 M |              |       |
+| button | Cancel                                                                                                                                      | palmAlert      |              |              |       |
 
 ### To Do menus
 
 Palm reference: Handbook p.106. Code: `MainActivity.menus`.
 
-| Kind | Item                      | Code  | Look         | Works | Notes                                                       |
-| ---- | ------------------------- | ----- | ------------ | ----- | ----------------------------------------------------------- |
-| menu | Record: Delete Item...    | menus | 2026-10-30 M |       |                                                             |
-| menu | Record: Attach Note       | menus | 2026-10-30 M |       |                                                             |
-| menu | Record: Delete Note...    | menus | 2026-10-30 M |       |                                                             |
-| menu | Record: Purge...          | menus | 2026-10-30 M |       |                                                             |
-| menu | Record: Export Backup...  | menus |              |       | Kept: Export and Import replace Beam Item and Beam Category |
-| menu | Record: Import Backup...  | menus |              |       |                                                             |
-| menu | Options: Font...          | menus | 2026-10-30 M |       |                                                             |
-| menu | Options: Phone Lookup     | menus | 2026-10-31 M |       |                                                             |
-| menu | Options: Sync...          | menus |              |       |                                                             |
-| menu | Options: Security...      | menus | 2026-10-30 M |       |                                                             |
-| menu | Options: About To Do List | menus | 2026-10-30 M |       |                                                             |
+| Kind  | Item                                                                                                                  | Code      | Look         | Works        | Notes                                                       |
+| ----- | --------------------------------------------------------------------------------------------------------------------- | --------- | ------------ | ------------ | ----------------------------------------------------------- |
+| menu  | Record: Delete Item...                                                                                                | menus     | 2026-10-30 M |              |                                                             |
+| menu  | Record: Attach Note                                                                                                   | menus     | 2026-10-30 M |              |                                                             |
+| menu  | Record: Delete Note...                                                                                                | menus     | 2026-10-30 M |              |                                                             |
+| menu  | Record: Purge...                                                                                                      | menus     | 2026-10-30 M |              |                                                             |
+| menu  | Record: Export Backup... (the export survives a rotation in the file picker; a lost export says so and saves nothing) | menus     |              | 2026-11-16 M | Kept: Export and Import replace Beam Item and Beam Category |
+| menu  | Record: Import Backup...                                                                                              | menus     |              |              |                                                             |
+| menu  | Options: Font...                                                                                                      | menus     | 2026-10-30 M |              |                                                             |
+| menu  | Options: Phone Lookup                                                                                                 | menus     | 2026-10-31 M |              |                                                             |
+| menu  | Options: Sync...                                                                                                      | menus     |              |              |                                                             |
+| menu  | Options: Security...                                                                                                  | menus     | 2026-10-30 M |              |                                                             |
+| menu  | Options: About To Do List                                                                                             | menus     | 2026-10-30 M |              |                                                             |
+| alert | "About To Do List"                                                                                                    | showAbout |              |              |                                                             |
 
 ## Memo Pad
 
@@ -372,12 +374,12 @@ Palm reference: Not in the handbook. Code: `showMemoDetails`.
 
 Palm reference: Handbook p.64. Code: `deleteMemoAsk`.
 
-| Kind   | Item                    | Code          | Look         | Works | Notes |
-| ------ | ----------------------- | ------------- | ------------ | ----- | ----- |
-| alert  | "Delete Memo"           | deleteMemoAsk |              |       |       |
-| check  | Save archive copy on PC | palmAlert     | 2026-10-30 M |       |       |
-| button | OK                      | palmAlert     | 2026-10-30 M |       |       |
-| button | Cancel                  | palmAlert     |              |       |       |
+| Kind   | Item                                                                                                                                        | Code          | Look         | Works        | Notes |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------ | ------------ | ----- |
+| alert  | "Delete Memo"                                                                                                                               | deleteMemoAsk |              |              |       |
+| check  | Save archive copy on PC: a rotation in the file picker saves the archive and keeps the records, with "Saved. The records were not deleted." | palmAlert     | 2026-10-30 M | 2026-11-16 M |       |
+| button | OK                                                                                                                                          | palmAlert     | 2026-10-30 M |              |       |
+| button | Cancel                                                                                                                                      | palmAlert     |              |              |       |
 
 ### Memo Preferences
 
@@ -394,20 +396,20 @@ Palm reference: Handbook p.78. Code: `showMemoPreferences`.
 
 Palm reference: Handbook p.108 to 109. Code: `MainActivity.menus`.
 
-| Kind  | Item                                                         | Code          | Look         | Works | Notes                                                       |
-| ----- | ------------------------------------------------------------ | ------------- | ------------ | ----- | ----------------------------------------------------------- |
-| menu  | Memo screen Record: New Memo                                 | menus         | 2026-10-31 M |       |                                                             |
-| menu  | Record: Delete Memo...                                       | menus         | 2026-10-30 M |       |                                                             |
-| menu  | Record: Export Backup...                                     | menus         |              |       | Kept: Export and Import replace Beam Memo and Beam Category |
-| menu  | Record: Import Backup...                                     | menus         |              |       |                                                             |
-| menu  | Options: Font...                                             | menus         | 2026-10-30 M |       |                                                             |
-| menu  | Memo List Options: Preferences...                            | menus         | 2026-10-31 M |       |                                                             |
-| menu  | Options: Sync...                                             | menus         |              |       |                                                             |
-| menu  | Memo List Options: Security...                               | menus         | 2026-10-31 M |       |                                                             |
-| menu  | Options: About Memo Pad                                      | menus         | 2026-10-30 M |       |                                                             |
-| menu  | Memo screen Options: Go to Top of Page, Go to Bottom of Page | menus         | 2026-10-31 M |       |                                                             |
-| menu  | Memo screen Options: Phone Lookup                            | menus         | 2026-10-31 M |       |                                                             |
-| alert | "About Memo Pad"                                             | showMemoAbout |              |       |                                                             |
+| Kind  | Item                                                                                                                  | Code          | Look         | Works        | Notes                                                       |
+| ----- | --------------------------------------------------------------------------------------------------------------------- | ------------- | ------------ | ------------ | ----------------------------------------------------------- |
+| menu  | Memo screen Record: New Memo                                                                                          | menus         | 2026-10-31 M |              |                                                             |
+| menu  | Record: Delete Memo...                                                                                                | menus         | 2026-10-30 M |              |                                                             |
+| menu  | Record: Export Backup... (the export survives a rotation in the file picker; a lost export says so and saves nothing) | menus         |              | 2026-11-16 M | Kept: Export and Import replace Beam Memo and Beam Category |
+| menu  | Record: Import Backup...                                                                                              | menus         |              |              |                                                             |
+| menu  | Options: Font...                                                                                                      | menus         | 2026-10-30 M |              |                                                             |
+| menu  | Memo List Options: Preferences...                                                                                     | menus         | 2026-10-31 M |              |                                                             |
+| menu  | Options: Sync...                                                                                                      | menus         |              |              |                                                             |
+| menu  | Memo List Options: Security...                                                                                        | menus         | 2026-10-31 M |              |                                                             |
+| menu  | Options: About Memo Pad                                                                                               | menus         | 2026-10-30 M |              |                                                             |
+| menu  | Memo screen Options: Go to Top of Page, Go to Bottom of Page                                                          | menus         | 2026-10-31 M |              |                                                             |
+| menu  | Memo screen Options: Phone Lookup                                                                                     | menus         | 2026-10-31 M |              |                                                             |
+| alert | "About Memo Pad"                                                                                                      | showMemoAbout |              |              |                                                             |
 
 ## Address Book
 
@@ -481,12 +483,12 @@ Palm reference: Handbook p.70, 99 (Palm form 1200). Code: `showAddressDetails`.
 
 Palm reference: Handbook p.64 (Palm form 1600). Code: `deleteAddressAsk`.
 
-| Kind   | Item                    | Code             | Look         | Works | Notes |
-| ------ | ----------------------- | ---------------- | ------------ | ----- | ----- |
-| alert  | "Delete Address"        | deleteAddressAsk |              |       |       |
-| check  | Save archive copy on PC | palmAlert        | 2026-10-30 M |       |       |
-| button | OK                      | palmAlert        | 2026-10-30 M |       |       |
-| button | Cancel                  | palmAlert        |              |       |       |
+| Kind   | Item                                                                                                                                        | Code             | Look         | Works        | Notes |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------ | ------------ | ----- |
+| alert  | "Delete Address"                                                                                                                            | deleteAddressAsk |              |              |       |
+| check  | Save archive copy on PC: a rotation in the file picker saves the archive and keeps the records, with "Saved. The records were not deleted." | palmAlert        | 2026-10-30 M | 2026-11-16 M |       |
+| button | OK                                                                                                                                          | palmAlert        | 2026-10-30 M |              |       |
+| button | Cancel                                                                                                                                      | palmAlert        |              |              |       |
 
 ### Address Book Preferences
 
@@ -531,37 +533,37 @@ Palm reference: Address Book: Beam (replaced). Code: `AddressShare.kt`.
 | ----- | ---------------------- | --------------------- | ---- | ----- | ----- |
 | alert | "Select Business Card" | selectBusinessCardAsk |      |       |       |
 | alert | "Export Addresses"     | exportVCard           |      |       |       |
-| alert | "Import" (vCard)       | importVCardText       |      |       |       |
+| alert | "Import" (vCard)       | importVCard           |      |       |       |
 | alert | "About Address Book"   | showAddressAbout      |      |       |       |
 
 ### Address Book menus
 
 Palm reference: Handbook p.100 to 101. Code: `MainActivity.menus`.
 
-| Kind | Item                                         | Code                    | Look         | Works | Notes                             |
-| ---- | -------------------------------------------- | ----------------------- | ------------ | ----- | --------------------------------- |
-| menu | List Record: Share Category                  | menus                   |              |       | Kept: replaces Beam Category      |
-| menu | List Record: Share Business Card             | menus                   |              |       | Kept: replaces Beam Business Card |
-| menu | List Record: Import vCard...                 | menus                   |              |       |                                   |
-| menu | List Record: Export vCard...                 | menus                   |              |       |                                   |
-| menu | List Record: Export Backup...                | menus                   |              |       |                                   |
-| menu | List Record: Import Backup...                | menus                   |              |       |                                   |
-| menu | View/Edit Record: Delete Address...          | menus                   | 2026-10-30 M |       |                                   |
-| menu | View/Edit Record: Attach Note                | menus                   | 2026-10-30 M |       |                                   |
-| menu | View/Edit Record: Delete Note...             | menus                   | 2026-10-30 M |       |                                   |
-| menu | View/Edit Record: Share Address              | menus                   |              |       | Kept: replaces Beam Address       |
-| menu | View/Edit Record: Select Business Card...    | menus                   | 2026-10-30 M |       |                                   |
-| menu | View/Edit Record: Share Business Card        | menus                   |              |       | Kept: replaces Beam Business Card |
-| menu | List and View Record: Duplicate Address (/T) | menus, duplicateAddress | 2026-10-31 M |       |                                   |
-| menu | List Options: Font...                        | menus                   | 2026-10-30 M |       |                                   |
-| menu | List Options: Preferences...                 | menus                   | 2026-10-30 M |       |                                   |
-| menu | List Options: Rename Custom Fields...        | menus                   | 2026-10-30 M |       |                                   |
-| menu | List Options: Sync...                        | menus                   |              |       |                                   |
-| menu | List Options: Security...                    | menus                   | 2026-10-30 M |       |                                   |
-| menu | List Options: About Address Book             | menus                   | 2026-10-30 M |       |                                   |
-| menu | View/Edit Options: Font...                   | menus                   | 2026-10-30 M |       |                                   |
-| menu | View/Edit Options: Rename Custom Fields...   | menus                   | 2026-10-30 M |       |                                   |
-| menu | View/Edit Options: About Address Book        | menus                   | 2026-10-30 M |       |                                   |
+| Kind | Item                                                                                                                       | Code                    | Look         | Works        | Notes                             |
+| ---- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------ | ------------ | --------------------------------- |
+| menu | List Record: Share Category                                                                                                | menus                   |              |              | Kept: replaces Beam Category      |
+| menu | List Record: Share Business Card                                                                                           | menus                   |              |              | Kept: replaces Beam Business Card |
+| menu | List Record: Import vCard...                                                                                               | menus                   |              |              |                                   |
+| menu | List Record: Export vCard... (the export survives a rotation in the file picker; a lost export says so and saves nothing)  | menus                   |              | 2026-11-16 M |                                   |
+| menu | List Record: Export Backup... (the export survives a rotation in the file picker; a lost export says so and saves nothing) | menus                   |              | 2026-11-16 M |                                   |
+| menu | List Record: Import Backup...                                                                                              | menus                   |              |              |                                   |
+| menu | View/Edit Record: Delete Address...                                                                                        | menus                   | 2026-10-30 M |              |                                   |
+| menu | View/Edit Record: Attach Note                                                                                              | menus                   | 2026-10-30 M |              |                                   |
+| menu | View/Edit Record: Delete Note...                                                                                           | menus                   | 2026-10-30 M |              |                                   |
+| menu | View/Edit Record: Share Address                                                                                            | menus                   |              |              | Kept: replaces Beam Address       |
+| menu | View/Edit Record: Select Business Card...                                                                                  | menus                   | 2026-10-30 M |              |                                   |
+| menu | View/Edit Record: Share Business Card                                                                                      | menus                   |              |              | Kept: replaces Beam Business Card |
+| menu | List and View Record: Duplicate Address (/T)                                                                               | menus, duplicateAddress | 2026-10-31 M |              |                                   |
+| menu | List Options: Font...                                                                                                      | menus                   | 2026-10-30 M |              |                                   |
+| menu | List Options: Preferences...                                                                                               | menus                   | 2026-10-30 M |              |                                   |
+| menu | List Options: Rename Custom Fields...                                                                                      | menus                   | 2026-10-30 M |              |                                   |
+| menu | List Options: Sync...                                                                                                      | menus                   |              |              |                                   |
+| menu | List Options: Security...                                                                                                  | menus                   | 2026-10-30 M |              |                                   |
+| menu | List Options: About Address Book                                                                                           | menus                   | 2026-10-30 M |              |                                   |
+| menu | View/Edit Options: Font...                                                                                                 | menus                   | 2026-10-30 M |              |                                   |
+| menu | View/Edit Options: Rename Custom Fields...                                                                                 | menus                   | 2026-10-30 M |              |                                   |
+| menu | View/Edit Options: About Address Book                                                                                      | menus                   | 2026-10-30 M |              |                                   |
 
 ## Shared by the four apps
 
@@ -569,16 +571,16 @@ Palm reference: Handbook p.100 to 101. Code: `MainActivity.menus`.
 
 Palm reference: Handbook p.80 to 81 (text only). Code: `buildNote`.
 
-| Kind   | Item                          | Code          | Look         | Works | Notes |
-| ------ | ----------------------------- | ------------- | ------------ | ----- | ----- |
-| screen | Title tab: record description | buildNote     |              |       |       |
-| field  | Lined page                    | linedPage     |              |       |       |
-| icon   | Scroll bar                    | withScrollBar |              |       |       |
-| button | Done                          | buildNote     | 2026-10-30 M |       |       |
-| button | Delete...                     | buildNote     | 2026-10-30 M |       |       |
-| alert  | "Delete Note"                 | buildNote     | 2026-10-30 M |       |       |
-| menu   | Edit menu                     | menus         |              |       |       |
-| menu   | Options: Font...              | menus         |              |       |       |
+| Kind   | Item                                                  | Code             | Look         | Works | Notes |
+| ------ | ----------------------------------------------------- | ---------------- | ------------ | ----- | ----- |
+| screen | Title tab: record description                         | buildNote        |              |       |       |
+| field  | Lined page                                            | linedPage        |              |       |       |
+| icon   | Scroll bar                                            | withScrollBar    |              |       |       |
+| button | Done                                                  | buildNote        | 2026-10-30 M |       |       |
+| button | Delete...                                             | buildNote        | 2026-10-30 M |       |       |
+| alert  | "Delete Note" (Delete..., or the menu Delete Note...) | buildNote, menus | 2026-10-30 M |       |       |
+| menu   | Edit menu                                             | menus            |              |       |       |
+| menu   | Options: Font...                                      | menus            |              |       |       |
 
 ### Edit menu
 
@@ -664,19 +666,19 @@ Palm reference: Handbook p.196 to 197. Code: `PrefsApp.kt`.
 
 Palm reference: Handbook p.71 to 73. Code: `editCategories`.
 
-| Kind   | Item              | Code           | Look         | Works | Notes                                            |
-| ------ | ----------------- | -------------- | ------------ | ----- | ------------------------------------------------ |
-| dialog | "Edit Categories" | editCategories | 2026-10-30 M |       |                                                  |
-| button | List row          | editCategories | 2026-10-30 M |       |                                                  |
-| button | OK                | editCategories | 2026-10-30 M |       |                                                  |
-| button | New               | editCategories | 2026-10-30 M |       | Kept: no limit on categories; the Palm allows 15 |
-| button | Rename            | editCategories | 2026-10-30 M |       |                                                  |
-| button | Delete            | editCategories | 2026-10-30 M |       |                                                  |
-| alert  | "Delete Category" | editCategories |              |       |                                                  |
-| field  | Name form: field  | editCategories | 2026-10-30 M |       |                                                  |
-| button | Name form: OK     | editCategories | 2026-10-30 M |       |                                                  |
-| button | Name form: Cancel | editCategories | 2026-10-30 M |       |                                                  |
-| alert  | Name in use       | editCategories |              |       |                                                  |
+| Kind   | Item                                                                                                                                                                                                                   | Code                               | Look         | Works        | Notes                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------ | ------------ | --------------------------------------------------------------------------- |
+| dialog | "Edit Categories"                                                                                                                                                                                                      | editCategories                     | 2026-10-30 M |              |                                                                             |
+| button | List row                                                                                                                                                                                                               | editCategories                     | 2026-10-30 M |              |                                                                             |
+| button | OK                                                                                                                                                                                                                     | editCategories                     | 2026-10-30 M |              |                                                                             |
+| button | New                                                                                                                                                                                                                    | editCategories                     | 2026-10-30 M |              | Kept: no limit on categories; the Palm allows 15                            |
+| button | Rename: a name another category has (ignoring case, Unfiled too) merges the two silently: the records move to the category that has the name, the renamed one is deleted, and a list that showed it shows the kept one | editCategories, showEditCategories | 2026-10-30 M | 2026-11-16 M | Palm III and VII handbooks: give two categories the same name to merge them |
+| button | Delete: deleting the category a list shows resets that list's filter to All (To Do, Memo Pad, Address Book)                                                                                                            | editCategories, showEditCategories | 2026-10-30 M | 2026-11-16 M |                                                                             |
+| alert  | "Delete Category"                                                                                                                                                                                                      | editCategories                     |              |              |                                                                             |
+| dialog | "Edit Categories" name form: Enter a new category name                                                                                                                                                                 | nameForm                           | 2026-10-30 M |              |                                                                             |
+| field  | Category name (name form)                                                                                                                                                                                              | nameForm                           | 2026-10-30 M |              |                                                                             |
+| button | OK (name form): New with a name in use adds nothing; Rename to a name in use merges                                                                                                                                    | nameForm                           | 2026-10-30 M | 2026-11-16 M |                                                                             |
+| button | Cancel (name form)                                                                                                                                                                                                     | nameForm                           | 2026-10-30 M |              |                                                                             |
 
 ### Category pop-up
 
@@ -706,26 +708,27 @@ Palm reference: Handbook p.74 to 75. Code: `showFind`.
 
 Palm reference: palmsync. Code: `showSync`.
 
-| Kind   | Item       | Code     | Look | Works | Notes |
-| ------ | ---------- | -------- | ---- | ----- | ----- |
-| dialog | "Sync"     | showSync |      |       |       |
-| field  | Server     | showSync |      |       |       |
-| field  | Token      | showSync |      |       |       |
-| field  | Passphrase | showSync |      |       |       |
-| button | OK         | showSync |      |       |       |
-| button | Sync Now   | showSync |      |       |       |
-| button | Turn Off   | showSync |      |       |       |
-| button | Cancel     | showSync |      |       |       |
+| Kind   | Item                                                                                                                                                      | Code     | Look | Works        | Notes |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---- | ------------ | ----- |
+| dialog | "Sync"                                                                                                                                                    | showSync |      |              |       |
+| field  | Server                                                                                                                                                    | showSync |      |              |       |
+| field  | Token                                                                                                                                                     | showSync |      |              |       |
+| field  | Passphrase                                                                                                                                                | showSync |      |              |       |
+| button | OK: sets up sync; no result shows once the screen has closed                                                                                              | showSync |      | 2026-11-16 M |       |
+| button | Sync Now: no result shows once the screen has closed; the sync message adds a line "Not synced (too large): <titles>" for records over the server's limit | showSync |      | 2026-11-16 M |       |
+| button | Turn Off                                                                                                                                                  | showSync |      |              |       |
+| button | Cancel                                                                                                                                                    | showSync |      |              |       |
+| alert  | "Sync": setup error, sync error, and Turn Off question                                                                                                    | showSync |      | 2026-11-16 M |       |
 
 ### Import & Export
 
 Palm reference: Android files. Code: `MainActivity.onActivityResult`.
 
-| Kind  | Item                                             | Code             | Look | Works | Notes |
-| ----- | ------------------------------------------------ | ---------------- | ---- | ----- | ----- |
-| alert | "Import" (backup)                                | onActivityResult |      |       |       |
-| alert | "Import" (iCalendar: count of simplified events) | importIcs        |      |       |       |
-| alert | "Export"                                         | onActivityResult |      |       |       |
+| Kind  | Item                                                                     | Code                       | Look | Works        | Notes |
+| ----- | ------------------------------------------------------------------------ | -------------------------- | ---- | ------------ | ----- |
+| alert | "Import" (backup)                                                        | onActivityResult           |      |              |       |
+| alert | "Import" (iCalendar: count of simplified events)                         | importIcs                  |      |              |       |
+| alert | "Export": a failed save, or a lost export (it says so and saves nothing) | onActivityResult, saveFile |      | 2026-11-16 M |       |
 
 ## Palm Launcher
 
@@ -733,92 +736,94 @@ Palm reference: Android files. Code: `MainActivity.onActivityResult`.
 
 Palm reference: Palm III Applications. Code: `palm-launcher MainActivity`.
 
-| Kind    | Item                                  | Code     | Look | Works | Notes |
-| ------- | ------------------------------------- | -------- | ---- | ----- | ----- |
-| screen  | Title tab: time (tap opens the menus) | topBar   |      |       |       |
-| trigger | Category                              | topBar   |      |       |       |
-| icon    | Battery gauge                         | topBar   |      |       |       |
-| button  | App icon: tap launches                | showApps |      |       |       |
-| button  | App icon: touch & hold, app menu      | appMenu  |      |       |       |
-| button  | Dock slot: tap launches               | showDock |      |       |       |
-| button  | Dock slot: touch & hold, dock menu    | dockMenu |      |       |       |
+| Kind    | Item                                                                                                                    | Code        | Look | Works        | Notes |
+| ------- | ----------------------------------------------------------------------------------------------------------------------- | ----------- | ---- | ------------ | ----- |
+| screen  | Title tab: time (tap opens the menus)                                                                                   | topBar      |      |              |       |
+| trigger | Category                                                                                                                | topBar      |      |              |       |
+| icon    | Battery gauge                                                                                                           | topBar      |      |              |       |
+| button  | App icon: tap launches                                                                                                  | showApps    |      |              |       |
+| button  | App icon: touch & hold, app menu                                                                                        | appMenu     |      |              |       |
+| button  | Dock slot: tap launches                                                                                                 | showDock    |      |              |       |
+| button  | Dock slot: touch & hold, dock menu                                                                                      | dockMenu    |      |              |       |
+| icon    | App of a work profile or private space: listed with the system badge on its icon; a locked private space hides its apps | load        |      | 2026-11-16 M |       |
+| button  | Home: closes an open form, menu bar, or list; else cycles the category                                                  | onNewIntent |      | 2026-11-16 M |       |
 
 ### Launcher menus
 
 Palm reference: Palm III Applications menus. Code: `palm-launcher menus`.
 
-| Kind | Item                                 | Code  | Look | Works | Notes |
-| ---- | ------------------------------------ | ----- | ---- | ----- | ----- |
-| menu | App: Category...                     | menus |      |       |       |
-| menu | App: Info...                         | menus |      |       |       |
-| menu | App: Delete...                       | menus |      |       |       |
-| menu | Options: View as List / View as Grid | menus |      |       |       |
-| menu | Options: Grid Columns...             | menus |      |       |       |
-| menu | Options: Wallpaper                   | menus |      |       |       |
-| menu | Options: Text Size...                | menus |      |       |       |
-| menu | Options: Icon Size...                | menus |      |       |       |
-| menu | Options: Change Wallpaper...         | menus |      |       |       |
+| Kind | Item                                                   | Code            | Look | Works        | Notes |
+| ---- | ------------------------------------------------------ | --------------- | ---- | ------------ | ----- |
+| menu | App: Category...                                       | menus           |      |              |       |
+| menu | App: Info... (opens App info in the app's own profile) | menus, showInfo |      | 2026-11-16 M |       |
+| menu | App: Delete...                                         | menus           |      |              |       |
+| menu | Options: View as List / View as Grid                   | menus           |      |              |       |
+| menu | Options: Grid Columns...                               | menus           |      |              |       |
+| menu | Options: Wallpaper                                     | menus           |      |              |       |
+| menu | Options: Text Size...                                  | menus           |      |              |       |
+| menu | Options: Icon Size...                                  | menus           |      |              |       |
+| menu | Options: Change Wallpaper...                           | menus           |      |              |       |
 
 ### Launcher dialogs
 
 Palm reference: Palm III Applications. Code: `palm-launcher Dialogs.kt`.
 
-| Kind   | Item                              | Code           | Look | Works | Notes |
-| ------ | --------------------------------- | -------------- | ---- | ----- | ----- |
-| dialog | "Category"                        | pickCategory   |      |       |       |
-| button | Category: Cancel                  | pickCategory   |      |       |       |
-| dialog | Text Size, Icon Size              | pickSize       |      |       |       |
-| button | Size: Cancel                      | pickSize       |      |       |       |
-| dialog | "Grid Columns"                    | pickColumns    |      |       |       |
-| button | Grid Columns: Cancel              | pickColumns    |      |       |       |
-| dialog | App list (Category, Info, Delete) | pickApp        |      |       |       |
-| button | App list: Cancel                  | pickApp        |      |       |       |
-| dialog | "Edit Categories"                 | editCategories |      |       |       |
+| Kind   | Item                                                                            | Code                          | Look | Works        | Notes |
+| ------ | ------------------------------------------------------------------------------- | ----------------------------- | ---- | ------------ | ----- |
+| dialog | "Category"                                                                      | pickCategory                  |      |              |       |
+| button | Cancel (Category)                                                               | pickCategory                  |      |              |       |
+| dialog | Text Size, Icon Size                                                            | pickSize                      |      |              |       |
+| button | Cancel (Size)                                                                   | pickSize                      |      |              |       |
+| dialog | "Grid Columns"                                                                  | pickColumns                   |      |              |       |
+| button | Cancel (Grid Columns)                                                           | pickColumns                   |      |              |       |
+| dialog | App list (Category, Info, Delete)                                               | pickApp                       |      |              |       |
+| button | Cancel (App list)                                                               | pickApp                       |      |              |       |
+| dialog | "Edit Categories": a rename to a name in use merges the apps into that category | editCategories, mergeCategory |      | 2026-11-16 M |       |
 
 
 ## Behaviors
 
 Actions with no control of their own.
 
-| Behavior                                                           | Where                                       | Code                | Look | Works        | Notes                                                                                                                                          |
-| ------------------------------------------------------------------ | ------------------------------------------- | ------------------- | ---- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Swipe left or right: next or previous day, week, or month          | Date Book views                             | dispatchTouchEvent  |      |              |                                                                                                                                                |
-| Tap outside a line in edit: saves it and ends the edit             | Day, To Do                                  | dispatchTouchEvent  |      |              |                                                                                                                                                |
-| Type with no line selected: starts a new record                    | Day, To Do, Memo List, Address List         | dispatchKeyEvent    |      |              |                                                                                                                                                |
-| Backspace in an empty line: ends the edit, deletes an empty record | Day, To Do, Memo view                       | BackEdit            |      |              |                                                                                                                                                |
-| Back: Done in Memo view, Note view, Address View, Address Edit     | all apps                                    | onBackPressed       |      |              |                                                                                                                                                |
-| Ctrl and a command letter: runs the menu command                   | all apps                                    | dispatchKeyEvent    |      |              |                                                                                                                                                |
-| ^ and a ShortCut name, or Ctrl+Space: expands the ShortCut         | all text fields                             | palmShortCuts       |      |              |                                                                                                                                                |
-| Keyboard stays open on a tall screen                               | all apps                                    | keepKeyboard        |      |              |                                                                                                                                                |
-| Status bar hidden; swipe down shows it for a moment                | every window                                | hideStatusBar       |      |              |                                                                                                                                                |
-| Alarm notification: Snooze and OK                                  | Date Book                                   | AlarmReceiver       |      |              |                                                                                                                                                |
-| Alarm notification: OK or dismiss on phone or watch clears both    | Date Book, watch                            | Alarms.show         |      | 2026-11-09 D |                                                                                                                                                |
-| Live Update: alarmed timed event in progress, counts to its end    | Date Book (Android 16)                      | refreshLive         |      | 2026-11-09 D |                                                                                                                                                |
-| Agenda to the watch: after a change or sync, at boot and midnight  | Date Book                                   | WearBridge          |      | 2026-11-09 D |                                                                                                                                                |
-| Watch Date Book tile: appointments that fit, by day                | watch                                       | AgendaTileService   |      |              |                                                                                                                                                |
-| Watch To Do tile: first open To Dos; check box completes           | watch                                       | TodoTileService     |      |              |                                                                                                                                                |
-| Watch tile tap: opens the watch screen (7 days and the To Dos)     | watch                                       | AgendaActivity      |      |              |                                                                                                                                                |
-| To Do checked on the watch: completed on the phone                 | Date Book, watch                            | WearListener        |      |              |                                                                                                                                                |
-| Sync on open, 1 s after a change, and hourly                       | all apps                                    | SyncEngine          |      |              |                                                                                                                                                |
-| Font option changes every screen; dialogs keep the form font       | all apps                                    | render, Palm.views  |      |              |                                                                                                                                                |
-| Masked private record: 50% gray bar with the lock; Hide removes it | every record list                           | isMasked, maskedBar |      |              |                                                                                                                                                |
-| Empty list message                                                 | Day, Agenda, To Do, Memo List, Address List | build*              |      |              |                                                                                                                                                |
+| Behavior                                                                                                                                  | Where                                       | Code                          | Look | Works        | Notes |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------------------------- | ---- | ------------ | ----- |
+| Swipe left or right: next or previous day, week, or month                                                                                 | Date Book views                             | dispatchTouchEvent            |      |              |       |
+| Tap outside a line in edit: saves it and ends the edit                                                                                    | Day, To Do                                  | dispatchTouchEvent            |      |              |       |
+| Type with no line selected: starts a new record                                                                                           | Day, To Do, Memo List, Address List         | dispatchKeyEvent              |      |              |       |
+| Backspace in an empty line: ends the edit, deletes an empty record                                                                        | Day, To Do, Memo view                       | BackEdit                      |      |              |       |
+| Back: Done in Memo view, Note view, Address View, Address Edit                                                                            | all apps                                    | onBackPressed                 |      |              |       |
+| Ctrl and a command letter: runs the menu command                                                                                          | all apps                                    | dispatchKeyEvent              |      |              |       |
+| ^ and a ShortCut name, or Ctrl+Space: expands the ShortCut                                                                                | all text fields                             | palmShortCuts                 |      |              |       |
+| Keyboard stays open on a tall screen                                                                                                      | all apps                                    | keepKeyboard                  |      |              |       |
+| Status bar hidden; swipe down shows it for a moment                                                                                       | every window                                | hideStatusBar                 |      |              |       |
+| Alarm notification: Snooze and OK; both clear the notification of a deleted event; Snooze and Remind Me survive a reboot                  | Date Book                                   | AlarmReceiver, restorePending |      | 2026-11-16 M |       |
+| Alarm notification: OK or dismiss on phone or watch clears both                                                                           | Date Book, watch                            | Alarms.show                   |      | 2026-11-09 D |       |
+| Live Update: alarmed timed event in progress, counts to its end                                                                           | Date Book (Android 16)                      | refreshLive                   |      | 2026-11-09 D |       |
+| Agenda to the watch: after a change or sync, at boot and midnight; the boot and midnight pushes hold the receiver until the put completes | Date Book                                   | WearBridge                    |      | 2026-11-16 M |       |
+| Watch Date Book tile: appointments that fit, by day                                                                                       | watch                                       | AgendaTileService             |      |              |       |
+| Watch To Do tile: first open To Dos; check box completes                                                                                  | watch                                       | TodoTileService               |      |              |       |
+| Watch tile tap: opens the watch screen (7 days and the To Dos)                                                                            | watch                                       | AgendaActivity                |      |              |       |
+| To Do checked on the watch: completed on the phone; a check is kept when an agenda arrives at the same moment                             | Date Book, watch                            | WearListener, AgendaStore     |      | 2026-11-16 M |       |
+| Sync on open, 1 s after a change, and hourly                                                                                              | all apps                                    | SyncEngine                    |      |              |       |
+| Font option changes every screen; dialogs keep the form font                                                                              | all apps                                    | render, Palm.views            |      |              |       |
+| Masked private record: 50% gray bar with the lock; Hide removes it                                                                        | every record list                           | isMasked, maskedBar           |      |              |       |
+| Empty list message                                                                                                                        | Day, Agenda, To Do, Memo List, Address List | build*                        |      |              |       |
 
 ## Parity
 
 A record feature belongs in every view that shows its records. Check a whole row when one cell changes. `-` means the feature does not apply to that view.
 
-| Feature                                    | Day | Week | Month | Agenda | To Do | Memo List | Memo view | Address List | Address View | Address Edit | Helper                   |
-| ------------------------------------------ | --- | ---- | ----- | ------ | ----- | --------- | --------- | ------------ | ------------ | ------------ | ------------------------ |
-| Note icon, tap opens the note              | yes | -    | -     | yes    | yes   | -         | -         | yes          | -            | -            | noteIcon                 |
-| Note view (Done, Delete...)                | yes | -    | -     | yes    | yes   | -         | -         | yes          | yes          | yes          | openNoteView             |
-| Private masking (masked bar, tap shows it) | yes | yes  | -     | yes    | yes   | yes       | -         | yes          | yes          | -            | isMasked, maskedBar      |
-| Category trigger                           | -   | -    | -     | yes    | yes   | yes       | yes       | yes          | -            | yes          | pickCategory             |
-| Lined page with Palm scroll bar            | -   | -    | -     | -      | -     | yes       | yes       | -            | -            | -            | linedPage, withScrollBar |
-| Dotted line under each text line           | yes | -    | -     | -      | yes   | -         | yes       | -            | -            | yes          | LinedBackground          |
-| Delete with Save archive copy on PC        | yes | yes  | yes   | yes    | yes   | -         | yes       | -            | yes          | yes          | palmAlert                |
-| Find icon                                  | yes | yes  | yes   | yes    | yes   | yes       | yes       | yes          | yes          | yes          | render                   |
-| Title tab opens the menus                  | yes | yes  | yes   | yes    | yes   | yes       | yes       | yes          | yes          | yes          | tab                      |
+| Feature                                                                                               | Day | Week | Month | Agenda | To Do | Memo List | Memo view | Address List | Address View | Address Edit | Helper                   |
+| ----------------------------------------------------------------------------------------------------- | --- | ---- | ----- | ------ | ----- | --------- | --------- | ------------ | ------------ | ------------ | ------------------------ |
+| Note icon, tap opens the note                                                                         | yes | -    | -     | yes    | yes   | -         | -         | yes          | -            | -            | noteIcon                 |
+| Note view (Done, Delete...)                                                                           | yes | -    | -     | yes    | yes   | -         | -         | yes          | yes          | yes          | openNoteView             |
+| Private masking (masked bar, tap shows it)                                                            | yes | yes  | -     | yes    | yes   | yes       | -         | yes          | yes          | -            | isMasked, maskedBar      |
+| Category trigger                                                                                      | -   | -    | -     | yes    | yes   | yes       | yes       | yes          | -            | yes          | pickCategory             |
+| Lined page with Palm scroll bar                                                                       | -   | -    | -     | -      | -     | yes       | yes       | -            | -            | -            | linedPage, withScrollBar |
+| Dotted line under each text line                                                                      | yes | -    | -     | -      | yes   | -         | yes       | -            | -            | yes          | LinedBackground          |
+| Delete with Save archive copy on PC; a rotation in the picker saves the archive and keeps the records | yes | yes  | yes   | yes    | yes   | -         | yes       | -            | yes          | yes          | palmAlert                |
+| Find icon                                                                                             | yes | yes  | yes   | yes    | yes   | yes       | yes       | yes          | yes          | yes          | render                   |
+| Title tab opens the menus                                                                             | yes | yes  | yes   | yes    | yes   | yes       | yes       | yes          | yes          | yes          | tab                      |
 
 ## Rules found from faults
 
@@ -836,3 +841,6 @@ A record feature belongs in every view that shows its records. Check a whole row
 | 2026-11-11 | The watch widget icons were white glyphs; the host draws a widget's icon on a white disc above the card, so the dot showed blank.                                                                | A widget icon is a dark glyph (ic_agenda_widget, ic_todo_widget); the app icon stays white. Fixed the same day.                                                          |
 | 2026-11-11 | The larger watch bubbles fit one Date Book entry and two To Dos, with black below: the card is 113 dp high and holds 97 dp of rows.                                                              | Size widget rows from the card's measured height: log heightDp and the padding, and screenshot the watch with adb screencap. Fixed the same day.                         |
 | 2026-11-11 | After the watch screen opened from the To Do tile closed, the tile showed only its icon: a request with no device configuration gives a 0 dp screen, and the layout takes its size.              | A tile never sizes its layout from an empty device configuration: screen() in Tiles.kt puts in the watch's own screen. Fixed the same day.                               |
+| 2026-11-16 | A handler or dialog saved the record object captured when its screen was built, so a sync's change in between was lost, or a record a sync had deleted came back.                                | A handler or dialog saves only its own fields into the store copy, reread by id, never the object captured at render. Fixed the same day.                                |
+| 2026-11-16 | A rotation while the file picker was open lost the export, and after an archive copy, the delete that followed it.                                                                               | The screen state survives a configuration change. Fixed the same day.                                                                                                    |
+| 2026-11-16 | A rotation or a theme change with a launcher form, menu bar, or list open leaked its window.                                                                                                     | An open form closes when its activity is destroyed. Fixed the same day.                                                                                                  |

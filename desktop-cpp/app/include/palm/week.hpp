@@ -166,8 +166,6 @@ private:
 	void save_drag(view::Ctx& ctx, const detail::Drag& d);
 	// A click on the grid: a new event on empty space, else the box is selected and acts.
 	void click(view::Ctx& ctx, std::int32_t lx, std::int32_t ly, bool double_click);
-	// The items of the menu of a box.
-	void box_action(view::Ctx& ctx, const date_shared::Occ& occ);
 	// Opens a field in column `col`, at the hour `min` or on the untimed line `line`, for the title of a new event.
 	void start_typing(view::Ctx& ctx, std::size_t col, std::optional<std::int32_t> min, std::int32_t line);
 	// Closes the field of a new event. With `save`, a title that is not empty becomes an event, selected.

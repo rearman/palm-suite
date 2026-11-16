@@ -110,18 +110,14 @@ std::string day_text(std::int64_t day) {
 	return std::format("{}/{}/{}", d.month, d.day, d.year);
 }
 
-// The app name, the text and the right-hand column of a result row, as the official Find dialog shows them.
-struct Parts {
-	std::string_view app;
-	std::string text;
-	std::string right;
-};
+} // namespace
 
-Parts row_parts(const runner::Record& r, bool by) {
+namespace detail {
+
+Parts row_parts(const runner::Record& r, bool by, bool h24) {
 	if (const auto* e = std::get_if<model::Event>(&r)) {
-		const std::string when = e->untimed
-		                             ? day_text(e->date)
-		                             : std::format("{} {:02}:{:02}", day_text(e->date), e->start / 60, e->start % 60);
+		const std::string when =
+		    e->untimed ? day_text(e->date) : std::format("{} {}", day_text(e->date), model::time(e->start, h24));
 		return {"Date Book", e->title, when};
 	}
 	if (const auto* t = std::get_if<model::Todo>(&r)) {
@@ -139,6 +135,10 @@ Parts row_parts(const runner::Record& r, bool by) {
 	}
 	return {"", std::string(), std::string()};
 }
+
+} // namespace detail
+
+namespace {
 
 // The text with each tab and newline as a space: a tab is the column break of the list.
 std::string no_breaks(std::string s) {
@@ -326,7 +326,7 @@ std::optional<runner::Record> show(const view::Ctx& ctx) {
 			dlg.list->clear();
 			const bool by = address::by_company(ctx.settings);
 			for (const runner::Record& r : found) {
-				const Parts p = row_parts(r, by);
+				const detail::Parts p = detail::row_parts(r, by, ctx.h24);
 				// "@." stops the format codes of a column, so a title may start with "@".
 				const std::string line = std::format("@.{}\t@.{}\t@r@.{}", p.app, no_breaks(p.text), p.right);
 				dlg.list->add(line.c_str());

@@ -11,6 +11,9 @@
 
 	<uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
+	<!-- Android 15 and later list the private space to the default launcher only when it holds this permission. -->
+	<uses-permission android:name="android.permission.ACCESS_HIDDEN_PROFILES" />
+
 	<!-- A swipe down on the launcher opens the notification shade (expandNotifications). -->
 	<uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
 

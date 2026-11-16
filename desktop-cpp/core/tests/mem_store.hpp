@@ -248,6 +248,29 @@ public:
 		std::erase_if(rows, [uid](const Entry& e) { return e.uid == uid; });
 	}
 
+	// A tombstone holds a blank record of its table, so its Entry knows the table.
+	void put_tombstone(std::string_view table, std::string_view uid, std::int64_t rev) override {
+		Record blank = palm::model::Category{};
+		if (table == "events") {
+			blank = palm::model::Event{};
+		} else if (table == "todos") {
+			blank = palm::model::Todo{};
+		} else if (table == "memos") {
+			blank = palm::model::Memo{};
+		} else if (table == "addresses") {
+			blank = palm::model::Address{};
+		}
+		add(uid, std::move(blank), rev, true, true);
+	}
+
+	void reset_sync() override {
+		std::erase_if(rows, [](const Entry& e) { return e.deleted; });
+		for (Entry& e : rows) {
+			e.rev = 0;
+			e.dirty = true;
+		}
+	}
+
 	// Keeps a copy as a new dirty row with the uid copy-N, where N counts the copies.
 	void save_copy(Record rec) override {
 		const std::string uid = "copy-" + std::to_string(copies.size() + 1);

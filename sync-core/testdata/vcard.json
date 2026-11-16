@@ -132,7 +132,7 @@
      "zip": "",
      "lastName": "Müller",
      "country": "",
-     "note": "line one\r\nlinetwo",
+     "note": "line one\nlinetwo",
      "private": false,
      "address": "",
      "city": "",

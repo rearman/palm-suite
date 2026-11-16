@@ -28,7 +28,7 @@ constexpr std::array<std::string_view, 5> ENCODINGS = {"QUOTED-PRINTABLE", "BASE
 // The parameters of a property, by upper-case name, each with its values.
 using Params = std::map<std::string, std::vector<std::string>>;
 
-// One content line, as name, parameters, and value.
+// One content line, as name, parameters, and value. The value keeps the file's bytes until its CHARSET reads it.
 struct Prop {
 	std::string name;
 	Params params;
@@ -180,24 +180,6 @@ std::string decode(std::string_view bytes, Charset cs) {
 	return out;
 }
 
-// The bytes of a char; an unmappable char gives "?", as Java's encoder.
-std::string encode(char32_t c, Charset cs) {
-	if (cs == Charset::Latin1) {
-		return c < 256 ? std::string(1, static_cast<char>(c)) : std::string("?");
-	}
-	if (cs == Charset::Cp1252) {
-		for (int b = 0; b <= 255; ++b) {
-			if (cp1252(static_cast<std::uint8_t>(b)) == c) {
-				return std::string(1, static_cast<char>(b));
-			}
-		}
-		return "?";
-	}
-	std::string out;
-	text::append_utf8(out, c);
-	return out;
-}
-
 // Whether a code point is an ASCII hex digit.
 bool is_hex(char32_t c) {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
@@ -215,45 +197,50 @@ std::uint32_t hex_value(char32_t c) {
 }
 
 // Decodes "=XX" to one byte. A "=" with no hex digits is a soft break that unfolding did not join.
-std::string decode_qp(std::string_view s, Charset cs) {
-	std::vector<char32_t> chars;
-	for (std::size_t i = 0; i < s.size();) {
-		text::Decoded d = text::decode_at(s, i);
-		chars.push_back(d.cp);
-		i += d.len;
-	}
+std::string decode_qp(std::string_view s) {
 	std::string bytes;
 	std::size_t i = 0;
-	while (i < chars.size()) {
-		char32_t c = chars[i];
-		if (c == '=' && i + 2 < chars.size() && is_hex(chars[i + 1]) && is_hex(chars[i + 2])) {
-			bytes.push_back(static_cast<char>(hex_value(chars[i + 1]) * 16 + hex_value(chars[i + 2])));
+	while (i < s.size()) {
+		char c = s[i];
+		if (c == '=' && i + 2 < s.size() && is_hex(static_cast<unsigned char>(s[i + 1])) &&
+		    is_hex(static_cast<unsigned char>(s[i + 2]))) {
+			bytes.push_back(static_cast<char>(hex_value(static_cast<unsigned char>(s[i + 1])) * 16 +
+			                                  hex_value(static_cast<unsigned char>(s[i + 2]))));
 			i += 3;
 		} else if (c == '=') {
 			++i;
 		} else {
-			bytes += encode(c, cs);
+			bytes.push_back(c);
 			++i;
 		}
 	}
-	return decode(bytes, cs);
+	return bytes;
 }
 
-// The value of `p` with quoted-printable bytes decoded. Bytes decode as UTF-8 unless CHARSET names another charset.
+// The text of `p`: its bytes, with quoted-printable decoded, read in its CHARSET, UTF-8 when it names none. A
+// quoted-printable CRLF becomes LF.
 std::string value(const Prop& p) {
+	std::string_view name = "UTF-8";
+	if (auto it = p.params.find("CHARSET"); it != p.params.end() && !it->second.empty()) {
+		name = it->second.front();
+	}
 	bool qp = false;
 	if (auto it = p.params.find("ENCODING"); it != p.params.end()) {
 		qp = std::ranges::any_of(
 		    it->second, [](const std::string& e) { return text::eq_ignore_ascii_case(e, "QUOTED-PRINTABLE"); });
 	}
 	if (!qp) {
-		return p.value;
+		return decode(p.value, charset(name));
 	}
-	std::string_view name = "UTF-8";
-	if (auto it = p.params.find("CHARSET"); it != p.params.end() && !it->second.empty()) {
-		name = it->second.front();
+	std::string s = decode(decode_qp(p.value), charset(name));
+	std::string out;
+	for (std::size_t i = 0; i < s.size(); ++i) {
+		if (s[i] == '\r' && i + 1 < s.size() && s[i + 1] == '\n') {
+			continue;
+		}
+		out += s[i];
 	}
-	return decode_qp(p.value, charset(name));
+	return out;
 }
 
 // The structured parts of `p` split at `sep`, each unescaped. Never empty.
@@ -277,19 +264,10 @@ bool is_soft(std::string_view line) {
 // Joins the continuation lines of `text`: a line that starts with a space or tab continues the line before it, and a
 // quoted-printable line that ends in "=" continues on the next line.
 std::vector<std::string> unfold(std::string_view text) {
-	if (text.starts_with("\xEF\xBB\xBF")) {
-		text.remove_prefix(3);
-	}
 	std::vector<std::string> out;
 	bool soft = false;
-	std::size_t start = 0;
-	for (;;) {
-		std::size_t nl = text.find('\n', start);
-		std::string_view l = text.substr(start, nl == std::string_view::npos ? std::string_view::npos : nl - start);
-		if (l.ends_with('\r')) {
-			l.remove_suffix(1);
-		}
-		if (!out.empty() && (soft || l.starts_with(' ') || l.starts_with('\t'))) {
+	for (const std::string_view l : ical::lines(text)) {
+		if (!out.empty() && (soft || ical::continues(l))) {
 			std::string& last = out.back();
 			if (soft) {
 				last.pop_back();
@@ -302,10 +280,6 @@ std::vector<std::string> unfold(std::string_view text) {
 			out.emplace_back(l);
 			soft = is_soft(l);
 		}
-		if (nl == std::string_view::npos) {
-			break;
-		}
-		start = nl + 1;
 	}
 	return out;
 }

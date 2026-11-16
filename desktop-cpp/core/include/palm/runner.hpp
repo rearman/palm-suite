@@ -10,6 +10,7 @@
 #include "palm/codec.hpp"
 #include "palm/model.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <optional>
@@ -56,6 +57,10 @@ public:
 	// Saves the server copy of a record; its uid is in the record.
 	virtual void put_remote(Record record, std::int64_t rev) = 0;
 	virtual void drop_remote(std::string_view table, std::string_view uid) = 0;
+	// A dirty tombstone at `rev` for a uid with no row: a new record deleted here while its push was in flight.
+	virtual void put_tombstone(std::string_view table, std::string_view uid, std::int64_t rev) = 0;
+	// Every live row dirty at rev 0, and no tombstones, so each record uploads again.
+	virtual void reset_sync() = 0;
 	// Keep-both: saves the record as a new dirty record with a new uid.
 	virtual void save_copy(Record record) = 0;
 	virtual codec::ShortCuts short_cuts() const = 0;
@@ -67,11 +72,13 @@ public:
 	virtual void set_sync_since(std::int64_t rev) = 0;
 };
 
-// The push items of one round, with the plaintext of each pushed row (nullopt for a delete).
+// The push items of one round, with the plaintext of each pushed row (nullopt for a delete), and the titles of
+// the dirty records held back because their sealed blob is over the server's limit.
 struct SyncPlan {
 	std::vector<client::PushItem> items;
 	std::unordered_map<std::string, std::optional<std::string>> pushed;
 	std::int64_t since = 0;
+	std::vector<std::string> held;
 };
 
 // What applying one server answer changed.
@@ -84,13 +91,22 @@ struct SyncOutcome {
 
 // Each run stops after this many rounds. A later run finishes what is left.
 inline constexpr std::uint32_t MAX_ROUNDS = 5;
+// The largest blob the server takes, in base64 characters (maxBlobBytes in sync-server/server.go).
+inline constexpr std::size_t MAX_BLOB = 64 * 1024;
 inline constexpr std::string_view DECRYPT_MESSAGE = "A record could not be decrypted. Check the passphrase.";
 
-// Step A: builds the push items from the dirty rows and the ShortCuts list.
+// Step A: builds the push items from the dirty rows and the ShortCuts list. A record whose blob is over MAX_BLOB
+// stays dirty and out of the push, so the server does not refuse the whole push; its title goes in held.
 std::expected<SyncPlan, std::string> collect(const SyncStore& store, std::span<const std::uint8_t> key);
 
-// Steps C.1 to C.4. Fails with a message for the user when a live change cannot be decrypted. A bad key
-// changes nothing, because every live change is decrypted before any change is applied.
+// Steps C.1 to C.4. Fails with a message for the user when a live change cannot be decrypted or the ShortCuts
+// list does not read. A bad key changes nothing, because every live change is decrypted before any change is
+// applied.
+//
+// A server revision below plan.since means that the server went back, e.g. to a backup. Then the store forgets
+// what it pulled: every live row becomes due for upload at rev 0, and the next round pulls from rev 0, which
+// sorts the copies out by the keep-both rule. Limit: a server that went back and then passed plan.since again
+// before this device synced is not caught; that needs a server id in the answer that changes on a restore.
 std::expected<SyncOutcome, std::string> apply(SyncStore& store, std::span<const std::uint8_t> key, const SyncPlan& plan,
                                               const client::SyncResult& result);
 

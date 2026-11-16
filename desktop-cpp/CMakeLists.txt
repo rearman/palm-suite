@@ -46,6 +46,9 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# The version that Help > About shows. CI passes the package version: a desktop-v1.2.3 tag gives 1.2.3.
+set(PALM_VERSION "0.0.0-dev" CACHE STRING "The app version that Help > About shows")
+
 # Warnings are errors in our code only: FLTK is added above, so it does not inherit these options.
 add_compile_options(-Wall -Wextra -Wpedantic -Werror -ffp-contract=off)
 
@@ -66,9 +69,9 @@ set(DEPS_runner palm_client palm_codec palm_crypto palm_logic palm_model)
 set(DEPS_session palm_client palm_runner)
 
 # The app modules without FLTK (app/src), after the core ones.
-set(PALM_APP_MODULES platform settings store)
+set(PALM_APP_MODULES platform store settings)
 set(DEPS_platform palm_days)
-set(DEPS_settings palm_platform palm_text)
+set(DEPS_settings palm_platform palm_store palm_text)
 set(DEPS_store palm_platform palm_codec palm_crypto palm_json palm_model palm_runner palm_text nlohmann_json::nlohmann_json)
 
 # The FLTK modules (app/src), in dependency order. A module of more than one source lists them in SRCS_<m>:
@@ -167,6 +170,9 @@ foreach(m IN LISTS PALM_MODULES PALM_APP_MODULES PALM_UI_MODULES)
 	endif()
 	add_library(palm_${m} STATIC ${sources})
 	target_include_directories(palm_${m} PUBLIC core/include app/include)
+	if(m STREQUAL "dialogs")
+		target_compile_definitions(palm_dialogs PRIVATE PALM_VERSION="${PALM_VERSION}")
+	endif()
 	if(m IN_LIST PALM_UI_MODULES)
 		target_link_libraries(palm_${m} PUBLIC ${DEPS_${m}} ${PALM_UI_COMMON})
 	else()

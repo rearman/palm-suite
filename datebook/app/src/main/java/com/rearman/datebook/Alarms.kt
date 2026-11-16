@@ -237,7 +237,10 @@ object Alarms {
         nm.createNotificationChannel(ch)
     }
 
-    fun notifId(e: Event, day: Long): Int = (e.id * 1009 + day).toInt()
+    fun notifId(e: Event, day: Long): Int = notifId(e.id, day)
+
+    // By id: OK and Snooze clear the notification of an event that a sync has deleted since.
+    fun notifId(id: Long, day: Long): Int = (id * 1009 + day).toInt()
 
     private fun key(e: Event, day: Long) = "${e.id}/$day"
 
@@ -279,21 +282,72 @@ object Alarms {
     }
 
     fun scheduleRemind(ctx: Context, e: Event, day: Long, remaining: Int, everyMin: Int) {
-        val p = pi(ctx, ACTION_REMIND, "remind/${key(e, day)}") {
-            it.putExtra("id", e.id); it.putExtra("day", day); it.putExtra("left", remaining)
+        setRemind(ctx, e.id, day, remaining, System.currentTimeMillis() + everyMin * 60_000L)
+    }
+
+    private fun setRemind(ctx: Context, id: Long, day: Long, left: Int, time: Long) {
+        val p = pi(ctx, ACTION_REMIND, "remind/$id/$day") {
+            it.putExtra("id", id); it.putExtra("day", day); it.putExtra("left", left)
         }
-        setExact(ctx, System.currentTimeMillis() + everyMin * 60_000L, p)
+        setExact(ctx, time, p)
+        keep(ctx, "remind/$id/$day", time, left)
     }
 
     fun cancelRemind(ctx: Context, id: Long, day: Long) {
         am(ctx).cancel(pi(ctx, ACTION_REMIND, "remind/$id/$day"))
+        drop(ctx, "remind/$id/$day")
     }
 
     fun snooze(ctx: Context, id: Long, day: Long) {
+        setSnoozed(ctx, id, day, System.currentTimeMillis() + SNOOZE_MINUTES * 60_000L)
+    }
+
+    private fun setSnoozed(ctx: Context, id: Long, day: Long, time: Long) {
         val p = pi(ctx, ACTION_SNOOZED, "snoozed/$id/$day") {
             it.putExtra("id", id); it.putExtra("day", day)
         }
-        setExact(ctx, System.currentTimeMillis() + SNOOZE_MINUTES * 60_000L, p)
+        setExact(ctx, time, p)
+        keep(ctx, "snoozed/$id/$day", time, 0)
+    }
+
+    // The Remind Me and Snooze alarms still to ring. The system drops every alarm at a reboot, and
+    // scheduleNext finds only the next fire alarm from the events, so these are kept here for
+    // BootReceiver to set again. Key "remind/<id>/<day>" or "snoozed/<id>/<day>"; value
+    // "<time ms>/<reminders left>".
+    private fun pending(ctx: Context) = ctx.getSharedPreferences("alarms", Context.MODE_PRIVATE)
+
+    private fun keep(ctx: Context, k: String, time: Long, left: Int) {
+        pending(ctx).edit().putString(k, "$time/$left").apply()
+    }
+
+    /** Forgets a kept alarm: it rang, or OK or Snooze replaced it. */
+    fun drop(ctx: Context, k: String) {
+        pending(ctx).edit().remove(k).apply()
+    }
+
+    /**
+     * Sets the kept Remind Me and Snooze alarms again, after a reboot. One whose time went by while
+     * the phone was off rings at once. A malformed entry is dropped.
+     */
+    fun restorePending(ctx: Context) {
+        val now = System.currentTimeMillis()
+        for ((k, v) in pending(ctx).all) {
+            val parts = k.split('/')
+            val value = (v as? String)?.split('/')
+            val id = parts.getOrNull(1)?.toLongOrNull()
+            val day = parts.getOrNull(2)?.toLongOrNull()
+            val time = value?.getOrNull(0)?.toLongOrNull()
+            val left = value?.getOrNull(1)?.toIntOrNull()
+            if (parts.size != 3 || id == null || day == null || time == null || left == null) {
+                drop(ctx, k)
+                continue
+            }
+            when (parts[0]) {
+                "remind" -> setRemind(ctx, id, day, left, maxOf(time, now))
+                "snoozed" -> setSnoozed(ctx, id, day, maxOf(time, now))
+                else -> drop(ctx, k)
+            }
+        }
     }
 }
 
@@ -319,6 +373,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 Alarms.scheduleNext(ctx)
             }
             Alarms.ACTION_REMIND -> {
+                Alarms.drop(ctx, "remind/$id/$day")
                 val e = store.event(id) ?: return
                 val left = intent.getIntExtra("left", 0)
                 Alarms.show(ctx, e, day)
@@ -326,29 +381,50 @@ class AlarmReceiver : BroadcastReceiver() {
             }
             Alarms.ACTION_OK -> {
                 Alarms.cancelRemind(ctx, id, day)
-                store.event(id)?.let { nm.cancel(Alarms.notifId(it, day)) }
+                nm.cancel(Alarms.notifId(id, day))
             }
             Alarms.ACTION_SNOOZE -> {
                 Alarms.cancelRemind(ctx, id, day)
-                store.event(id)?.let { nm.cancel(Alarms.notifId(it, day)) }
+                nm.cancel(Alarms.notifId(id, day))
                 Alarms.snooze(ctx, id, day)
             }
             Alarms.ACTION_SNOOZED -> {
+                Alarms.drop(ctx, "snoozed/$id/$day")
                 val e = store.event(id) ?: return
                 Alarms.show(ctx, e, day)
             }
             Alarms.ACTION_LIVE -> Alarms.scheduleNext(ctx)
             Alarms.ACTION_DAY -> {
                 Alarms.scheduleNext(ctx)
-                WearBridge.push(ctx)
+                // The put is asynchronous: the process stays until it is sent.
+                val r = goAsync()
+                WearBridge.push(ctx) { r.finish() }
             }
         }
     }
 }
 
+/**
+ * Sets the alarms again after a reboot, a clock or time zone change, or an update of the app, and
+ * pushes the watch agenda. The receiver is exported for these system broadcasts, which other apps
+ * cannot send; any other intent does nothing.
+ */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
+        if (intent.action !in ACTIONS) return
         Alarms.scheduleNext(ctx)
-        WearBridge.push(ctx)
+        Alarms.restorePending(ctx)
+        // The put is asynchronous: the process stays until it is sent.
+        val r = goAsync()
+        WearBridge.push(ctx) { r.finish() }
+    }
+
+    private companion object {
+        val ACTIONS = setOf(
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+            Intent.ACTION_MY_PACKAGE_REPLACED,
+        )
     }
 }

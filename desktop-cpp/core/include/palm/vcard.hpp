@@ -23,7 +23,8 @@ struct Parsed {
 };
 
 // Reads every BEGIN:VCARD to END:VCARD card of `text`. A card with no usable field is skipped. The phones fill the
-// five phone slots in file order; phones past five and later ADR fields go to the note.
+// five phone slots in file order; phones past five and later ADR fields go to the note. `text` is the bytes of the
+// file: folds join as bytes, and each value reads in its CHARSET, UTF-8 by default.
 std::vector<Parsed> parse(std::string_view text);
 
 // Writes `list` as vCard 3.0 with CRLF line ends. `category_name` gives the name of a category id; category 0

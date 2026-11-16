@@ -53,8 +53,24 @@ private:
 	std::shared_ptr<IdChoiceState> state_;
 };
 
+// One merge of Edit Categories: the records of `from` moved to `into`, and `from` was deleted.
+struct Merge {
+	std::int32_t from;
+	std::int32_t into;
+};
+
+// The category that a filter showing `id` shows after `merges`, taken in their order: a merged category gives the
+// one it went into, and any other id stays.
+std::int32_t after_merges(std::int32_t id, const std::vector<Merge>& merges);
+
 // The Edit Categories dialog of one app (0 To Do, 1 Memo Pad, 2 Address Book). It writes the store as the user
-// works; the app reads the store again when the dialog closes.
-void edit_categories(palm::store::DesktopStore& store, std::int32_t app);
+// works; the app reads the store again when the dialog closes. As on the Palm, a rename to the name of another
+// category (ignoring case, Unfiled too) merges the two, and New with a name in use adds nothing. Gives the merges
+// made, in their order, so the caller can point each filter that showed a merged category at the kept one.
+std::vector<Merge> edit_categories(palm::store::DesktopStore& store, std::int32_t app);
+
+// Merges the category `from` of `app` into `into`: its records move to `into`, each saved so it syncs, then `from`
+// is deleted, which sends its sync tombstone. Unfiled is never merged away.
+void merge_category(palm::store::DesktopStore& store, std::int32_t app, std::int32_t from, std::int32_t into);
 
 } // namespace palm::category

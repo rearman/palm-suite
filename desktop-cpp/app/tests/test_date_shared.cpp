@@ -1,13 +1,16 @@
 // links: assets draw msg mnemonics platform_ui dialogs combo text_edit note_dialog date_shared
 // The tests of desktop-rs/app/src/date_shared.rs that need no display: the repeat summary, the titles and time labels,
-// and the wrap of a title.
+// the wrap of a title, the All move of a series, and a new event.
 #include "palm/date_shared.hpp"
 
 #include "palm/days.hpp"
 
 #include <doctest/doctest.h>
 
+#include <filesystem>
 #include <functional>
+#include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,6 +18,7 @@
 namespace date_shared = palm::date_shared;
 namespace days = palm::days;
 namespace model = palm::model;
+namespace settings = palm::settings;
 
 namespace {
 
@@ -74,4 +78,45 @@ TEST_CASE("words_wrap_at_spaces_and_long_words_cut_between_characters") {
 	// The first line, after the markers, may be wider than the rest.
 	CHECK(date_shared::wrap_words("a b cd", 18, 12, six) == std::vector<std::string>{"a b", "cd"});
 	CHECK(date_shared::wrap_words("   ", 12, 12, six).empty());
+}
+
+TEST_CASE("moving_a_weekly_series_with_all_turns_its_days_and_exceptions") {
+	const std::int64_t mon = days::epoch_day(2026, 10, 19);
+	REQUIRE(days::dow(mon) == 1);
+	model::Event e = ev(mon, model::repeat::WEEK, 1);
+	e.week_days = 1 << 1;
+	e.exceptions = {mon + 7};
+	e.repeat_end = mon + 28;
+	// The occurrence of the third Monday is dragged to its Wednesday, and All is answered.
+	const date_shared::Occ occ{e, mon + 14};
+	model::Event work = e;
+	work.date = mon + 16;
+	const model::Event moved = date_shared::move_all(occ, work);
+	CHECK(moved.date == mon + 2);
+	CHECK(moved.week_days == 1 << 3);
+	CHECK(moved.exceptions == std::set<std::int64_t>{mon + 9});
+	CHECK(moved.repeat_end == mon + 30);
+	// Days that the form set itself stay as the form has them.
+	work.week_days = (1 << 2) | (1 << 4);
+	CHECK(date_shared::move_all(occ, work).week_days == ((1 << 2) | (1 << 4)));
+	// So does a repeat end that the form changed along with the date: it is not shifted again.
+	work.repeat_end = mon + 35;
+	CHECK(date_shared::move_all(occ, work).repeat_end == mon + 35);
+}
+
+TEST_CASE("a_new_event_in_the_last_hour_ends_at_11_59_pm") {
+	const settings::Settings none =
+	    settings::Settings::open(std::filesystem::temp_directory_path() / "palm-test-date-shared-no-settings");
+	const std::int64_t day = days::epoch_day(2026, 10, 19);
+	const model::Event late = date_shared::new_event("Late", day, 23 * 60, none);
+	CHECK(late.start == 23 * 60);
+	CHECK(late.end == 23 * 60 + 59);
+	CHECK_FALSE(late.untimed);
+	const model::Event morning = date_shared::new_event("Morning", day, 8 * 60, none);
+	CHECK(morning.end == 9 * 60);
+	const model::Event untimed = date_shared::new_event("Any time", day, std::nullopt, none);
+	CHECK(untimed.untimed);
+	CHECK(untimed.start == 8 * 60);
+	CHECK(untimed.end == 9 * 60);
+	CHECK(untimed.title == "Any time");
 }

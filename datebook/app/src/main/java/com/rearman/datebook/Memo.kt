@@ -96,11 +96,26 @@ private fun MainActivity.memoRow(m: Memo, n: Int, manual: Boolean): View {
 }
 
 /**
+ * The store copy of [m], or [m] itself while it is new and not stored. A sync replaces the store
+ * object of a memo it pulls, so a screen saves this copy and never the object it drew. Null when
+ * a sync deleted the memo.
+ */
+internal fun MainActivity.storeMemo(m: Memo): Memo? =
+    if (m.id == 0L) m else store.memo(m.id)
+
+/**
  * Memo Edit screen for [MainActivity.memoOpen]. The body is one multi-line field on lined paper.
  * A change saves the memo when it has text, or when it already exists in the store.
  */
 internal fun MainActivity.buildMemoEdit(h: LinearLayout, content: FrameLayout, cmds: LinearLayout) {
-    val m = memoOpen!!
+    // Each change is saved at once, so the editor holds no unsaved text: after a sync (onApplied
+    // renders) or on resume, the editor shows the store copy, with the text the sync brought.
+    val m = storeMemo(memoOpen!!) ?: run {
+        memoOpen = null
+        buildMemoList(h, content, cmds)
+        return
+    }
+    memoOpen = m
     val list = visibleMemos()
     val idx = if (m.id == 0L) -1 else list.indexOfFirst { it.id == m.id }
     val n = if (idx < 0) list.size + 1 else idx + 1
@@ -110,16 +125,19 @@ internal fun MainActivity.buildMemoEdit(h: LinearLayout, content: FrameLayout, c
     h.addView(selector(categoryLabel(m.category)) { tv ->
         endEdit()
         pickCategory(tv, m.category, includeAll = false, app = 1) { id ->
-            m.category = id
-            if (m.text.isNotBlank()) store.save(m)
+            storeMemo(m)?.let { cur ->
+                cur.category = id
+                if (cur.text.isNotBlank()) store.save(cur)
+            }
             render()
         }
     })
 
     val done = { closeMemo(m) }
     val ed = linedPage(content, m.text) { s ->
-        m.text = s
-        if (m.id != 0L || m.text.isNotBlank()) store.save(m)
+        val cur = storeMemo(m) ?: return@linedPage
+        cur.text = s
+        if (cur.id != 0L || cur.text.isNotBlank()) store.save(cur)
     }
     ed.onEmptyBack = done // Backspace in an empty memo closes and deletes it.
     if (m.id == 0L) showKeyboardSoon()
@@ -132,7 +150,8 @@ internal fun MainActivity.buildMemoEdit(h: LinearLayout, content: FrameLayout, c
 /** Done (and Back) in the Memo view: ends the edit, deletes [m] when it is empty, and shows the Memo List. */
 internal fun MainActivity.closeMemo(m: Memo) {
     endEdit()
-    if (m.text.isBlank() && m.id != 0L) store.delete(m)
+    val cur = storeMemo(m)
+    if (cur != null && cur.text.isBlank() && cur.id != 0L) store.delete(cur)
     memoOpen = null
     render()
 }
@@ -166,9 +185,12 @@ private fun MainActivity.showMemoDetails(m: Memo) {
     }
     d.add(privRow, 0)
     d.button("OK", 37) {
-        m.category = cat
-        m.isPrivate = priv
-        if (m.id != 0L || m.text.isNotBlank()) store.save(m)
+        // The store copy: a sync while the form is up can replace the memo.
+        storeMemo(m)?.let { cur ->
+            cur.category = cat
+            cur.isPrivate = priv
+            if (cur.id != 0L || cur.text.isNotBlank()) store.save(cur)
+        }
         d.dismiss()
         render()
     }
@@ -180,8 +202,9 @@ private fun MainActivity.showMemoDetails(m: Memo) {
 /** Asks before the current memo is deleted. The archive copy is saved first when checked. */
 internal fun MainActivity.deleteMemoAsk(m: Memo) {
     palmAlert("Delete Memo", "Delete current memo?", 86, archiveY = 43) { archive ->
-        val doIt = { if (m.id != 0L) store.delete(m); memoOpen = null; render() }
-        if (archive && m.id != 0L) exportFile("memo-archive", store.exportJson(emptyList(), emptyList(), listOf(m)), doIt)
+        val cur = storeMemo(m)
+        val doIt = { if (cur != null && cur.id != 0L) store.delete(cur); memoOpen = null; render() }
+        if (archive && cur != null && cur.id != 0L) exportFile("memo-archive", store.exportJson(emptyList(), emptyList(), listOf(cur)), doIt)
         else doIt()
     }
 }

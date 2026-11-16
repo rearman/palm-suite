@@ -1,15 +1,18 @@
 // The private free functions and constants of the Date view, as desktop-rs/app/src/date.rs: the layout of the Day grid,
-// the right pane, the calendar, and the tabs. date.cpp and date_view.cpp include it. The structs and the methods of the
-// view are declared in palm/date.hpp.
+// the right pane, the calendar, and the tabs, and the event box menu and the in-place fields that the Day and Week
+// views share. date.cpp, date_view.cpp, and week.cpp include it. The structs and the methods of the views are declared
+// in palm/date.hpp and palm/week.hpp.
 #pragma once
 
 #include "palm/date.hpp"
 #include "palm/date_shared.hpp"
 #include "palm/msg.hpp"
 #include "palm/records.hpp"
+#include "palm/view.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -17,6 +20,8 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+
+class Fl_Widget;
 
 namespace palm::date::detail {
 
@@ -80,9 +85,6 @@ std::string event_title_of(const model::Address& a);
 // The selected row of a single-selection list.
 std::optional<std::size_t> records_selected(records::RecordTable& t, std::size_t n);
 
-// Shows a menu of `labels` at the pointer; the index of the pick.
-std::optional<std::size_t> popup(std::span<const std::string_view> labels);
-
 // The events of a list of the right pane: a press and a drag go to the view, which drags a row to the Day
 // grid; the list keeps its own selection of the pressed row.
 bool pane_event(records::RecordTable& t, int ev, msg::Sender s);
@@ -99,9 +101,6 @@ std::pair<Span, Span> pane_parts(const PaneModel& p, std::int32_t w);
 void draw_pane_todo(const PaneTodo& r, const PaneModel& p, bool selected,
                     std::tuple<std::int32_t, std::int32_t, std::int32_t, std::int32_t> box,
                     std::pair<Fl_PNG_Image&, Fl_PNG_Image&> icons);
-
-// The first day of the week that opens the first row of the calendar of the month of `day`.
-std::int64_t calendar_start(std::int64_t day, std::uint32_t begins);
 
 // The month calendar of the right pane: the day letters on the panel gray, then six weeks. The selected day
 // is filled; today is red and bold.
@@ -127,5 +126,26 @@ std::string_view tab_caption(msg::DateMode mode);
 // The tabs on the right edge, with their captions turned clockwise and their Alt letter underlined. The
 // selected tab is 4 px longer and starts 2 px higher, so it covers the edge of the body it joins.
 void draw_tabs(const Fl_Box& f, msg::DateMode mode);
+
+// Shows the menu of the event box of `occ` (Delete, Note, Alarm, Edit) and acts on the pick. True when the event was
+// deleted, so the view clears its selection.
+bool box_action(view::Ctx& ctx, const date_shared::Occ& occ);
+
+// The in-place fields of a Day or Week view, as field_event acts on them.
+struct Fields {
+	// The input of the new event field and of the title field, or null when that field is closed.
+	const Fl_Widget* typing = nullptr;
+	const Fl_Widget* title = nullptr;
+	// Closes the new event field or the title field, saving it when given true.
+	std::function<void(bool)> end_typing;
+	std::function<void(bool)> end_title;
+	// The day and the hour (nullopt for an untimed row) that a double click in the new event field opens in Edit
+	// Event; nullopt when it opens nothing.
+	std::optional<std::pair<std::int64_t, std::optional<std::int32_t>>> dialog;
+};
+
+// The keys and the focus of the in-place fields: Enter saves, Escape drops, a focus loss saves the field that lost it,
+// and a double click in the new event field opens Edit Event when `v.dialog` gives a place.
+void field_event(view::Ctx& ctx, msg::FieldEv f, const Fields& v);
 
 } // namespace palm::date::detail

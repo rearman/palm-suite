@@ -85,7 +85,8 @@ fun EditText.palmShortCuts() {
 		if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_SPACE &&
 			event.isCtrlPressed && ShortCuts.list.isNotEmpty()
 		) {
-			text.replace(selectionStart, selectionEnd, ShortCuts.TRIGGER.toString())
+			// A selection made backward (Shift+Left) has its start after its end.
+			text.replace(minOf(selectionStart, selectionEnd), maxOf(selectionStart, selectionEnd), ShortCuts.TRIGGER.toString())
 			true
 		} else {
 			false

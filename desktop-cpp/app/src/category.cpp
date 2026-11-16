@@ -6,6 +6,7 @@
 #include "palm/draw.hpp"
 #include "palm/mnemonics.hpp"
 #include "palm/store.hpp"
+#include "palm/text.hpp"
 
 #include <FL/Fl.H>
 #include <FL/Fl_Button.H>
@@ -19,7 +20,9 @@
 #include <cstddef>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -73,6 +76,38 @@ void delete_records_in(palm::store::DesktopStore& store, std::int32_t app, std::
 		delete_in(store.todos, id, [&](std::int64_t i) { store.delete_todo(i); });
 		break;
 	}
+}
+
+// Gives the records of `rows` whose category is `from` the category `into`, each saved through `save`, so it syncs.
+// The records are copied first, as `save` changes the rows.
+template <typename Row, typename Save>
+void move_in(const std::vector<Row>& rows, std::int32_t from, std::int32_t into, Save save) {
+	std::vector<Row> moved;
+	for (const auto& r : rows) {
+		if (r.category == from) {
+			moved.push_back(r);
+		}
+	}
+	for (auto& r : moved) {
+		r.category = into;
+		save(r);
+	}
+}
+
+// The category of `app` other than `except` that has `name`, ignoring case as the Android form does, with Unfiled
+// among them; none when no other category has it.
+std::optional<std::int32_t> named(const palm::store::DesktopStore& store, std::int32_t app, std::string_view name,
+                                  std::optional<std::int32_t> except) {
+	const std::string want = palm::text::to_lowercase(name);
+	if (want == palm::text::to_lowercase("Unfiled")) {
+		return UNFILED;
+	}
+	for (const auto& c : store.categories_for(app)) {
+		if (c.id != except && palm::text::to_lowercase(c.name) == want) {
+			return c.id;
+		}
+	}
+	return std::nullopt;
 }
 
 // The state of the Delete dialog: the window, its "Delete all items" radio, and the answer on OK.
@@ -221,7 +256,35 @@ std::int32_t IdChoice::id() const {
 	return ids.empty() ? UNFILED : ids.front();
 }
 
-void edit_categories(palm::store::DesktopStore& store, std::int32_t app) {
+void merge_category(palm::store::DesktopStore& store, std::int32_t app, std::int32_t from, std::int32_t into) {
+	if (from == UNFILED || from == into) {
+		return;
+	}
+	const palm::store::DesktopStore::Batch batch(store);
+	switch (app) {
+	case 1:
+		move_in(store.memos, from, into, [&](model::Memo& m) { store.save_memo(m); });
+		break;
+	case 2:
+		move_in(store.addresses, from, into, [&](model::Address& a) { store.save_address(a); });
+		break;
+	default:
+		move_in(store.todos, from, into, [&](model::Todo& t) { store.save_todo(t); });
+		break;
+	}
+	store.delete_category(app, from);
+}
+
+std::int32_t after_merges(std::int32_t id, const std::vector<Merge>& merges) {
+	for (const Merge& m : merges) {
+		if (m.from == id) {
+			id = m.into;
+		}
+	}
+	return id;
+}
+
+std::vector<Merge> edit_categories(palm::store::DesktopStore& store, std::int32_t app) {
 	const char* title = "Edit To Do Categories";
 	if (app == 1) {
 		title = "Edit Memo Categories";
@@ -233,6 +296,7 @@ void edit_categories(palm::store::DesktopStore& store, std::int32_t app) {
 	// The browser's default font is Helvetica, the dialog font.
 	list->textsize(11);
 	std::optional<Action> action;
+	std::vector<Merge> merges;
 	Fl_Button* ok = new Fl_Button(124, 10, 75, 23, "OK");
 	std::vector<Fl_Button*> buttons;
 	const struct {
@@ -308,6 +372,11 @@ void edit_categories(palm::store::DesktopStore& store, std::int32_t app) {
 		switch (a) {
 		case Action::New: {
 			if (auto name = palm::dialogs::prompt_titled("New Category", "Enter a new category name:", "")) {
+				// A name in use adds nothing and selects the category that has it, as the Android form does.
+				if (const auto same = named(store, app, *name, std::nullopt)) {
+					reload(list, store, *same);
+					break;
+				}
 				const model::Category c = store.add_category(*name, app);
 				reload(list, store, c.id);
 			}
@@ -319,6 +388,13 @@ void edit_categories(palm::store::DesktopStore& store, std::int32_t app) {
 			}
 			if (auto name =
 			        palm::dialogs::prompt_titled("Rename Category", "Enter a new category name:", selected->name)) {
+				// As on the Palm, the name of another category merges the two silently into that one.
+				if (const auto same = named(store, app, *name, selected->id)) {
+					merge_category(store, app, selected->id, *same);
+					merges.push_back({selected->id, *same});
+					reload(list, store, *same);
+					break;
+				}
 				store.rename_category(app, selected->id, *name);
 				reload(list, store, selected->id);
 			}
@@ -342,6 +418,7 @@ void edit_categories(palm::store::DesktopStore& store, std::int32_t app) {
 		}
 		}
 	}
+	return merges;
 }
 
 } // namespace palm::category

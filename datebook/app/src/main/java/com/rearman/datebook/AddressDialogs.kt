@@ -67,8 +67,16 @@ internal fun MainActivity.deleteAddressAsk(a: Address) {
 /** Note for [a], as in To Do. A record in Address Edit is saved by its OK, not here. */
 internal fun MainActivity.openAddressNote(a: Address) {
     openNoteView(a.listName(prefs.addressListBy == 1), a.note) { t ->
-        a.note = t
-        if (a.id != 0L && a !== addressEditing) store.save(a)
+        if (a.id == 0L || a === addressEditing) {
+            a.note = t
+        } else {
+            // The store copy: a sync while the note is open can replace the address. A gone address stays gone.
+            store.address(a.id)?.let { cur ->
+                cur.note = t
+                store.save(cur)
+                if (addressOpen?.id == cur.id) addressOpen = cur
+            }
+        }
     }
 }
 

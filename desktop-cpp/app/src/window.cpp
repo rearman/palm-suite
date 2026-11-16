@@ -438,9 +438,14 @@ void Ui::set_position(std::string_view text) {
 	position->copy_label(label.c_str());
 }
 
-void Ui::set_edit_state(const text_edit::EditState& s) {
-	edit = s;
-	mnemonics::with_originals([&] { apply_edit_state(bar, edit, record); });
+void Ui::set_edit_state(const text_edit::EditState& s, const RecordState& r) {
+	// The menu always holds the stored states (build_edit_menu applies them too), so an unchanged state skips the walk
+	// of the widget trees that with_originals makes.
+	if (s != edit || r != record) {
+		edit = s;
+		record = r;
+		mnemonics::with_originals([&] { apply_edit_state(bar, edit, record); });
+	}
 	const std::array<std::pair<const char*, bool>, 4> tool_states = {{
 	    {"undo", s.undo},
 	    {"cut", s.cut},
@@ -450,11 +455,6 @@ void Ui::set_edit_state(const text_edit::EditState& s) {
 	for (const auto& [name, on] : tool_states) {
 		set_tool(name, on);
 	}
-}
-
-void Ui::set_record_state(bool delete_record, bool select_all, bool event) {
-	record = RecordState{delete_record, select_all, event};
-	mnemonics::with_originals([&] { apply_edit_state(bar, edit, record); });
 }
 
 void Ui::set_private_hidden(bool hidden) {

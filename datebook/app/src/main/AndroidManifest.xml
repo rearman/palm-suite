@@ -109,6 +109,8 @@
             android:name=".AlarmReceiver"
             android:exported="false" />
 
+        <!-- Exported for these system broadcasts, which only the system may send; BootReceiver
+             checks the action and ignores any other intent, such as an explicit one from an app. -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true">

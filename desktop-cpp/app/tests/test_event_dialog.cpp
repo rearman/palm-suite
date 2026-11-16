@@ -33,3 +33,12 @@ TEST_CASE("date fields take two and four digit years") {
 	CHECK(event_dialog::parse_short_date("10-21-2026") == std::nullopt);
 	CHECK(event_dialog::full_date(days::epoch_day(2026, 5, 3)) == "5/3/2026");
 }
+
+TEST_CASE("an event stored to midnight loads to 11:59 pm") {
+	palm::model::Event e;
+	e.start = 23 * 60;
+	e.end = 24 * 60;
+	CHECK(event_dialog::loaded(e).end == 23 * 60 + 59);
+	e.end = 23 * 60 + 30;
+	CHECK(event_dialog::loaded(e).end == 23 * 60 + 30);
+}

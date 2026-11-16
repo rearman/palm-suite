@@ -161,6 +161,25 @@ class ModelTest {
 	}
 
 	@Test
+	fun mergeCategoryMovesAppsAndSelectionToKeptCategory() {
+		val s = LauncherState.defaults()
+		s.assign("a/.A", 1)
+		s.assign("b/.B", 2)
+		s.assign("c/.C", 3)
+		s.selected = 1
+		s.mergeCategory(1, 2)
+
+		assertFalse(s.categories.any { it.id == 1 })
+		assertEquals(2, s.categoryOf("a/.A"))
+		assertEquals(2, s.categoryOf("b/.B"))
+		assertEquals(3, s.categoryOf("c/.C"))
+		assertEquals(2, s.selected)
+
+		s.mergeCategory(UNFILED, 2)
+		assertTrue(s.categories.any { it.id == UNFILED })
+	}
+
+	@Test
 	fun deleteCategoryKeepsSelectedWhenNotSelected() {
 		val s = LauncherState.defaults()
 		s.selected = 2
@@ -169,22 +188,30 @@ class ModelTest {
 	}
 
 	@Test
-	fun pruneDropsUninstalledAssignmentsAndDockSlots() {
+	fun forgetPackageDropsOnlyThatPackageInThatProfile() {
 		val s = LauncherState.defaults()
 		s.assign("a/.A", 1)
 		s.assign("b/.B", 2)
+		s.assign("b/.B#10", 1)
+		s.assign("bb/.B", 1)
 		s.dock[0] = "a/.A"
 		s.dock[1] = "b/.B"
-		s.dock[2] = "c/.C"
+		s.dock[2] = "b/.B#10"
 
-		s.prune(setOf("a/.A"))
+		s.forgetPackage("b", "")
 
 		assertEquals(1, s.assignments["a/.A"])
 		assertFalse(s.assignments.containsKey("b/.B"))
+		assertEquals(1, s.assignments["b/.B#10"])
+		assertEquals(1, s.assignments["bb/.B"])
 		assertEquals("a/.A", s.dock[0])
 		assertNull(s.dock[1])
+		assertEquals("b/.B#10", s.dock[2])
+
+		s.forgetPackage("b", "#10")
+
+		assertFalse(s.assignments.containsKey("b/.B#10"))
 		assertNull(s.dock[2])
-		assertNull(s.dock[3])
 	}
 
 	@Test

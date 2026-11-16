@@ -50,9 +50,9 @@ constexpr int TEXT_TOP = 14;
 // The widest and the narrowest message box, in pixels.
 constexpr int BOX_MAX_W = 420;
 constexpr int BOX_MIN_W = 230;
-// The version that the About box shows: the version of desktop-rs/app/Cargo.toml, which the Rust build reads. The C++
-// port has no version of its own yet.
-constexpr std::string_view VERSION = "0.0.0";
+// The version that the About box shows: the CMake cache variable PALM_VERSION, which CI sets from the build's package
+// version (a desktop-v* tag, else 0.0.<run>).
+constexpr std::string_view VERSION = PALM_VERSION;
 
 // The main window, which the dialogs center over. Set by set_main at start-up.
 thread_local Fl_Window* main_window = nullptr;

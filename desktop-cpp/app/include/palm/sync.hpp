@@ -88,7 +88,8 @@ public:
 	// derivation runs on a thread; finish_set_up takes the result. Safe to call from the UI thread only.
 	void set_up(std::string server, std::string token, std::string passphrase) const;
 
-	// Saves the settings of a good set up, then runs the first sync.
+	// Saves the settings of a good set up, marks every record for upload, then runs the first sync. While a run is
+	// in progress the set up waits for its end, since that run's answer would mark rows synced for the old server.
 	std::vector<Effect> finish_set_up(store::DesktopStore& store, settings::Settings& settings,
 	                                  std::expected<std::optional<std::vector<std::uint8_t>>, std::string> result,
 	                                  const std::string& server, const std::string& token);
@@ -101,11 +102,24 @@ private:
 	std::vector<Effect> step(session::Step next, std::vector<std::uint8_t> key, store::DesktopStore& store,
 	                         settings::Settings& settings);
 
+	// Saves the settings of a good set up, resets the sync state of the store, and starts the first sync.
+	std::vector<Effect> apply_set_up(store::DesktopStore& store, settings::Settings& settings,
+	                                 const std::vector<std::uint8_t>& key, const std::string& server,
+	                                 const std::string& token);
+
 	// The plan of the Send step on the wire, and the key of its run.
 	struct Pending {
 		runner::SyncPlan plan;
 		std::vector<std::uint8_t> key;
 	};
+
+	// A good set up that waits for the run in progress to end. A later set up replaces it.
+	struct WaitingSetUp {
+		std::vector<std::uint8_t> key;
+		std::string server;
+		std::string token;
+	};
+	std::optional<WaitingSetUp> waiting_set_up_;
 
 	// The Rust field `session` is `session_` here, so it does not share a name with the palm::session namespace.
 	session::SyncSession session_;

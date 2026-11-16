@@ -277,7 +277,7 @@ jobs:
       - name: Configure
         env:
           CXX: ${{ matrix.cxx }}
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: v="${GITHUB_REF_NAME#desktop-v}"; [ "$v" != "$GITHUB_REF_NAME" ] || v="0.0.$GITHUB_RUN_NUMBER"; cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DPALM_VERSION=$v"
 
       - name: Build
         run: cmake --build build

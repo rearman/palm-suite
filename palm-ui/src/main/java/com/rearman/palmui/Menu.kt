@@ -58,6 +58,16 @@ class MenuBar(private val act: Activity, private val menus: List<Pair<String, Li
 		draw()
 	}
 
+	override fun onStart() {
+		super.onStart()
+		windowOpened(this)
+	}
+
+	override fun onStop() {
+		super.onStop()
+		windowClosed(this)
+	}
+
 	override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
 		val item = commandKey(keyCode)?.let { menus.command(it) } ?: return super.onKeyDown(keyCode, event)
 		dismiss()

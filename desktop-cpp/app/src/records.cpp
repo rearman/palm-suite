@@ -6,11 +6,14 @@
 
 #include <FL/Enumerations.H>
 #include <FL/Fl.H>
-#include <FL/Fl_Menu_Button.H>
 
 #include <algorithm>
+#include <cstddef>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace palm::records {
 namespace {
@@ -76,20 +79,24 @@ std::optional<ListAction> list_menu(text_edit::EditState s, std::span<const std:
 	};
 	items.insert(items.end(), extra.begin(), extra.end());
 
-	Fl_Menu_Button mb(0, 0, 0, 0);
-	mb.type(Fl_Menu_Button::POPUP3);
+	std::vector<std::string_view> labels;
+	std::vector<std::size_t> grayed;
 	for (std::size_t i = 0; i < items.size(); ++i) {
-		// The divider comes with the flags of the item, so each item gets its flags once: Inactive when it is off.
-		const bool divider = i == 3 || (i == 4 && !extra.empty());
-		const int flags = (divider ? FL_MENU_DIVIDER : 0) | (items[i].second ? 0 : FL_MENU_INACTIVE);
-		mb.add(items[i].first, 0, nullptr, nullptr, flags);
+		labels.emplace_back(items[i].first);
+		if (!items[i].second) {
+			grayed.push_back(i);
+		}
 	}
-	draw::style_menu(&mb);
-	if (!mb.popup()) {
+	// A divider follows Delete, and Select All when the view adds items.
+	std::vector<std::size_t> dividers{3};
+	if (!extra.empty()) {
+		dividers.push_back(4);
+	}
+	const std::optional<std::size_t> pick = draw::popup(labels, dividers, grayed);
+	if (!pick) {
 		return std::nullopt;
 	}
-	const int v = mb.value();
-	switch (v) {
+	switch (*pick) {
 	case 0:
 		return action::Cut{};
 	case 1:
@@ -101,10 +108,7 @@ std::optional<ListAction> list_menu(text_edit::EditState s, std::span<const std:
 	case 4:
 		return action::SelectAll{};
 	default:
-		if (v < 0) {
-			return std::nullopt;
-		}
-		return action::Extra{static_cast<std::size_t>(v - 5)};
+		return action::Extra{*pick - 5};
 	}
 }
 

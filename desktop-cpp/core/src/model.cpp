@@ -109,6 +109,40 @@ Todo Todo::dup_key() const {
 	return k;
 }
 
+namespace {
+
+// The place of code point `c` in UTF-16 unit order: U+E000 to U+FFFF come after every surrogate pair.
+std::uint32_t utf16_rank(char32_t c) {
+	return c >= 0xE000 && c <= 0xFFFF ? static_cast<std::uint32_t>(c) + 0x110000 : static_cast<std::uint32_t>(c);
+}
+
+// Java's Character.toUpperCase(char) and toLowerCase(char): a character past U+FFFF is a surrogate pair there,
+// which keeps its case.
+char32_t upper_unit(char32_t c) {
+	return c > 0xFFFF ? c : text::upper_one(c);
+}
+
+char32_t lower_unit(char32_t c) {
+	return c > 0xFFFF ? c : text::lower_one(c);
+}
+
+} // namespace
+
+std::strong_ordering compare_utf16(std::string_view a, std::string_view b) {
+	std::size_t i = 0;
+	std::size_t j = 0;
+	while (i < a.size() && j < b.size()) {
+		text::Decoded c1 = text::decode_at(a, i);
+		text::Decoded c2 = text::decode_at(b, j);
+		i += c1.len;
+		j += c2.len;
+		if (c1.cp != c2.cp) {
+			return utf16_rank(c1.cp) <=> utf16_rank(c2.cp);
+		}
+	}
+	return (i < a.size()) <=> (j < b.size());
+}
+
 std::strong_ordering compare_ignore_case(std::string_view a, std::string_view b) {
 	std::size_t i = 0;
 	std::size_t j = 0;
@@ -129,13 +163,13 @@ std::strong_ordering compare_ignore_case(std::string_view a, std::string_view b)
 		i += c1.len;
 		j += c2.len;
 		if (c1.cp != c2.cp) {
-			char32_t u1 = text::upper_one(c1.cp);
-			char32_t u2 = text::upper_one(c2.cp);
+			char32_t u1 = upper_unit(c1.cp);
+			char32_t u2 = upper_unit(c2.cp);
 			if (u1 != u2) {
-				char32_t l1 = text::lower_one(u1);
-				char32_t l2 = text::lower_one(u2);
+				char32_t l1 = lower_unit(u1);
+				char32_t l2 = lower_unit(u2);
 				if (l1 != l2) {
-					return l1 <=> l2;
+					return utf16_rank(l1) <=> utf16_rank(l2);
 				}
 			}
 		}
@@ -171,7 +205,7 @@ std::vector<Memo> memo_order(std::span<const Memo> memos, bool alphabetic) {
 			std::string la = text::to_lowercase(a.title());
 			std::string lb = text::to_lowercase(b.title());
 			if (la != lb) {
-				return la < lb;
+				return compare_utf16(la, lb) < 0;
 			}
 			if (a.pos != b.pos) {
 				return a.pos < b.pos;
@@ -297,7 +331,7 @@ std::vector<Address> address_order(std::span<const Address> list, bool by_compan
 		std::string la = text::to_lowercase(a.list_name(by_company));
 		std::string lb = text::to_lowercase(b.list_name(by_company));
 		if (la != lb) {
-			return la < lb;
+			return compare_utf16(la, lb) < 0;
 		}
 		return a.id < b.id;
 	});
@@ -352,16 +386,41 @@ std::int64_t first_day(const Event& e) {
 	if (e.repeat != repeat::WEEK || e.week_days == 0 || (e.week_days & (std::int32_t{1} << days::dow(e.date))) != 0) {
 		return e.date;
 	}
-	Event plain = e;
-	plain.exceptions.clear();
-	std::int64_t weeks = static_cast<std::int64_t>(std::max<std::int32_t>(e.every, 1)) + 1;
-	std::int64_t stop = days::wrapping_add(e.date, days::wrapping_mul(7, weeks));
-	for (std::int64_t d = e.date; d < stop; ++d) {
-		if (occurs_on(plain, d)) {
-			return d;
+	std::int64_t d = first_week_day(e.date, e.week_days, e.every, 0);
+	return e.repeat_end >= 0 && d > e.repeat_end ? e.date : d;
+}
+
+std::int64_t first_week_day(std::int64_t date, std::int32_t mask, std::int32_t every, std::int32_t week_start) {
+	std::int32_t on = mask & 0x7F;
+	if (on == 0) {
+		return date;
+	}
+	// A search that would run past the last day finds none, as the day-by-day scan before it did.
+	std::int64_t weeks = static_cast<std::int64_t>(std::max<std::int32_t>(every, 1)) + 1;
+	if (days::wrapping_add(date, days::wrapping_mul(7, weeks)) < date) {
+		return date;
+	}
+	auto has = [on, week_start](std::int32_t i) { return (on & (std::int32_t{1} << ((week_start + i) % 7))) != 0; };
+	auto into = static_cast<std::int32_t>(((static_cast<std::int32_t>(days::dow(date)) - week_start) % 7 + 7) % 7);
+	std::int64_t week_begin = days::wrapping_sub(date, into);
+	for (std::int32_t i = into; i < 7; ++i) {
+		if (has(i)) {
+			return days::wrapping_add(week_begin, i);
 		}
 	}
-	return e.date;
+	std::int64_t next = days::wrapping_add(
+	    week_begin, days::wrapping_mul(7, static_cast<std::int64_t>(std::max<std::int32_t>(every, 1))));
+	std::int32_t i = 0;
+	while (!has(i)) {
+		++i;
+	}
+	return days::wrapping_add(next, i);
+}
+
+std::int32_t rotate_week_days(std::int32_t mask, std::int64_t k) {
+	auto s = static_cast<std::uint32_t>((k % 7 + 7) % 7);
+	auto m = static_cast<std::uint32_t>(mask & 0x7F);
+	return static_cast<std::int32_t>(((m << s) | (m >> (7 - s))) & 0x7F);
 }
 
 bool occurs_on(const Event& e, std::int64_t day) {
@@ -565,6 +624,22 @@ std::pair<std::optional<Event>, Event> split_future(const Event& orig, std::int6
 		}
 	}
 	return {shortened, series};
+}
+
+Event move_series(const Event& e, std::int64_t shift) {
+	Event m = e;
+	m.date = days::wrapping_add(e.date, shift);
+	if (e.repeat_end >= 0) {
+		m.repeat_end = days::wrapping_add(e.repeat_end, shift);
+	}
+	if (m.repeat == repeat::WEEK) {
+		m.week_days = rotate_week_days(e.week_days, shift);
+	}
+	m.exceptions.clear();
+	for (std::int64_t x : e.exceptions) {
+		m.exceptions.insert(days::wrapping_add(x, shift));
+	}
+	return m;
 }
 
 } // namespace palm::model

@@ -1,5 +1,6 @@
 #include "palm/settings.hpp"
 #include "palm/platform.hpp"
+#include "palm/store.hpp"
 #include "palm/text.hpp"
 
 #include <algorithm>
@@ -12,7 +13,6 @@
 #include <iterator>
 #include <optional>
 #include <string>
-#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -294,30 +294,15 @@ std::expected<void, std::string> Settings::set_bool(std::string_view key, bool v
 }
 
 std::expected<void, std::string> Settings::save() const {
-	std::error_code ec;
-	if (path.has_parent_path()) {
-		fs::create_directories(path.parent_path(), ec);
-		if (ec) {
-			return std::unexpected("cannot create " + path.parent_path().string() + ": " + ec.message());
-		}
+	// store() writes pure ASCII, so its bytes are the ISO-8859-1 bytes that Java reads. The file is written to a
+	// flushed temp file and moved into place, so a crash mid-save keeps the old settings. Only the user can read it,
+	// as Settings.kt, from its first byte: the token and the key are in it. It keeps no backup, which would be one
+	// more copy of the token.
+	const std::optional<std::string> err = palm::store::write_atomic(
+	    path, store(props, COMMENT, local_stamp()), palm::store::WriteOptions{.backup = false, .owner_only = true});
+	if (err) {
+		return std::unexpected("cannot write " + path.string() + ": " + *err);
 	}
-	const std::string stamp = local_stamp();
-	{
-		// store() writes pure ASCII, so its bytes are the ISO-8859-1 bytes that Java reads.
-		std::ofstream out(path, std::ios::binary | std::ios::trunc);
-		out << store(props, COMMENT, stamp);
-		out.close();
-		if (out.fail()) {
-			return std::unexpected("cannot write " + path.string());
-		}
-	}
-#ifndef _WIN32
-	// Only the user can read the file, as Settings.kt: the token and the key are in it.
-	fs::permissions(path, fs::perms::owner_read | fs::perms::owner_write, ec);
-	if (ec) {
-		return std::unexpected("cannot set the permissions of " + path.string() + ": " + ec.message());
-	}
-#endif
 	return {};
 }
 

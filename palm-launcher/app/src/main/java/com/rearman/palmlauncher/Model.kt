@@ -123,11 +123,25 @@ class LauncherState(
 		if (selected == id) selected = ALL
 	}
 
-	fun prune(installed: Set<String>) {
-		assignments.keys.removeAll { it !in installed }
+	// Merges category `from` into `into`, as a rename to the name of another category does on the Palm: the apps
+	// of `from` move to `into`, `from` is dropped, and a selection of `from` moves to `into`. Unfiled stays.
+	fun mergeCategory(from: Int, into: Int) {
+		if (from == UNFILED || from == into || categories.none { it.id == from } || categories.none { it.id == into }) return
+		categories.removeAll { it.id == from }
+		assignments.replaceAll { _, id -> if (id == from) into else id }
+		if (selected == from) selected = into
+	}
+
+	// Drops the categories and dock slots of the activities of `pkg` in one profile, after that package is removed
+	// with its data. `profile` is the end of the key that Apps.key gives: "" for the launcher's own user, else "#"
+	// and the profile serial. An app missing from one load (storage out, disabled, a locked profile) keeps both.
+	fun forgetPackage(pkg: String, profile: String) {
+		fun gone(key: String) = key.substringBefore('/') == pkg &&
+			(if ('#' in key) "#" + key.substringAfterLast('#') else "") == profile
+		assignments.keys.removeAll { gone(it) }
 		for (i in dock.indices) {
-			val component = dock[i]
-			if (component != null && component !in installed) dock[i] = null
+			val key = dock[i]
+			if (key != null && gone(key)) dock[i] = null
 		}
 	}
 }

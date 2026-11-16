@@ -56,6 +56,9 @@ public:
 	// Reads the store again: the lists and the combo boxes. Keeps the editor when it holds unsaved text.
 	void refresh(view::Ctx& ctx);
 
+	// Points the filter at the kept category when Edit Categories merged the one it showed.
+	void follow_merges(const std::vector<category::Merge>& merges);
+
 	void new_record(view::Ctx& ctx);
 
 	// Shows the memo `id`, with the filter on All when it hides the memo, and selects it.
@@ -97,7 +100,11 @@ private:
 	std::vector<model::Memo> selected() const;
 	// The memo of the lead row when it is selected, else the first selected memo.
 	std::optional<model::Memo> lead_memo() const;
+	// Rebuilds the list after `old` was in the editor, with unapplied edits when `dirty`. The editor never moves to
+	// another memo with edits: they are written to `old` first.
 	void reflow(view::Ctx& ctx, std::optional<model::Memo> old, bool dirty);
+	// Writes the editor's edits to the memo with `id` as the store holds it now. False when the store has no such memo.
+	bool keep_edits(view::Ctx& ctx, std::int64_t id);
 	std::vector<model::Memo> visible(const view::Ctx& ctx) const;
 	// Fills the list. Keeps the selected memos that are still shown, and selects the memo `want` only when nothing is
 	// left selected. Returns the lead memo, which the editor shows.

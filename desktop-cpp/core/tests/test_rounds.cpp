@@ -321,6 +321,90 @@ TEST_CASE("blob_sealed_with_another_key_fails_and_changes_nothing") {
 	CHECK(store.sync_since() == 0);
 }
 
+TEST_CASE("record_deleted_during_its_first_push_becomes_dirty_tombstone") {
+	MemStore store;
+	model::Memo m;
+	m.text = "Short-lived";
+	store.add("m1", m, 0, true, false);
+	const auto k = key();
+	const auto plan = runner::collect(store, k);
+	REQUIRE(plan.has_value());
+	std::erase_if(store.rows, [](const mem::Entry& e) { return e.uid == "m1"; }); // a rev-0 row is deleted outright
+	REQUIRE(runner::apply(store, k, *plan, result(5, {{"m1", 5}}, {})).has_value());
+	const std::optional<runner::SyncRow> row = store.sync_row("m1");
+	REQUIRE(row.has_value());
+	CHECK(row->table == "memos");
+	CHECK(row->rev == 5);
+	CHECK(row->dirty);
+	CHECK(row->deleted);
+	const auto next = runner::collect(store, k);
+	REQUIRE(next.has_value());
+	REQUIRE(next->items.size() == 1);
+	CHECK(next->items[0].deleted);
+	CHECK(next->items[0].base_rev == 5);
+}
+
+TEST_CASE("oversized_record_is_held_back_and_the_rest_is_pushed") {
+	MemStore store;
+	// Text from a fixed linear congruential generator does not deflate, so its blob is over the server's limit.
+	model::Memo m;
+	m.text = "Big\n";
+	std::uint32_t x = 1;
+	for (int i = 0; i < 80000; ++i) {
+		x = x * 1103515245u + 12345u;
+		m.text += static_cast<char>('!' + (x >> 16) % 90);
+	}
+	store.add("m1", m, 0, true, false);
+	store.add("e1", event("Dentist"), 0, true, false);
+	const auto k = key();
+	const auto plan = runner::collect(store, k);
+	REQUIRE(plan.has_value());
+	REQUIRE(plan->items.size() == 1);
+	CHECK(plan->items[0].id == "e1");
+	CHECK_FALSE(plan->pushed.contains("m1"));
+	CHECK(plan->held == std::vector<std::string>{"Big"});
+	CHECK(store.entry("m1")->dirty);
+	CHECK(session::held_text(plan->held) == "Not synced (too large): Big");
+}
+
+TEST_CASE("server_revision_below_since_resets_for_full_resync") {
+	MemStore store;
+	store.since = 500;
+	store.shortcuts_rev = 480;
+	store.add("e1", event("Clean"), 470, false, false);
+	store.add("e2", event("Dirty"), 490, true, false);
+	store.add("e3", event("Gone"), 495, true, true);
+	const auto k = key();
+	const auto plan = runner::collect(store, k);
+	REQUIRE(plan.has_value());
+	const auto outcome = runner::apply(store, k, *plan, result(451, {{"e2", 451}}, {}));
+	REQUIRE(outcome.has_value());
+	CHECK(store.since == 0);
+	CHECK(store.shortcuts_rev == 0);
+	CHECK_FALSE(store.sync_row("e3").has_value());
+	for (const char* uid : {"e1", "e2"}) {
+		const mem::Entry* e = store.entry(uid);
+		REQUIRE(e != nullptr);
+		CHECK(e->rev == 0);
+		CHECK(e->dirty);
+	}
+	CHECK_FALSE(outcome->no_conflicts);
+	const auto next = runner::collect(store, k);
+	REQUIRE(next.has_value());
+	CHECK(next->items.size() == 2);
+}
+
+TEST_CASE("bad_short_cuts_list_fails_the_round_and_keeps_since") {
+	MemStore store;
+	const auto k = key();
+	const auto plan = runner::collect(store, k);
+	REQUIRE(plan.has_value());
+	const auto outcome =
+	    runner::apply(store, k, *plan, result(9, {}, {change("shortcuts", 9, std::string(R"({"k":"s","l":[1]})"), k)}));
+	REQUIRE_FALSE(outcome.has_value());
+	CHECK(store.sync_since() == 0);
+}
+
 // ---- the round loop ----
 
 TEST_CASE("clean_run_finishes_once_with_no_error_and_no_change") {

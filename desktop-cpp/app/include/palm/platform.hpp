@@ -38,7 +38,8 @@ const std::chrono::time_zone* local_zone();
 // e.g. "Access is denied. (os error 5)" on Windows or "Permission denied (os error 13)" elsewhere.
 std::string os_error_text(int code);
 
-// os_error_text of an error_code that carries an OS code (system_category, or generic_category's errno).
+// os_error_text of an error_code that carries an OS code (system_category, or generic_category's errno). On Windows a
+// code of any category but system_category takes the text of its own category.
 std::string os_error_text(const std::error_code& ec);
 
 // os_error_text of the last OS error: GetLastError() on Windows, errno elsewhere. Call it right after the

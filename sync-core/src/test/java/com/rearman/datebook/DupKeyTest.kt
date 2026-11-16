@@ -6,8 +6,9 @@ import org.junit.Test
 
 class DupKeyTest {
     @Test fun eventIgnoresIdAndSetOrder() {
-        val a = Event(id = 4, title = "Lunch", date = 20000, exceptions = mutableSetOf(20007L, 20014L))
-        val b = Event(title = "Lunch", date = 20000, exceptions = sortedSetOf(20014L, 20007L))
+        // A one-time event drops its exceptions from the key, so the set order counts only in a repeat.
+        val a = Event(id = 4, title = "Lunch", date = 20000, repeat = Repeat.DAY, exceptions = mutableSetOf(20007L, 20014L))
+        val b = Event(title = "Lunch", date = 20000, repeat = Repeat.DAY, exceptions = sortedSetOf(20014L, 20007L))
         assertEquals(a.dupKey(), b.dupKey())
         assertEquals(a.dupKey().hashCode(), b.dupKey().hashCode())
     }

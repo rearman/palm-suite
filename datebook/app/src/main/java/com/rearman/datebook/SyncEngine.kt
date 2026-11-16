@@ -28,6 +28,10 @@ object SyncEngine {
     private val main = Handler(Looper.getMainLooper())
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var pending: Runnable? = null
+    /** Main thread. A set up that waits for the running sync to end. */
+    private var afterRun: (() -> Unit)? = null
+    /** Main thread. The callback of the set up in [afterRun]. */
+    private var waitingDone: ((String?) -> Unit)? = null
     private val session = SyncSession(
         onWorker = { block -> worker.execute { block() } },
         onUi = { block -> main.post { block() } },
@@ -86,8 +90,10 @@ object SyncEngine {
                 key = key,
                 send = { since, items -> SyncClient(url, tokenText).sync(since, items) },
                 afterRound = { o -> if (o.shortCutsChanged) ShortCuts.list = Prefs(ctx).shortCuts },
-                finish = { error, changed ->
-                    Prefs(ctx).syncLast = if (error == null) lastSyncText() else "Sync failed: $error"
+                finish = { error, changed, held ->
+                    val text = if (error == null) lastSyncText() else "Sync failed: $error"
+                    val heldText = SyncSession.heldText(held)
+                    Prefs(ctx).syncLast = if (heldText.isEmpty()) text else "$text\n$heldText"
                     if (changed) {
                         // Also with no screen open (the hourly job): the alarms, the Live Update and
                         // the watch must follow the records from the server.
@@ -96,6 +102,10 @@ object SyncEngine {
                         onApplied?.invoke()
                     }
                     done(error)
+                    afterRun?.let {
+                        afterRun = null
+                        it()
+                    }
                 },
                 again = { request(ctx) },
             )
@@ -121,8 +131,23 @@ object SyncEngine {
 
     // Set up
 
-    /** Main thread. Saves the key and the settings, then runs the first sync. */
+    /**
+     * Main thread. Saves the key and the settings, then runs the first sync. The session runs on
+     * the main thread, which serves as its lock: a sync that is running waits on the worker for
+     * the old server, and its answer would mark rows synced and set syncSince for that server after
+     * the reset below. So the set up waits until that sync ends.
+     */
     private fun finishSetUp(ctx: Context, url: String, token: String, key: ByteArray, done: (String?) -> Unit) {
+        if (session.running) {
+            // A second set up before the first one ran replaces it, and the first one is told so.
+            waitingDone?.invoke("Sync setup was replaced by a newer one.")
+            waitingDone = done
+            afterRun = {
+                waitingDone = null
+                finishSetUp(ctx, url, token, key, done)
+            }
+            return
+        }
         try {
             KeyVault.put(ctx, "key", key)
             KeyVault.put(ctx, "token", token.toByteArray(Charsets.UTF_8))
@@ -163,10 +188,10 @@ private class AndroidSyncStore(private val store: Store, private val prefs: Pref
 
     /** The live record of a row from the in-memory lists, or null when it is not there. */
     override fun record(row: SyncRow): Any? = when (row.table) {
-        "events" -> store.events.firstOrNull { it.id == row.id }
-        "todos" -> store.todos.firstOrNull { it.id == row.id }
-        "memos" -> store.memos.firstOrNull { it.id == row.id }
-        "addresses" -> store.addresses.firstOrNull { it.id == row.id }
+        "events" -> store.event(row.id)
+        "todos" -> store.todo(row.id)
+        "memos" -> store.memo(row.id)
+        "addresses" -> store.address(row.id)
         "categories" -> (store.categories + store.memoCategories + store.addressCategories).firstOrNull { it.id.toLong() == row.id }
         else -> null
     }
@@ -189,6 +214,10 @@ private class AndroidSyncStore(private val store: Store, private val prefs: Pref
     override fun putRemote(c: Category, rev: Long) = store.putRemote(c, rev)
 
     override fun dropRemote(table: String, uid: String) = store.dropRemote(table, uid)
+
+    override fun putTombstone(table: String, uid: String, rev: Long) = store.putTombstone(table, uid, rev)
+
+    override fun resetSync() = store.resetSync()
 
     /** Keeps a copy of a local record as a new record, for the keep-both rule. */
     override fun saveCopy(record: Any) {

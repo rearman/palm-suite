@@ -98,12 +98,13 @@ struct Category {
 	bool operator==(const Category&) const = default;
 };
 
-// Compares as Java's String.CASE_INSENSITIVE_ORDER: char by char, after upper and then lower case.
-// The case mapping covers ASCII, Latin-1 Supplement and Latin Extended-A, which give the same results as
-// Rust's char::to_uppercase and char::to_lowercase on those characters. Other characters keep their case
-// here, so the order of text beyond Latin Extended-A can differ from Rust. The upgrade path is ICU's simple
-// case mapping (u_toupper and u_tolower).
+// Compares as Java's String.CASE_INSENSITIVE_ORDER: char by char, after upper and then lower case, with the
+// simple case mappings of the Unicode tables in text_case.inc. Java compares UTF-16 units, so a character past
+// U+FFFF keeps its case and sorts as its surrogates do: after U+D7FF and before U+E000.
 std::strong_ordering compare_ignore_case(std::string_view a, std::string_view b);
+
+// Compares as Java's String.compareTo: by UTF-16 unit, so a character past U+FFFF sorts before U+E000 to U+FFFF.
+std::strong_ordering compare_utf16(std::string_view a, std::string_view b);
 
 // Sorts by name, ignoring case; equal names keep id order.
 void sort_categories(std::span<Category> list);
@@ -201,7 +202,15 @@ bool is_last_week(std::int64_t day);
 std::uint32_t month_week(const Event& e);
 
 // The first day `e` occurs, exceptions aside. A weekly event can start on a day that is not one of its days.
+// `e.date` when the event never occurs.
 std::int64_t first_day(const Event& e);
+
+// The first day on or after `date` of a repeat every `every` weeks on the days of `mask`, where a week starts on
+// day `week_start` (0 = Sunday) and the week of `date` is the first. `date` when `mask` has no day.
+std::int64_t first_week_day(std::int64_t date, std::int32_t mask, std::int32_t every, std::int32_t week_start);
+
+// The weekday bits of `mask`, moved `k` days later (earlier when `k` is negative).
+std::int32_t rotate_week_days(std::int32_t mask, std::int64_t k);
 
 bool occurs_on(const Event& e, std::int64_t day);
 
@@ -244,5 +253,11 @@ std::string range(const Event& e, bool h24);
 // Splits a repeating series at `occ_day` for "this & all Future". Returns the shortened original, or
 // nullopt when `occ_day` is the first occurrence, and the new series that starts at `work`.
 std::pair<std::optional<Event>, Event> split_future(const Event& orig, std::int64_t occ_day, const Event& work);
+
+// `e` with its series moved `shift` days later, for a move with All: the repeat end moves with the date, a weekly
+// series turns its week days with it, and each exception moves with the occurrence it removed. Shortcut: a series every
+// 2 or more weeks whose days cross from Saturday to Sunday keeps Date Book's Sunday weeks, so those days land a week
+// off. Upgrade path: a week start in Event.
+Event move_series(const Event& e, std::int64_t shift);
 
 } // namespace palm::model

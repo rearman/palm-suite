@@ -1,5 +1,6 @@
 // links: days platform
 #include "palm/platform.hpp"
+#include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -9,6 +10,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 #ifdef _WIN32
 #include <stdlib.h> // _putenv_s
@@ -127,4 +129,11 @@ TEST_CASE("today_is_the_tokyo_date_under_tz_tokyo") {
 	const std::int64_t after = zone_today(tokyo);
 	// The date may turn over between the reads, so either bracketing date is right.
 	CHECK((got == before || got == after));
+}
+
+TEST_CASE("an_errno_error_takes_its_own_text") {
+	// libstdc++ reports a failed rename as an errno in generic_category; on Windows FormatMessage would read 13 as a
+	// Windows code ("The data is invalid.").
+	const std::error_code ec(EACCES, std::generic_category());
+	CHECK(os_error_text(ec) == "Permission denied (os error " + std::to_string(EACCES) + ")");
 }

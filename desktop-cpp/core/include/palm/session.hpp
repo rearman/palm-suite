@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace palm::session {
 
@@ -24,13 +25,18 @@ struct Send {
 	runner::SyncPlan plan;
 };
 
-// The run ended: the error text, or nullopt on success; whether any round changed records; and whether
-// SyncSession::request_again asked for one more run.
+// The run ended: the error text, or nullopt on success; whether any round changed records; whether
+// SyncSession::request_again asked for one more run; and the titles of the records that the last round held back
+// as too large for the server (held_text gives their line).
 struct Done {
 	std::optional<std::string> error;
 	bool changed = false;
 	bool again = false;
+	std::vector<std::string> held;
 };
+
+// The line of the sync result text for the held records, or "" when there are none.
+std::string held_text(const std::vector<std::string>& held);
 
 // What the caller does next.
 using Step = std::variant<Send, Done>;
@@ -67,6 +73,7 @@ private:
 	bool running_ = false;
 	std::uint32_t rounds = 0;
 	bool changed = false;
+	std::vector<std::string> held;
 	bool again_requested = false;
 };
 

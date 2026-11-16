@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <vector>
@@ -31,6 +32,16 @@ ResultKey result_order(const runner::Record& r);
 // True when `text` holds `word` with no word character just before or after it. Case counts only with `match_case`.
 // Exposed for test_find.cpp.
 bool has_whole_word(std::string_view text, std::string_view word, bool match_case);
+
+// The app name, the text and the right-hand column of a result row, as the official Find dialog shows them.
+struct Parts {
+	std::string_view app;
+	std::string text;
+	std::string right;
+};
+
+// The result row of `r`. `by` lists addresses by company; `h24` gives times in 24-hour form. Exposed for test_find.cpp.
+Parts row_parts(const runner::Record& r, bool by, bool h24);
 
 } // namespace detail
 

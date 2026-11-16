@@ -23,6 +23,8 @@ import java.util.concurrent.TimeUnit
 object WearBridge {
     private const val DAYS = 7
     private const val DELAY_MS = 2_000L
+    // The longest a receiver waits for the put: under the 10 s a foreground broadcast may take.
+    private const val PUT_WAIT_MS = 8_000L
 
     private val main = Handler(Looper.getMainLooper())
     private var pending: Runnable? = null
@@ -36,15 +38,28 @@ object WearBridge {
 
     /**
      * Main thread. Pushes now: a receiver or job calls this one, since its process may stop before
-     * a delayed push. Without Play services (or a watch) the put fails and nothing happens.
+     * a delayed push. Without Play services (or a watch) the put fails and nothing happens. The put
+     * is asynchronous: [done] runs once, on the main thread, when it completes or fails, or after
+     * [PUT_WAIT_MS], so a receiver can hold its process with goAsync until then.
      */
-    fun push(ctx: Context) {
+    fun push(ctx: Context, done: () -> Unit = {}) {
         val json = agenda(Store.get(ctx), Prefs(ctx)).toJson()
+        var called = false
+        val finish = Runnable {
+            if (!called) {
+                called = true
+                done()
+            }
+        }
+        main.postDelayed(finish, PUT_WAIT_MS)
         try {
             val req = PutDataMapRequest.create(WearAgenda.PATH).apply { dataMap.putString(WearAgenda.KEY, json) }
                 .asPutDataRequest().setUrgent()
             Wearable.getDataClient(ctx.applicationContext).putDataItem(req)
+                .addOnCompleteListener { main.removeCallbacks(finish); finish.run() }
         } catch (_: Exception) {
+            main.removeCallbacks(finish)
+            finish.run()
         }
     }
 

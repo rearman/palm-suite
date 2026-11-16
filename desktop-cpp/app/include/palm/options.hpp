@@ -1,4 +1,4 @@
-// The Options dialog of Dialogs.kt: the General tab (the startup view and the delete question) and the Date Book tab
+// The Options dialog of Dialogs.kt: the General tab (the delete question) and the Date Book tab
 // (the work day, the first day of the week and the alarm preset), as desktop-rs/app/src/options.rs.
 #pragma once
 

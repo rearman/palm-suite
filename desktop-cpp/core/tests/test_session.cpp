@@ -28,6 +28,8 @@ public:
 	void mark_synced(std::string_view, std::string_view, std::int64_t, bool) override {}
 	void put_remote(runner::Record, std::int64_t) override {}
 	void drop_remote(std::string_view, std::string_view) override {}
+	void put_tombstone(std::string_view, std::string_view, std::int64_t) override {}
+	void reset_sync() override {}
 	void save_copy(runner::Record) override {}
 	codec::ShortCuts short_cuts() const override { return {}; }
 	bool short_cuts_dirty() const override { return false; }

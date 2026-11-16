@@ -31,6 +31,8 @@ type pushItem struct {
 	BaseRev int64  `json:"baseRev"`
 	Deleted bool   `json:"deleted"`
 	Blob    string `json:"blob"`
+
+	raw []byte // Blob decoded by validatePush, so the store does not decode it again
 }
 
 type syncRequest struct {
@@ -164,7 +166,7 @@ func (s *Server) handleSync(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		next++
-		batch = append(batch, Version{ID: it.ID, Rev: next, Deleted: it.Deleted, Blob: it.Blob})
+		batch = append(batch, Version{ID: it.ID, Rev: next, Deleted: it.Deleted, Blob: it.Blob, raw: it.raw})
 		res.Accepted = append(res.Accepted, accepted{ID: it.ID, Rev: next})
 	}
 	if len(batch) > 0 {
@@ -207,9 +209,11 @@ func validatePush(items []pushItem) error {
 			return fmt.Errorf("blob of item %q is over %d bytes", it.ID, maxBlobBytes)
 		}
 		// The log stores the raw ciphertext, so a blob must be valid base64.
-		if _, err := base64.StdEncoding.DecodeString(it.Blob); err != nil {
+		raw, err := base64.StdEncoding.DecodeString(it.Blob)
+		if err != nil {
 			return fmt.Errorf("blob of item %q is not base64", it.ID)
 		}
+		it.raw = raw
 	}
 	return nil
 }

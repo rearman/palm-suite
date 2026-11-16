@@ -1,6 +1,6 @@
 // The parts the Day, Week, and Month views share, as desktop-rs/app/src/date_shared.rs: the time labels, the event
-// boxes and their hit tests, the Current, All and Cancel question of a repeating event, Alarm Settings, the menu of an
-// event box, and the repeat summary of Change Repeat.
+// boxes and their hit tests, the Current, All and Cancel question of a repeating event, Alarm Settings, a new event,
+// and the repeat summary of Change Repeat.
 #pragma once
 
 #include "palm/model.hpp"
@@ -63,8 +63,8 @@ enum class Fill { Event, White };
 // The marker icons of an event: repeat, alarm, note, private.
 enum class Marker { Repeat, Alarm, Note, Private };
 
-// The items of the menu of an event box.
-enum class BoxAction { Delete, Note, Alarm, Edit };
+// The last minute of a day, 11:59 pm: the latest end an event stores, as the model and Edit Event keep it.
+inline constexpr std::int32_t LAST_MIN = 23 * 60 + 59;
 
 // The occurrences of `day`, untimed first, then by time. Private events show only when `show_private`.
 std::vector<Occ> visible_events(const store::DesktopStore& store, std::int64_t day, bool show_private);
@@ -137,6 +137,16 @@ std::optional<bool> ask_repeat_scope(std::string_view text);
 // same days. False on Cancel.
 bool save_occurrence(store::DesktopStore& store, const Occ& occ, model::Event work, std::string_view text);
 
+// The series of `occ` moved as `work` moves the occurrence, the All answer of save_occurrence: the date, the repeat
+// end, the week days of a weekly series, and the exceptions move by the same days. Week days or exceptions that
+// `work` changed itself stay as `work` has them.
+model::Event move_all(const Occ& occ, model::Event work);
+
+// A new event titled `title` on `day`, made in place in the Day or Week view: one hour from `min`, ending at most
+// at 11:59 pm, or untimed (8:00 to 9:00, as the model keeps it) when `min` is nullopt. The alarm preset applies.
+model::Event new_event(std::string_view title, std::int64_t day, std::optional<std::int32_t> min,
+                       const settings::Settings& settings);
+
 // Applies `change` to the occurrence `occ` and saves it, asking Current or All for a repeating event. False on Cancel.
 bool change_occurrence(store::DesktopStore& store, const Occ& occ, std::string_view text,
                        const std::function<void(model::Event&)>& change);
@@ -155,9 +165,6 @@ void edit_note(store::DesktopStore& store, const Occ& occ);
 
 // Opens Alarm Settings for `occ` and saves a change. A click on the alarm icon of a box does this too.
 void edit_alarm(store::DesktopStore& store, const Occ& occ);
-
-// Shows the menu of an event box at the pointer.
-std::optional<BoxAction> event_menu();
 
 // The line height of a box title, in Helvetica 11 (MS Sans Serif 8); the font is left set.
 int title_line_h();

@@ -70,6 +70,34 @@ TEST_CASE("client_address_rule") {
 	CHECK(plain.error() == "The server address must start with https://");
 }
 
+TEST_CASE("client_address_rule_parses_host") {
+	// The host compared is the host libcurl connects to. A loopback name as user name or as the start of a
+	// longer host is plain http to another host, and the token would go out in clear text.
+	CHECK_FALSE(SyncClient::new_client("http://127.0.0.1.evil.host:80", "t").has_value());
+	CHECK_FALSE(SyncClient::new_client("http://localhost.evil.host:80", "t").has_value());
+	CHECK_FALSE(SyncClient::new_client("http://[::1]x:80", "t").has_value());
+	CHECK(SyncClient::new_client("http://LOCALHOST:8640", "t").has_value());
+	CHECK_FALSE(SyncClient::new_client("ftp://127.0.0.1:21", "t").has_value());
+	CHECK_FALSE(SyncClient::new_client("127.0.0.1:8640", "t").has_value());
+}
+
+TEST_CASE("client_address_userinfo_refused") {
+	// An address with a user name or password is refused for any scheme and host.
+	const std::string refused = "The server address must not hold a user name or password.";
+	const auto evil = SyncClient::new_client("http://localhost:1@evil.host", "t");
+	REQUIRE_FALSE(evil.has_value());
+	CHECK(evil.error() == refused);
+	const auto evil_v6 = SyncClient::new_client("http://[::1]:1@evil.host:80", "t");
+	REQUIRE_FALSE(evil_v6.has_value());
+	CHECK(evil_v6.error() == refused);
+	const auto user = SyncClient::new_client("https://user@host", "t");
+	REQUIRE_FALSE(user.has_value());
+	CHECK(user.error() == refused);
+	const auto loop = SyncClient::new_client("http://u:p@127.0.0.1:8640", "t");
+	REQUIRE_FALSE(loop.has_value());
+	CHECK(loop.error() == refused);
+}
+
 TEST_CASE("client_address_trims_unicode") {
 	// The address is trimmed as Rust's str::trim: U+00A0 (NBSP, UTF-8 C2 A0) is White_Space, so it goes.
 	CHECK(SyncClient::new_client(" https://host", "t").has_value());

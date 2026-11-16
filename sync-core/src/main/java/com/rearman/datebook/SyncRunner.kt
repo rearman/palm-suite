@@ -30,6 +30,8 @@ interface SyncStore {
     fun putRemote(a: Address, rev: Long)
     fun putRemote(c: Category, rev: Long)
     fun dropRemote(table: String, uid: String)
+    fun putTombstone(table: String, uid: String, rev: Long) // a dirty tombstone at [rev] for a uid with no row
+    fun resetSync()                                // every live row dirty at rev 0, and no tombstones
     fun saveCopy(record: Any)                      // keep-both: save as a new dirty record with a new uid
     val shortCuts: List<Pair<String, String>>
     var shortCutsDirty: Boolean
@@ -38,8 +40,16 @@ interface SyncStore {
     var syncSince: Long
 }
 
-/** The push items of one round, with the plaintext of each pushed row (null for a delete). */
-class SyncPlan(val items: List<PushItem>, val pushed: Map<String, String?>, val since: Long)
+/**
+ * The push items of one round, with the plaintext of each pushed row (null for a delete), and the
+ * titles of the dirty records held back because their sealed blob is over the server's limit.
+ */
+class SyncPlan(
+    val items: List<PushItem>,
+    val pushed: Map<String, String?>,
+    val since: Long,
+    val held: List<String> = emptyList(),
+)
 
 /** What applying one server answer changed. */
 class SyncOutcome(val noConflicts: Boolean, val changed: Boolean, val shortCutsChanged: Boolean)
@@ -56,13 +66,23 @@ object SyncRunner {
     /** Each run stops after this many rounds. A later run finishes what is left. */
     const val MAX_ROUNDS = 5
 
+    /** The largest blob the server takes, in base64 characters (maxBlobBytes in sync-server/server.go). */
+    const val MAX_BLOB = 64 * 1024
+
     private const val SHORTCUTS_ID = "shortcuts"
     private const val DECRYPT_MESSAGE = "A record could not be decrypted. Check the passphrase."
+    private const val SHORTCUTS_TITLE = "ShortCuts"
+    private const val UNTITLED = "Untitled"
 
-    /** Step A: builds the push items from the dirty rows and the ShortCuts list. */
+    /**
+     * Step A: builds the push items from the dirty rows and the ShortCuts list. A record whose blob
+     * is over [MAX_BLOB] stays dirty and out of the push, so the server does not refuse the whole
+     * push; its title goes in [SyncPlan.held].
+     */
     fun collect(store: SyncStore, key: ByteArray): SyncPlan {
         val items = mutableListOf<PushItem>()
         val pushed = HashMap<String, String?>()
+        val held = mutableListOf<String>()
         for (row in store.dirtyRows()) {
             if (row.deleted) {
                 items.add(PushItem(row.uid, row.rev, true, ""))
@@ -71,23 +91,45 @@ object SyncRunner {
             }
             val rec = store.record(row) ?: continue
             val plain = encode(store, rec)
-            items.add(PushItem(row.uid, row.rev, false, seal(key, row.uid, plain)))
+            val blob = seal(key, row.uid, plain)
+            if (blob.length > MAX_BLOB) {
+                held.add(titleOf(rec))
+                continue
+            }
+            items.add(PushItem(row.uid, row.rev, false, blob))
             pushed[row.uid] = plain
         }
         if (store.shortCutsDirty) {
             val plain = SyncCodec.shortcuts(store.shortCuts)
-            items.add(PushItem(SHORTCUTS_ID, store.shortCutsRev, false, seal(key, SHORTCUTS_ID, plain)))
-            pushed[SHORTCUTS_ID] = plain
+            val blob = seal(key, SHORTCUTS_ID, plain)
+            if (blob.length > MAX_BLOB) {
+                held.add(SHORTCUTS_TITLE)
+            } else {
+                items.add(PushItem(SHORTCUTS_ID, store.shortCutsRev, false, blob))
+                pushed[SHORTCUTS_ID] = plain
+            }
         }
-        return SyncPlan(items, pushed, store.syncSince)
+        return SyncPlan(items, pushed, store.syncSince, held)
     }
 
     /**
      * Steps C.1 to C.4. Throws IllegalStateException with a message for the user when a live change
      * cannot be decrypted, or when a keep-both copy of a category cannot be saved. A bad key
      * changes nothing, because every live change is decrypted before any change is applied.
+     *
+     * A server revision below [SyncPlan.since] means that the server went back, e.g. to a backup.
+     * Then the store forgets what it pulled: every live row becomes due for upload at rev 0, and
+     * the next round pulls from rev 0. That round sorts the copies out by the keep-both rule.
+     * Limit: a server that went back and then passed [SyncPlan.since] again before this device
+     * synced is not caught; that needs a server id in the answer that changes on a restore.
      */
     fun apply(store: SyncStore, key: ByteArray, plan: SyncPlan, result: SyncResult): SyncOutcome {
+        if (result.rev < plan.since) {
+            store.resetSync()
+            store.shortCutsRev = 0
+            store.syncSince = 0
+            return SyncOutcome(noConflicts = false, changed = false, shortCutsChanged = false)
+        }
         val changes = result.changes.filter { result.accepted[it.id] != it.rev }
         val plains = HashMap<String, String>()
         for (c in changes) {
@@ -106,7 +148,14 @@ object SyncRunner {
                 }
                 continue
             }
-            val row = store.syncRow(uid) ?: continue
+            val row = store.syncRow(uid)
+            if (row == null) {
+                // A new record deleted here while its push was in flight has no row left, but the
+                // server took it live. A dirty tombstone at its rev deletes it there next round.
+                val plain = plan.pushed[uid] ?: continue
+                tableOf(SyncCodec.kind(plain))?.let { store.putTombstone(it, uid, rev) }
+                continue
+            }
             val now = plainOf(store, row)
             val same = if (row.deleted) plan.pushed[uid] == null else now != null && now == plan.pushed[uid]
             store.markSynced(row.table, uid, rev, same)
@@ -242,6 +291,26 @@ object SyncRunner {
 
     private fun seal(key: ByteArray, id: String, plain: String): String =
         SyncCrypto.seal(key, id, PlainBytes.pack(plain))
+
+    /** The sync table of a record kind, or null for an unknown kind. */
+    private fun tableOf(kind: String): String? = when (kind) {
+        "event" -> "events"
+        "todo" -> "todos"
+        "memo" -> "memos"
+        "address" -> "addresses"
+        "category" -> "categories"
+        else -> null
+    }
+
+    /** The name of a record in the sync result text. */
+    private fun titleOf(rec: Any): String = when (rec) {
+        is Event -> rec.title
+        is Todo -> rec.title
+        is Memo -> rec.title
+        is Address -> rec.listName(false)
+        is Category -> rec.name
+        else -> ""
+    }.ifBlank { UNTITLED }
 }
 
 /**

@@ -1,29 +1,28 @@
 #!/usr/bin/env python3
-"""Draw the Palm Desktop app icon and write its PNG and ICO files.
-
-The icon follows the Android launcher icons of Date Book (datebook/app/src/main/res/drawable/ic_launcher_fg.xml):
-black line art on a white page, 3 px strokes in a 108 x 108 grid. It shows a monitor with a page of calendar
-on the screen, and a rounded square behind it. The rounded square has a gray edge that lies inside the shape,
-so the area outside it stays transparent.
-
-Each size is drawn on a grid four times finer than the output (4 * S by 4 * S), as coverage masks, and then
-averaged in 4 by 4 blocks down to S by S. The output is straight RGBA, 8 bits per channel.
-
-Writes:
-	desktop-cpp/packaging/palm-desktop.ico                          (16, 32, 48 and 256 px, PNG entries)
-	desktop-cpp/packaging/palm-desktop.png                          (256 px)
-	desktop-cpp/assets/icons/app16.png
-	desktop-cpp/assets/icons/app32.png
-	desktop-cpp/assets/icons/app48.png
-	desktop-cpp/assets/icons/app256.png
-
-Run from the repository root:
-
-	python desktop-cpp/packaging/make-icon.py
-
-The script ends with a self-check. It prints "icons ok" when every check passes.
-Needs Python 3 with numpy. It uses no other package.
-"""
+# Draw the Palm Desktop app icon and write its PNG and ICO files.
+#
+# The icon follows the Android launcher icons of Date Book (datebook/app/src/main/res/drawable/ic_launcher_fg.xml):
+# black line art on a white page, 3 px strokes in a 108 x 108 grid. It shows a monitor with a page of calendar
+# on the screen, and a rounded square behind it. The rounded square has a gray edge that lies inside the shape,
+# so the area outside it stays transparent.
+#
+# Each size is drawn on a grid four times finer than the output (4 * S by 4 * S), as coverage masks, and then
+# averaged in 4 by 4 blocks down to S by S. The output is straight RGBA, 8 bits per channel.
+#
+# Writes:
+# 	desktop-cpp/packaging/palm-desktop.ico                          (16, 32, 48 and 256 px, PNG entries)
+# 	desktop-cpp/packaging/palm-desktop.png                          (256 px)
+# 	desktop-cpp/assets/icons/app16.png
+# 	desktop-cpp/assets/icons/app32.png
+# 	desktop-cpp/assets/icons/app48.png
+# 	desktop-cpp/assets/icons/app256.png
+#
+# Run from the repository root:
+#
+# 	python desktop-cpp/packaging/make-icon.py
+#
+# The script ends with a self-check. It prints "icons ok" when every check passes.
+# Needs Python 3 with numpy. It uses no other package.
 
 import os
 import struct
@@ -43,17 +42,17 @@ RES_DIR = os.path.join(ROOT, "desktop-cpp", "assets", "icons")
 
 
 def axis_coords(n):
-	"""Centers of the n sub-pixels on one axis, in 108-grid units, as a 1-D array."""
+	# Centers of the n sub-pixels on one axis, in 108-grid units, as a 1-D array.
 	return (np.arange(n) + 0.5) * (GRID / n)
 
 
 def rect_mask(gx, gy, x0, y0, x1, y1):
-	"""Binary mask of a filled rectangle. gx is a row vector and gy a column vector."""
+	# Binary mask of a filled rectangle. gx is a row vector and gy a column vector.
 	return ((gx >= x0) & (gx <= x1) & (gy >= y0) & (gy <= y1)).astype(float)
 
 
 def stroke_rect(gx, gy, x0, y0, x1, y1, w):
-	"""Mask of a stroked rectangle. The stroke is centered on the given edges."""
+	# Mask of a stroked rectangle. The stroke is centered on the given edges.
 	h = w / 2.0
 	outer = rect_mask(gx, gy, x0 - h, y0 - h, x1 + h, y1 + h)
 	inner = rect_mask(gx, gy, x0 + h, y0 + h, x1 - h, y1 - h)
@@ -61,7 +60,7 @@ def stroke_rect(gx, gy, x0, y0, x1, y1, w):
 
 
 def rounded_sd(gx, gy, x0, y0, x1, y1, r):
-	"""Signed distance to a rounded rectangle, negative inside, in grid units."""
+	# Signed distance to a rounded rectangle, negative inside, in grid units.
 	cx = (x0 + x1) / 2.0
 	cy = (y0 + y1) / 2.0
 	hw = (x1 - x0) / 2.0 - r
@@ -74,7 +73,7 @@ def rounded_sd(gx, gy, x0, y0, x1, y1, r):
 
 
 def render_masks(size):
-	"""Return the (fill, edge, black) coverage masks on the supersampled grid for one output size."""
+	# Return the (fill, edge, black) coverage masks on the supersampled grid for one output size.
 	n = size * SS
 	c = axis_coords(n)
 	gx = c[np.newaxis, :]
@@ -103,7 +102,7 @@ def render_masks(size):
 
 
 def render(size):
-	"""Return the icon at one size as a straight RGBA uint8 array of shape (size, size, 4)."""
+	# Return the icon at one size as a straight RGBA uint8 array of shape (size, size, 4).
 	fill, edge, black = render_masks(size)
 	n = size * SS
 	rgb = np.ones((n, n, 3))
@@ -136,7 +135,7 @@ def png_bytes(rgba):
 
 
 def ico_bytes(images):
-	"""images is a list of (size, png_data). Each entry stores PNG data."""
+	# images is a list of (size, png_data). Each entry stores PNG data.
 	header = struct.pack("<HHH", 0, 1, len(images))
 	entries = b""
 	blobs = b""
@@ -150,7 +149,7 @@ def ico_bytes(images):
 
 
 def read_png_header(data):
-	"""Return (width, height, color type) from a PNG byte string, checking the signature."""
+	# Return (width, height, color type) from a PNG byte string, checking the signature.
 	assert data[:8] == PNG_SIG, "not a PNG"
 	length = struct.unpack(">I", data[8:12])[0]
 	assert data[12:16] == b"IHDR" and length == 13, "IHDR missing"
@@ -160,7 +159,7 @@ def read_png_header(data):
 
 
 def read_ico(data):
-	"""Return a list of (width, height, size, offset) for each ICO entry."""
+	# Return a list of (width, height, size, offset) for each ICO entry.
 	reserved, kind, count = struct.unpack("<HHH", data[:6])
 	assert reserved == 0 and kind == 1, "ICO header"
 	entries = []

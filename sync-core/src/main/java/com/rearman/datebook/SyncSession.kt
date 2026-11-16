@@ -27,6 +27,7 @@ class SyncSession(
 
     private var rounds = 0
     private var changed = false
+    private var held: List<String> = emptyList()
     private var againRequested = false
 
     /**
@@ -38,7 +39,8 @@ class SyncSession(
      *   It throws when the call fails. The message of the exception is the error text of the run.
      * @property afterRound runs on the UI thread after each applied round, with what it changed.
      * @property finish runs once on the UI thread when the run ends. It gets the error text, or null
-     *   on success, and true when any round changed records.
+     *   on success, true when any round changed records, and the titles of the records that the
+     *   last round held back as too large for the server ([heldText] gives their line).
      * @property again runs on the UI thread after [finish], when [SyncSession.requestAgain] was
      *   called during the run.
      */
@@ -47,9 +49,15 @@ class SyncSession(
         val key: ByteArray,
         val send: (since: Long, items: List<PushItem>) -> SyncResult,
         val afterRound: (SyncOutcome) -> Unit = {},
-        val finish: (error: String?, changed: Boolean) -> Unit,
+        val finish: (error: String?, changed: Boolean, held: List<String>) -> Unit,
         val again: () -> Unit = {},
     )
+
+    companion object {
+        /** The line of the sync result text for the held records, or "" when there are none. */
+        fun heldText(held: List<String>): String =
+            if (held.isEmpty()) "" else "Not synced (too large): " + held.joinToString(", ")
+    }
 
     /**
      * Starts a run and its first round. Returns false, and changes nothing, when a run is already
@@ -60,6 +68,7 @@ class SyncSession(
         running = true
         rounds = 0
         changed = false
+        held = emptyList()
         nextRound(r)
         return true
     }
@@ -80,6 +89,7 @@ class SyncSession(
             finish(r, e.message ?: "Sync failed.")
             return
         }
+        held = plan.held
         onWorker {
             val net = runCatching { r.send(plan.since, plan.items) }
             onUi { applyNet(r, plan, net) }
@@ -107,7 +117,7 @@ class SyncSession(
     /** UI thread. Ends the run, then calls [Run.finish], then [Run.again] when it was requested. */
     private fun finish(r: Run, error: String?) {
         running = false
-        r.finish(error, changed)
+        r.finish(error, changed, held)
         if (againRequested) {
             againRequested = false
             r.again()

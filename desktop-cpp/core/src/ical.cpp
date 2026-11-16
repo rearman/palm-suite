@@ -27,6 +27,9 @@ constexpr std::array<std::string_view, 7> DAY_CODES = {"SU", "MO", "TU", "WE", "
 constexpr std::array<std::string_view, 8> RULE_PARTS = {"FREQ",  "INTERVAL",   "UNTIL",   "COUNT",
                                                         "BYDAY", "BYMONTHDAY", "BYMONTH", "WKST"};
 constexpr std::int64_t DAY_SECS = 86'400;
+// The days that export writes, 0001-01-01 to 9999-12-31: a date has four digits of year.
+constexpr std::int64_t EXPORT_FIRST = -719'162;
+constexpr std::int64_t EXPORT_LAST = 2'932'896;
 // jiff's Timestamp range in Unix seconds: -009999-01-02T01:59:59Z and 9999-12-30T22:00:00Z (the last second).
 constexpr std::int64_t TIMESTAMP_MIN = -377'705'023'201;
 constexpr std::int64_t TIMESTAMP_MAX = 253'402'207'200;
@@ -319,7 +322,7 @@ std::optional<std::string> rule(const model::Event& e) {
 	if (e.every > 1) {
 		r += std::format(";INTERVAL={}", e.every);
 	}
-	if (e.repeat_end >= 0) {
+	if (e.repeat_end >= 0 && e.repeat_end <= EXPORT_LAST) {
 		r += ";UNTIL=";
 		if (e.untimed) {
 			r += ymd_text(e.repeat_end);
@@ -328,13 +331,6 @@ std::optional<std::string> rule(const model::Event& e) {
 		}
 	}
 	return r;
-}
-
-// The weekday bits of `mask`, moved `k` days later.
-std::int32_t rotate(std::int32_t mask, std::int64_t k) {
-	auto s = static_cast<std::uint32_t>(k % 7);
-	auto m = static_cast<std::uint32_t>(mask);
-	return static_cast<std::int32_t>(((m << s) | (m >> (7 - s))) & 0x7F);
 }
 
 // The parameters of a property, by upper-case name.
@@ -440,11 +436,39 @@ std::optional<Duration> duration(std::string_view s) {
 	return d;
 }
 
-// Signed minutes of a duration.
-std::int64_t minutes(const Duration& d) {
-	std::int64_t v = d.weeks.value_or(0) * 10'080 + d.days.value_or(0) * 1440 + d.hours.value_or(0) * 60 +
-	                 d.minutes.value_or(0) + d.seconds.value_or(0) / 60;
+// Signed minutes of a duration, or nullopt when they do not fit in 64 bits, as Kotlin's Math.multiplyExact and
+// addExact fail.
+std::optional<std::int64_t> minutes(const Duration& d) {
+	const std::array<std::pair<std::int64_t, std::int64_t>, 5> parts = {{{d.weeks.value_or(0), 10'080},
+	                                                                     {d.days.value_or(0), 1440},
+	                                                                     {d.hours.value_or(0), 60},
+	                                                                     {d.minutes.value_or(0), 1},
+	                                                                     {d.seconds.value_or(0) / 60, 1}}};
+	std::int64_t v = 0;
+	for (const auto& [n, per] : parts) {
+		std::int64_t m = 0;
+		if (__builtin_mul_overflow(n, per, &m) || __builtin_add_overflow(v, m, &v)) {
+			return std::nullopt;
+		}
+	}
 	return d.negative ? -v : v;
+}
+
+// The end of a DURATION from local time `start`, or nullopt when it falls past the dates of Java's LocalDateTime
+// (the years -999999999 to 999999999), where Kotlin's plusMinutes fails.
+std::optional<std::int64_t> duration_end(std::int64_t start, const Duration& d) {
+	constexpr std::int64_t FIRST_DAY = -365'243'219'162;
+	constexpr std::int64_t LAST_DAY = 365'241'780'471;
+	std::optional<std::int64_t> m = minutes(d);
+	std::int64_t secs = 0;
+	std::int64_t end = 0;
+	if (!m || __builtin_mul_overflow(*m, std::int64_t{60}, &secs) || __builtin_add_overflow(start, secs, &end)) {
+		return std::nullopt;
+	}
+	if (day_of(end) < FIRST_DAY || day_of(end) > LAST_DAY) {
+		return std::nullopt;
+	}
+	return end;
 }
 
 // A TRIGGER value as Date Book (advance, unit), in the unit of the file.
@@ -453,7 +477,11 @@ std::pair<std::int32_t, std::int32_t> advance(std::string_view value) {
 	if (!d) {
 		return {0, 0};
 	}
-	std::int64_t before = -minutes(*d);
+	std::optional<std::int64_t> m = minutes(*d);
+	if (!m) {
+		return {0, 0};
+	}
+	std::int64_t before = -*m;
 	if (before <= 0) {
 		return {0, 0};
 	}
@@ -476,8 +504,8 @@ bool is_date(const Params& params, std::string_view v) {
 	return code_point_count(text::trim(v)) == 8;
 }
 
-// A DATE or DATE-TIME value as a local time in `zone`, or nullopt when it does not parse.
-std::optional<std::int64_t> time(const Params& params, std::string_view value, const std::chrono::time_zone* zone) {
+// A DATE or DATE-TIME value as the file writes it, with no zone change, or nullopt when it does not parse.
+std::optional<std::int64_t> wall(const Params& params, std::string_view value) {
 	std::string_view v = text::trim(value);
 	if (is_date(params, v)) {
 		auto d = parse_date(first_chars(v, 8));
@@ -487,25 +515,97 @@ std::optional<std::int64_t> time(const Params& params, std::string_view value, c
 		return *d * DAY_SECS;
 	}
 	if (v.ends_with('Z')) {
-		auto t = parse_time(v.substr(0, v.size() - 1));
-		if (!t) {
-			return std::nullopt;
-		}
-		return convert(*t, utc_zone(), zone);
+		return parse_time(v.substr(0, v.size() - 1));
 	}
-	auto t = parse_time(v);
+	return parse_time(v);
+}
+
+// The zone of a DATE-TIME value: UTC for a "Z" time, else its TZID. nullptr for a DATE and a floating time.
+// Shortcut: a TZID that is not an IANA zone name (Outlook writes Windows names) reads as local time.
+// Upgrade path: read the offsets from the VTIMEZONE of the file.
+const std::chrono::time_zone* source_zone(const Params& params, std::string_view value) {
+	std::string_view v = text::trim(value);
+	if (is_date(params, v)) {
+		return nullptr;
+	}
+	if (v.ends_with('Z')) {
+		return utc_zone();
+	}
+	auto it = params.find("TZID");
+	return it != params.end() ? find_zone(it->second) : nullptr;
+}
+
+// A DATE or DATE-TIME value as a local time in `zone`, or nullopt when it does not parse.
+std::optional<std::int64_t> time(const Params& params, std::string_view value, const std::chrono::time_zone* zone) {
+	std::optional<std::int64_t> t = wall(params, value);
 	if (!t) {
 		return std::nullopt;
 	}
-	// Shortcut: a TZID that is not an IANA zone name (Outlook writes Windows names) reads as local time.
-	// Upgrade path: read the offsets from the VTIMEZONE of the file.
-	auto it = params.find("TZID");
-	if (it != params.end()) {
-		if (const std::chrono::time_zone* tz = find_zone(it->second)) {
-			return convert(*t, tz, zone);
+	const std::chrono::time_zone* src = source_zone(params, value);
+	if (src == nullptr) {
+		return t;
+	}
+	return convert(*t, src, zone);
+}
+
+// True when zones `a` and `b` keep the offset between them that they have at `from` until `to`. Date Book keeps one
+// wall time for a series, so a series from a zone whose offset to the device zone changes moves.
+bool keeps_offset(const std::chrono::time_zone* a, const std::chrono::time_zone* b, std::chrono::sys_seconds from,
+                  std::chrono::sys_seconds to) {
+	auto diff = [a, b](std::chrono::sys_seconds t) { return a->get_info(t).offset - b->get_info(t).offset; };
+	const std::chrono::seconds d0 = diff(from);
+	std::chrono::sys_seconds t = from;
+	for (;;) {
+		std::chrono::sys_seconds next = std::min(a->get_info(t).end, b->get_info(t).end);
+		if (next >= to) {
+			return true;
+		}
+		if (diff(next) != d0) {
+			return false;
+		}
+		t = next;
+	}
+}
+
+// The parts of an RRULE value, by upper-case name, with upper-case values.
+std::map<std::string, std::string> rule_map(std::string_view value) {
+	std::map<std::string, std::string> r;
+	for (std::string_view part : text::split(text::trim(value), ';')) {
+		auto eq = part.find('=');
+		if (eq != std::string_view::npos && eq > 0) {
+			r[text::to_uppercase(part.substr(0, eq))] = text::to_uppercase(part.substr(eq + 1));
 		}
 	}
-	return *t;
+	return r;
+}
+
+// The first day of a week of rule `r` (0 = Sunday): its WKST, else Monday, as RFC 5545 has it.
+std::int32_t week_start(const std::map<std::string, std::string>& r) {
+	auto it = r.find("WKST");
+	if (it != r.end()) {
+		auto pos = std::find(DAY_CODES.begin(), DAY_CODES.end(), std::string_view(it->second));
+		if (pos != DAY_CODES.end()) {
+			return static_cast<std::int32_t>(pos - DAY_CODES.begin());
+		}
+	}
+	return 1;
+}
+
+// True when Date Book's weeks, which start on Sunday, group the days of `mask` as weeks that start on day
+// `week_start` do, after the days move `shift` days later.
+bool same_weeks(std::int32_t mask, std::int32_t week_start, std::int64_t shift) {
+	std::optional<std::int64_t> week;
+	for (std::int32_t d = 0; d < 7; ++d) {
+		if ((mask & (std::int32_t{1} << d)) == 0) {
+			continue;
+		}
+		std::int64_t w = floor_div(week_start + floor_mod(d - week_start, 7) + shift, 7);
+		if (week && *week != w) {
+			return false;
+		}
+		week = w;
+	}
+	return true;
 }
 
 // The time of a property, or nullopt when there is no property or its value does not parse.
@@ -516,23 +616,21 @@ std::optional<std::int64_t> prop_time(const Prop* p, const std::chrono::time_zon
 	return time(p->params, p->value, zone);
 }
 
-// Sets the repeat of `e` from an RRULE value. False when Date Book cannot show the rule: `e` then stays a
-// one-time event.
-bool set_rule(model::Event& e, std::string_view value, const std::chrono::time_zone* zone) {
+// Sets the repeat of `e` from the RRULE parts `r`. The rule reads against `src`, the DTSTART date as the file writes
+// it; `e.date` is the start date in `zone`, which a UTC or TZID start can move by a day, and `start_secs` the start
+// time there in seconds. True when Date Book shows the rule as the file means it; false when it shows it with a
+// change, or cannot show it: `e` then stays a one-time event.
+bool set_rule(model::Event& e, const std::map<std::string, std::string>& r, const std::chrono::time_zone* zone,
+              std::int64_t src, std::int64_t start_secs) {
 	static const Params no_params;
-	std::map<std::string, std::string> r;
-	for (std::string_view part : text::split(text::trim(value), ';')) {
-		auto eq = part.find('=');
-		if (eq != std::string_view::npos && eq > 0) {
-			r[text::to_uppercase(part.substr(0, eq))] = text::to_uppercase(part.substr(eq + 1));
-		}
-	}
 	for (const auto& [key, val] : r) {
 		if (std::find(RULE_PARTS.begin(), RULE_PARTS.end(), std::string_view(key)) == RULE_PARTS.end()) {
 			return false;
 		}
 	}
-	days::Ymd s = days::ymd(e.date);
+	days::Ymd s = days::ymd(src);
+	days::Ymd local = days::ymd(e.date);
+	std::int64_t delta = e.date - src;
 	auto get = [&r](const char* key) -> std::optional<std::string> {
 		auto it = r.find(key);
 		if (it == r.end()) {
@@ -601,8 +699,9 @@ bool set_rule(model::Event& e, std::string_view value, const std::chrono::time_z
 			rep = model::repeat::MONTH_DATE;
 		} else if (!month_day && byday->size() == 1) {
 			model::Event plain = e;
+			plain.date = src;
 			plain.week_days = 0;
-			model::Event last_week = e;
+			model::Event last_week = plain;
 			last_week.week_days = model::repeat::LAST_WEEK;
 			if ((*byday)[0] == week_code(plain)) {
 				rep = model::repeat::MONTH_DAY;
@@ -621,30 +720,71 @@ bool set_rule(model::Event& e, std::string_view value, const std::chrono::time_z
 	} else {
 		return false;
 	}
+	bool exact = true;
 	model::Event t = e;
 	t.repeat = rep;
 	t.every = every;
 	t.week_days = week_days;
 	t.repeat_end = -1;
+	if (delta != 0) {
+		// The local date is a day off the file's: the week days move with it, and a month or year day holds only
+		// when both days are in every month.
+		bool same_month = local.month == s.month;
+		std::uint32_t last = std::max(s.day, local.day);
+		if (rep == model::repeat::WEEK) {
+			if (week_days != 0) {
+				t.week_days = model::rotate_week_days(week_days, delta);
+			}
+		} else if (rep == model::repeat::MONTH_DATE) {
+			exact = exact && same_month && last <= 28;
+		} else if (rep == model::repeat::MONTH_DAY) {
+			exact = false;
+		} else if (rep == model::repeat::YEAR) {
+			exact = exact && same_month && !(s.month == 2 && last >= 29);
+		}
+	}
+	// RFC 5545 counts DTSTART as an occurrence even off the BYDAY days. Date Book cannot show that start with the
+	// series, so the series starts on its first day on the rule.
+	bool off_start =
+	    rep == model::repeat::WEEK && week_days != 0 && (week_days & (std::int32_t{1} << days::dow(src))) == 0;
+	if (off_start) {
+		t.date = model::first_week_day(src, week_days, every, week_start(r)) + delta;
+	}
+	bool start_only = false;
 	if (auto u = get("UNTIL")) {
 		auto x = time(no_params, *u, zone);
 		if (!x) {
 			return false;
 		}
-		t.repeat_end = day_of(*x);
+		// A DATE-TIME UNTIL is the last start that occurs, so a later start time ends the day before.
+		bool late = !is_date(no_params, *u) && start_secs > floor_mod(*x, DAY_SECS);
+		t.repeat_end = day_of(*x) - (late ? 1 : 0);
 	}
 	if (auto c = get("COUNT")) {
 		auto count = parse_i32(*c);
 		if (!count || *count <= 0) {
 			return false;
 		}
-		t.repeat_end = count_end(t, *count);
+		std::int32_t n = *count - (off_start ? 1 : 0);
+		if (n == 0) {
+			start_only = true;
+		} else {
+			t.repeat_end = count_end(t, n);
+		}
 	}
+	if (off_start) {
+		// No occurrence on the rule: the start alone, a one-time event.
+		if (start_only || (t.repeat_end >= 0 && t.repeat_end < t.date)) {
+			return true;
+		}
+		exact = false;
+	}
+	e.date = t.date;
 	e.repeat = t.repeat;
 	e.every = t.every;
 	e.week_days = t.week_days;
 	e.repeat_end = t.repeat_end;
-	return true;
+	return exact;
 }
 
 // Splits a content line into its name, parameters, and value, or nullopt when it has no colon outside quotes.
@@ -688,29 +828,16 @@ std::optional<Prop> prop(std::string_view line) {
 	return p;
 }
 
-// The content lines of `text` with each folded continuation joined to its line. A BOM is dropped, and a
-// blank line is dropped.
+// The content lines of `text` with each folded continuation joined to its line, as Kotlin's ICal.unfold. A blank
+// line is dropped.
 std::vector<std::string> unfold(std::string_view text) {
-	if (text.starts_with("\xEF\xBB\xBF")) {
-		text.remove_prefix(3);
-	}
 	std::vector<std::string> out;
-	std::size_t start = 0;
-	for (;;) {
-		std::size_t nl = text.find('\n', start);
-		std::string_view l = text.substr(start, nl == std::string_view::npos ? std::string_view::npos : nl - start);
-		if (!l.empty() && l.back() == '\r') {
-			l.remove_suffix(1);
-		}
-		if ((l.starts_with(' ') || l.starts_with('\t')) && !out.empty()) {
+	for (const std::string_view l : lines(text)) {
+		if (continues(l) && !out.empty()) {
 			out.back() += l.substr(1);
 		} else if (!model::is_blank(l)) {
 			out.emplace_back(l);
 		}
-		if (nl == std::string_view::npos) {
-			break;
-		}
-		start = nl + 1;
 	}
 	return out;
 }
@@ -735,6 +862,15 @@ std::optional<Item> item(const std::vector<Prop>& props, const Prop* trigger, co
 	}
 	std::int64_t start = *start_time;
 	bool untimed = is_date(ds->params, ds->value);
+	// The zone and the time that DTSTART names. A UTC or TZID start can fall on another day here.
+	const std::chrono::time_zone* src_zone = source_zone(ds->params, ds->value);
+	std::optional<std::int64_t> written = wall(ds->params, ds->value);
+	if (!written) {
+		return std::nullopt;
+	}
+	std::int64_t day0 = day_of(start);
+	std::int64_t src = src_zone == nullptr ? day0 : day_of(*written);
+	std::int64_t delta = day0 - src;
 	std::string uid;
 	if (const Prop* p = first("UID")) {
 		uid = std::string(text::trim(p->value));
@@ -749,9 +885,10 @@ std::optional<Item> item(const std::vector<Prop>& props, const Prop* trigger, co
 	}
 	std::optional<std::int64_t> end = prop_time(first("DTEND"), zone);
 	if (!end) {
+		// A DURATION whose end falls past the dates of Java's LocalDateTime counts as none.
 		if (const Prop* d = first("DURATION")) {
 			if (auto dur = duration(text::trim(d->value))) {
-				end = start + minutes(*dur) * 60;
+				end = duration_end(start, *dur);
 			}
 		}
 	}
@@ -765,7 +902,7 @@ std::optional<Item> item(const std::vector<Prop>& props, const Prop* trigger, co
 	if (const Prop* p = first("DESCRIPTION")) {
 		e.note = unescape(p->value);
 	}
-	e.date = day_of(start);
+	e.date = day0;
 	e.untimed = untimed;
 	if (const Prop* p = first("CLASS")) {
 		std::string cls = text::to_uppercase(text::trim(p->value));
@@ -790,12 +927,29 @@ std::optional<Item> item(const std::vector<Prop>& props, const Prop* trigger, co
 		e.alarm_unit = unit;
 	}
 	const Prop* rule_prop = first("RRULE");
-	if (!rid && rule_prop != nullptr) {
-		if (!set_rule(e, rule_prop->value, zone)) {
+	std::optional<std::map<std::string, std::string>> parts;
+	if (rule_prop != nullptr) {
+		parts = rule_map(rule_prop->value);
+	}
+	if (!rid && parts) {
+		if (!set_rule(e, *parts, zone, src, floor_mod(start, DAY_SECS))) {
 			simplified = true;
 		}
+		if (e.repeats() && src_zone != nullptr) {
+			// Shortcut: the first year of the series only. Upgrade path: each year to its end.
+			std::chrono::sys_seconds from =
+			    to_instant(src_zone, std::chrono::local_seconds{std::chrono::seconds{*written}});
+			std::chrono::sys_seconds to = from + std::chrono::seconds{366 * DAY_SECS};
+			if (e.repeat_end >= 0) {
+				to = std::min(to, to_instant(zone, std::chrono::local_seconds{
+				                                       std::chrono::seconds{(e.repeat_end + 1) * DAY_SECS}}));
+			}
+			if (!keeps_offset(src_zone, zone, from, to)) {
+				simplified = true;
+			}
+		}
 	}
-	std::int64_t day_count = day_of(*end) - e.date;
+	std::int64_t day_count = day_of(*end) - day0;
 	if (untimed && day_count > 1) {
 		// A multi-day untimed event becomes a daily repeat over its days.
 		if (rule_prop == nullptr && !rid) {
@@ -821,28 +975,29 @@ std::optional<Item> item(const std::vector<Prop>& props, const Prop* trigger, co
 		simplified = true;
 	}
 	std::vector<model::Event> events{e};
+	std::int32_t mask = e.week_days == 0 ? (static_cast<std::int32_t>(1) << days::dow(e.date)) : e.week_days;
+	if (e.repeat == model::repeat::WEEK && e.every > 1 && parts) {
+		// Date Book counts weeks from Sunday and the file from its WKST, in its own zone. Each day part is checked; a
+		// part moves the days by one more day.
+		std::int32_t src_mask = model::rotate_week_days(mask, -delta);
+		std::int32_t wkst = week_start(*parts);
+		for (std::int64_t k = 0; k <= std::min<std::int64_t>(span, 30); ++k) {
+			if (!same_weeks(src_mask, wkst, delta + k)) {
+				simplified = true;
+			}
+		}
+	}
 	if (span > 0) {
 		// A timed event that goes past midnight becomes one event for each day it covers.
 		// Shortcut: at most 31 days. Upgrade path: an end date in Event.
-		std::int32_t mask = e.week_days == 0 ? (static_cast<std::int32_t>(1) << days::dow(day_of(start))) : e.week_days;
 		for (std::int64_t k = 1; k <= std::min<std::int64_t>(span, 30); ++k) {
-			// Date Book counts weeks from Sunday, so a part that moves past Saturday is off by one week.
-			bool past_saturday = false;
-			for (std::int64_t i = 0; i < 7; ++i) {
-				if ((mask & (1 << i)) != 0 && i + k > 6) {
-					past_saturday = true;
-				}
-			}
-			if (e.repeat == model::repeat::WEEK && e.every > 1 && past_saturday) {
-				simplified = true;
-			}
 			model::Event part = e;
 			part.date = e.date + k;
 			part.start = 0;
 			part.end = k == span ? last_end : 24 * 60 - 1;
 			part.alarm = false;
 			part.repeat_end = e.repeat_end >= 0 ? e.repeat_end + k : -1;
-			part.week_days = e.repeat == model::repeat::WEEK ? rotate(mask, k) : e.week_days;
+			part.week_days = e.repeat == model::repeat::WEEK ? model::rotate_week_days(mask, k) : e.week_days;
 			part.exceptions.clear();
 			for (std::int64_t x : e.exceptions) {
 				part.exceptions.insert(x + k);
@@ -868,10 +1023,30 @@ std::string export_ical(std::span<const model::Event> events, std::chrono::sys_s
 	line("BEGIN:VCALENDAR");
 	line("VERSION:2.0");
 	line("PRODID:-//rearman//Date Book//EN");
-	for (const model::Event& e : events) {
+	auto in_range = [](std::int64_t day) { return day >= EXPORT_FIRST && day <= EXPORT_LAST; };
+	for (std::size_t index = 0; index < events.size(); ++index) {
+		const model::Event& e = events[index];
+		if (!in_range(e.date)) {
+			continue;
+		}
 		std::int64_t d = model::first_day(e);
+		if (d > EXPORT_LAST) {
+			continue;
+		}
+		if (e.repeats()) {
+			model::Event plain = e;
+			plain.exceptions.clear();
+			if (!model::occurs_on(plain, d)) {
+				continue;
+			}
+		}
+		// The sync uid is the same on every device. A record without one keeps its row id, and an unsaved record gets
+		// one from this export.
+		std::string uid = !e.uid.empty() ? e.uid
+		                  : e.id != 0    ? std::to_string(e.id)
+		                                 : std::format("new-{}-{}", stamp, index);
 		line("BEGIN:VEVENT");
-		line(std::format("UID:{}@com.rearman.datebook", e.id));
+		line("UID:" + escape(uid) + "@com.rearman.datebook");
 		line("DTSTAMP:" + stamp);
 		if (e.untimed) {
 			line("DTSTART;VALUE=DATE:" + ymd_text(d));
@@ -892,6 +1067,9 @@ std::string export_ical(std::span<const model::Event> events, std::chrono::sys_s
 		}
 		if (e.repeats()) {
 			for (std::int64_t x : e.exceptions) {
+				if (!in_range(x)) {
+					continue;
+				}
 				if (e.untimed) {
 					line("EXDATE;VALUE=DATE:" + ymd_text(x));
 				} else {
@@ -1053,6 +1231,30 @@ Parsed parse(std::string_view text, const std::chrono::time_zone* zone) {
 		}
 	}
 	return out;
+}
+
+std::vector<std::string_view> lines(std::string_view text) {
+	if (text.starts_with("\xEF\xBB\xBF")) {
+		text.remove_prefix(3);
+	}
+	std::vector<std::string_view> out;
+	std::size_t start = 0;
+	for (;;) {
+		const std::size_t nl = text.find('\n', start);
+		std::string_view l = text.substr(start, nl == std::string_view::npos ? std::string_view::npos : nl - start);
+		if (l.ends_with('\r')) {
+			l.remove_suffix(1);
+		}
+		out.push_back(l);
+		if (nl == std::string_view::npos) {
+			return out;
+		}
+		start = nl + 1;
+	}
+}
+
+bool continues(std::string_view l) {
+	return l.starts_with(' ') || l.starts_with('\t');
 }
 
 } // namespace palm::ical

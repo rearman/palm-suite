@@ -139,7 +139,11 @@ std::vector<Effect> DesktopSync::answer(store::DesktopStore& store, settings::Se
 	}
 	Pending p = std::move(*pending_);
 	pending_.reset();
-	auto [outcome, next] = session_.applied(store, p.key, p.plan, std::move(net));
+	// The writes of the round save the data file once, at its end, so the backup is the file from before the round.
+	auto [outcome, next] = [&] {
+		store::DesktopStore::Batch batch(store);
+		return session_.applied(store, p.key, p.plan, std::move(net));
+	}();
 	std::vector<Effect> effects;
 	if (outcome && outcome->changed) {
 		effects.push_back(Refresh{});
@@ -166,8 +170,10 @@ std::vector<Effect> DesktopSync::step(session::Step next, std::vector<std::uint8
 	const session::Done& done = std::get<session::Done>(next);
 	const std::optional<std::string> error = done.error;
 	const bool again = done.again;
-	const std::string text =
-	    error ? std::format("Sync failed: {}", *error) : std::format("Last sync: {}", now_text(h24_));
+	std::string text = error ? std::format("Sync failed: {}", *error) : std::format("Last sync: {}", now_text(h24_));
+	if (const std::string held = session::held_text(done.held); !held.empty()) {
+		text += "; " + held;
+	}
 	last_end_ = std::chrono::steady_clock::now();
 	std::vector<Effect> effects{Status{text}};
 	if (const auto saved = settings.set("lastSync", text); !saved) {
@@ -190,6 +196,12 @@ std::vector<Effect> DesktopSync::step(session::Step next, std::vector<std::uint8
 			effects.push_back(DialogDone{error});
 			break;
 		}
+	}
+	if (waiting_set_up_) {
+		const WaitingSetUp w = std::move(*waiting_set_up_);
+		waiting_set_up_.reset();
+		auto more = apply_set_up(store, settings, w.key, w.server, w.token);
+		effects.insert(effects.end(), more.begin(), more.end());
 	}
 	if (again) {
 		auto more = sync_now(store, settings, Report::Quiet);
@@ -214,7 +226,17 @@ std::vector<Effect> DesktopSync::finish_set_up(store::DesktopStore& store, setti
 	if (!result->has_value()) {
 		return {DialogDone{std::string("Wrong passphrase.")}};
 	}
-	const std::vector<std::uint8_t> key = std::move(**result);
+	std::vector<std::uint8_t> key = std::move(**result);
+	if (session_.running()) {
+		waiting_set_up_ = WaitingSetUp{std::move(key), server, token};
+		return {};
+	}
+	return apply_set_up(store, settings, key, server, token);
+}
+
+std::vector<Effect> DesktopSync::apply_set_up(store::DesktopStore& store, settings::Settings& settings,
+                                              const std::vector<std::uint8_t>& key, const std::string& server,
+                                              const std::string& token) {
 	const auto saved = settings.set("server", server)
 	                       .and_then([&] { return settings.set("token", token); })
 	                       .and_then([&] { return settings.set("key", crypto::b64(key)); })
@@ -222,7 +244,13 @@ std::vector<Effect> DesktopSync::finish_set_up(store::DesktopStore& store, setti
 	if (!saved) {
 		return {DialogDone{std::format("The settings were not saved: {}", saved.error())}};
 	}
-	store.set_sync_since(0);
+	{
+		// Every record goes to the new server, as on the phone (SyncEngine.finishSetUp).
+		store::DesktopStore::Batch batch(store);
+		store.reset_sync();
+		store.set_up_short_cuts();
+		store.set_sync_since(0);
+	}
 	return sync_now(store, settings, Report::Dialog);
 }
 

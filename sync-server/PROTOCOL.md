@@ -1,7 +1,7 @@
 # Palm Suite Sync Protocol
 
 This document is the contract between the sync server and its clients.
-The Android client follows it. A future desktop app follows it too.
+The Android client and the desktop app (Palm Desktop, since 0.24) follow it.
 
 ## 1. Access
 
@@ -230,7 +230,7 @@ Rules:
 - The ShortCuts record has the id `shortcuts`. The device that syncs the record last wins.
 - A client compares two records by their content, without the `uid`. If the content is the same, the two versions are the same.
 
-### Server log
+## 7. Server log
 
 The server stores its log as binary, in `log.bin` in its data directory. The
 wire protocol does not change. When the server starts and finds an old

@@ -1,7 +1,11 @@
 package com.rearman.palmui
 
+import android.app.Activity
 import android.app.Dialog
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapShader
@@ -44,6 +48,7 @@ import android.widget.PopupWindow
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.lang.ref.WeakReference
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -493,7 +498,13 @@ open class PalmDialog(ctx: Context, title: String, scroll: Boolean = true, heigh
 
 	override fun onStart() {
 		super.onStart()
+		windowOpened(this)
 		fitButtons()
+	}
+
+	override fun onStop() {
+		super.onStop()
+		windowClosed(this)
 	}
 
 	/**
@@ -625,7 +636,56 @@ fun Context.popupList(anchor: View, items: List<String>, selected: Int, onPick: 
 	// screen-coordinate switch, setIsLaidOutInScreen, needs API 29; minSdk is 26.)
 	val win = IntArray(2)
 	anchor.rootView.getLocationOnScreen(win)
+	pw.setOnDismissListener { windowClosed(pw) }
 	pw.showAtLocation(anchor, Gravity.NO_GRAVITY, x - win[0], y - win[1])
+	windowOpened(pw)
+}
+
+// The open forms, menu bars, and pop-up lists, held weakly, so that an activity can close its own
+// (closePalmWindows). Each adds itself when it shows and drops out when it closes. Main thread only.
+private val openWindows = mutableListOf<WeakReference<Any>>()
+
+internal fun windowOpened(w: Any) {
+	openWindows.removeAll { it.get() == null }
+	openWindows.add(WeakReference(w))
+}
+
+internal fun windowClosed(w: Any) {
+	openWindows.removeAll { it.get().let { o -> o == null || o === w } }
+}
+
+private fun Context.activity(): Activity? = when (this) {
+	is Activity -> this
+	is ContextWrapper -> baseContext?.activity()
+	else -> null
+}
+
+/**
+ * Closes the open forms, menu bars, and pop-up lists of this activity, the newest first, as Home
+ * does on the Palm. Call it in onDestroy too, or each open window leaks. True when one was open.
+ */
+fun Activity.closePalmWindows(): Boolean {
+	var closed = false
+	for (ref in openWindows.toList().asReversed()) {
+		val w = ref.get()
+		if (w is Dialog && w.isShowing && w.context.activity() === this) {
+			w.dismiss()
+			closed = true
+		} else if (w is PopupWindow && w.isShowing && w.contentView?.context?.activity() === this) {
+			w.dismiss()
+			closed = true
+		}
+	}
+	return closed
+}
+
+/** Starts [intent]. When no app on the phone can take it, shows [failText] if given, and gives false. */
+fun Context.startSafely(intent: Intent, failText: String? = null): Boolean = try {
+	startActivity(intent)
+	true
+} catch (e: ActivityNotFoundException) {
+	failText?.let { toast(it) }
+	false
 }
 
 /** A message with buttons. Each button closes the dialog and then runs its action. */
@@ -656,23 +716,39 @@ fun Context.palmAlert(
 	tips: String? = null,
 	onOk: (archive: Boolean) -> Unit
 ) {
+	var archive: CheckBox? = null
+	val d = alertForm(title, message, height, IconView.CONFIRM, tips) { place ->
+		if (archiveY > 0) archive = checkBox("Save archive copy on PC", archiveOn).also { place(it, 12, archiveY) }
+	}
+	d.button(okText, 37) { d.dismiss(); onOk(archive?.isChecked == true) }
+	d.button("Cancel", 37) { d.dismiss() }
+	d.show()
+}
+
+// The form of a Palm alert, with no buttons: [icon] at form (8, 19) and the bold message at (32, 19).
+// [more] gets a function that puts a further view at form coordinates.
+private fun Context.alertForm(
+	title: String,
+	message: String,
+	height: Int,
+	icon: Int,
+	tips: String? = null,
+	more: (place: (View, Int, Int) -> Unit) -> Unit = {}
+): PalmDialog {
 	val d = PalmDialog(this, title, height = height, tips = tips)
 	// Form coordinates. The body starts at form (4, 16), so each margin is the form value less that origin.
 	val area = FrameLayout(this)
-	fun place(v: View, formX: Int, formY: Int) =
+	val place = { v: View, formX: Int, formY: Int ->
 		area.addView(v, FrameLayout.LayoutParams(WRAP, WRAP).apply {
 			leftMargin = pp(formX - 4)
 			topMargin = pp(formY - 16)
 		})
-	place(IconView(this, IconView.CONFIRM), 8, 19)
+	}
+	place(IconView(this, icon), 8, 19)
 	place(label(message, bold = true), 32, 19)
-	val archive: CheckBox? = if (archiveY > 0)
-		checkBox("Save archive copy on PC", archiveOn).also { place(it, 12, archiveY) }
-	else null
+	more(place)
 	d.body.addView(area, LP(MATCH, WRAP))
-	d.button(okText, 37) { d.dismiss(); onOk(archive?.isChecked == true) }
-	d.button("Cancel", 37) { d.dismiss() }
-	d.show()
+	return d
 }
 
 fun Context.toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

@@ -18,11 +18,11 @@
 
 #include <FL/Enumerations.H>
 #include <FL/Fl.H>
-#include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_PNG_Image.H>
 #include <FL/fl_draw.H>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -44,24 +44,11 @@ constexpr int WEEKS = 6;
 constexpr int MORE_W = 7;
 constexpr int MORE_H = 4;
 
-// Shows the Month cell menu at the pointer; the index of the pick.
+// Shows the Month cell menu at the pointer; the index of the pick. A divider follows Week View, as in the Rust.
 std::optional<std::size_t> cell_menu() {
-	Fl_Menu_Button mb(0, 0, 0, 0);
-	mb.type(Fl_Menu_Button::POPUP3);
-	for (const char* label : {"&Day View", "&Week View", "&New Event..."}) {
-		mb.add(label);
-	}
-	// A divider after Week View (item 1), as the Rust's mb.at(1) sets it.
-	mb.mode(1, FL_MENU_DIVIDER);
-	draw::style_menu(&mb);
-	if (!mb.popup()) {
-		return std::nullopt;
-	}
-	const int v = mb.value();
-	if (v < 0) {
-		return std::nullopt;
-	}
-	return static_cast<std::size_t>(v);
+	static constexpr std::array<std::string_view, 3> labels = {"&Day View", "&Week View", "&New Event..."};
+	static constexpr std::array<std::size_t, 1> dividers = {1};
+	return draw::popup(labels, dividers);
 }
 
 // The text of an event line: an asterisk for an untimed event, the start time for a timed one.
@@ -132,7 +119,8 @@ void MonthGridFrame::draw() {
 	const int number_h = fl_height() + NUM_PAD;
 	fl_font(fonts.arial, 12);
 	const int line_h = fl_height();
-	const auto key = theme::icon("private");
+	// The private key, decoded once and left alive at exit, as the marker icons of date_shared.
+	static Fl_PNG_Image* const key = theme::icon("private").release();
 	for (int i = 0; i < 7 * WEEKS; ++i) {
 		const int rx = x + (i % 7) * cw;
 		const int ry = y + NAME_H + (i / 7) * ch;

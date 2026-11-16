@@ -1,4 +1,4 @@
-// The Options dialog of Dialogs.kt: the General tab (the startup view and the delete question) and the Date Book tab
+// The Options dialog of Dialogs.kt: the General tab (the delete question) and the Date Book tab
 // (the work day, the first day of the week and the alarm preset), as desktop-rs/app/src/options.rs.
 
 #include "palm/options.hpp"
@@ -20,24 +20,13 @@
 #include <FL/Fl_Window.H>
 
 #include <algorithm>
-#include <array>
-#include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
 
 namespace palm::options {
 
 namespace {
-
-// The startup views: the key of each in settings, then its name in the menu.
-constexpr std::array<std::pair<std::string_view, std::string_view>, 4> START_VIEWS = {{
-    {"date", "Date Book"},
-    {"address", "Address Book"},
-    {"todo", "To Do List"},
-    {"memo", "Memo Pad"},
-}};
 
 // Moves the keyboard focus to `target`, which a key label stands for.
 void take_focus_cb(Fl_Widget*, void* target) {
@@ -90,18 +79,7 @@ bool show(settings::Settings& settings, bool h24) {
 	};
 
 	Fl_Group* general = page("&General");
-	auto* start = new palm::combo::Choice(133, 48, 197, 22);
-	for (const auto& view : START_VIEWS) {
-		start->add(std::string(view.second).c_str());
-	}
-	draw::style_menu(start);
-	const std::string cur = settings.get("startView", "date");
-	const auto found =
-	    std::find_if(START_VIEWS.begin(), START_VIEWS.end(), [&cur](const auto& view) { return view.first == cur; });
-	start->value(found == START_VIEWS.end() ? 0 : static_cast<int>(found - START_VIEWS.begin()));
-	auto* start_l = dialogs::key_label("&Startup application:", 20, 48, 100, 22, FL_ALIGN_RIGHT);
-	start_l->callback(take_focus_cb, start);
-	auto* confirm = draw::check(28, 88, 280, 22, "&Confirm before deleting records");
+	auto* confirm = draw::check(28, 48, 280, 22, "&Confirm before deleting records");
 	confirm->value(settings.get_bool("confirmDelete", true));
 	general->end();
 
@@ -160,9 +138,10 @@ bool show(settings::Settings& settings, bool h24) {
 	if (!answer.saved) {
 		return false;
 	}
-	const auto start_key = START_VIEWS[static_cast<std::size_t>(std::max(start->value(), 0))].first;
-	// A failed save is ignored, as in the Rust port.
-	static_cast<void>(settings.set("startView", start_key));
+	// A failed save is ignored, as in the Rust port. The startView key of earlier versions is no longer read; it goes.
+	if (!settings.get("startView", "").empty()) {
+		static_cast<void>(settings.remove("startView"));
+	}
 	static_cast<void>(settings.set_bool("confirmDelete", confirm->value() != 0));
 	static_cast<void>(settings.set_int("workDay", std::max(work->value(), 0)));
 	static_cast<void>(settings.set_int("weekStart", std::max(week->value(), 0)));

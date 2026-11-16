@@ -15,7 +15,6 @@
 #include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Choice.H>
 #include <FL/Fl_Double_Window.H>
-#include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_PNG_Image.H>
 #include <FL/Fl_Spinner.H>
 #include <FL/Fl_Window.H>
@@ -26,7 +25,6 @@
 #include <format>
 #include <initializer_list>
 #include <memory>
-#include <set>
 #include <stdexcept>
 #include <utility>
 
@@ -56,16 +54,22 @@ std::string words(std::initializer_list<std::string_view> parts) {
 	return out;
 }
 
-// The marker icon of kind `m`, an icon of icons/<name>.png.
-std::unique_ptr<Fl_PNG_Image> marker_icon(Marker m) {
-	static constexpr std::array<std::string_view, 4> names = {"repeat", "alarm", "note", "private"};
-	return theme::icon(names[static_cast<std::size_t>(m)]);
+// The marker icon of kind `m`, an icon of icons/<name>.png, decoded once on first use. The icons are left alive at
+// exit on purpose: an image freed after FLTK closes its display could free a bitmap the display no longer holds.
+Fl_PNG_Image& marker_icon(Marker m) {
+	static const std::array<Fl_PNG_Image*, 4> icons = {
+	    theme::icon("repeat").release(),
+	    theme::icon("alarm").release(),
+	    theme::icon("note").release(),
+	    theme::icon("private").release(),
+	};
+	return *icons[static_cast<std::size_t>(m)];
 }
 
 // The size of the marker icons (all are 13 px square or smaller).
 std::pair<int, int> marker_size(Marker m) {
-	const auto img = marker_icon(m);
-	return {img->w(), img->h()};
+	const Fl_PNG_Image& img = marker_icon(m);
+	return {img.w(), img.h()};
 }
 
 // The top of the marker icons of a box: centered in an untimed header row, else 2 px below the top.
@@ -248,10 +252,10 @@ void paint_event(Rect r, const model::Event& e, bool selected, bool centered) {
 	const draw::Clip clip(r.x, r.y, std::max(0, r.w - BAR_W), r.h);
 	int x = r.x + 3;
 	for (const Marker m : markers(e)) {
-		const auto img = marker_icon(m);
-		const int iw = img->w();
-		const int ih = img->h();
-		img->draw(x, marker_y(r, ih, centered), iw, ih);
+		Fl_PNG_Image& img = marker_icon(m);
+		const int iw = img.w();
+		const int ih = img.h();
+		img.draw(x, marker_y(r, ih, centered), iw, ih);
 		x += iw + 2;
 	}
 	// The title is Helvetica 11 (MS Sans Serif 8), word-wrapped to the box left of the bar: the first line starts after
@@ -421,19 +425,41 @@ bool save_occurrence(store::DesktopStore& store, const Occ& occ, model::Event wo
 		model::Event one = single(work, day);
 		store.save_event(one);
 	} else {
-		const std::int64_t shift = days::wrapping_sub(work.date, occ.day);
-		work.date = days::wrapping_add(occ.event.date, shift);
-		if (work.repeat_end >= 0) {
-			work.repeat_end = days::wrapping_add(work.repeat_end, shift);
-		}
-		std::set<std::int64_t> moved;
-		for (const std::int64_t d : work.exceptions) {
-			moved.insert(days::wrapping_add(d, shift));
-		}
-		work.exceptions = std::move(moved);
-		store.save_event(work);
+		model::Event moved = move_all(occ, std::move(work));
+		store.save_event(moved);
 	}
 	return true;
+}
+
+model::Event move_all(const Occ& occ, model::Event work) {
+	// The series of `work` from the start of the stored one, moved as the phone's saveEventEdit moves it.
+	const std::int64_t shift = days::wrapping_sub(work.date, occ.day);
+	model::Event from = work;
+	from.date = occ.event.date;
+	model::Event moved = model::move_series(from, shift);
+	// Week days, exceptions, or a repeat end that the form changed itself stay as the form has them.
+	if (work.repeat != occ.event.repeat || work.week_days != occ.event.week_days) {
+		moved.week_days = work.week_days;
+	}
+	if (work.exceptions != occ.event.exceptions) {
+		moved.exceptions = work.exceptions;
+	}
+	if (work.repeat_end != occ.event.repeat_end) {
+		moved.repeat_end = work.repeat_end;
+	}
+	return moved;
+}
+
+model::Event new_event(std::string_view title, std::int64_t day, std::optional<std::int32_t> min,
+                       const settings::Settings& settings) {
+	model::Event e;
+	e.title = std::string(title);
+	e.date = day;
+	e.untimed = !min;
+	e.start = min.value_or(8 * 60);
+	e.end = min ? std::min(*min + 60, LAST_MIN) : 9 * 60;
+	apply_alarm_preset(e, settings);
+	return e;
 }
 
 bool change_occurrence(store::DesktopStore& store, const Occ& occ, std::string_view text,
@@ -533,36 +559,6 @@ void edit_alarm(store::DesktopStore& store, const Occ& occ) {
 		                  e.alarm_advance = work.alarm_advance;
 		                  e.alarm_unit = work.alarm_unit;
 	                  });
-}
-
-std::optional<BoxAction> event_menu() {
-	Fl_Menu_Button mb(0, 0, 0, 0);
-	mb.type(Fl_Menu_Button::POPUP3);
-	for (const char* label : {"&Delete", "&Note...", "&Alarm...", "&Edit..."}) {
-		mb.add(label);
-	}
-	// A divider after Delete and after Alarm, as in Palm Desktop 3.1.1.
-	for (const int i : {0, 2}) {
-		mb.mode(i, FL_MENU_DIVIDER);
-	}
-	draw::style_menu(&mb);
-	if (!mb.popup()) {
-		return std::nullopt;
-	}
-	const int v = mb.value();
-	if (v < 0) {
-		return std::nullopt;
-	}
-	switch (v) {
-	case 0:
-		return BoxAction::Delete;
-	case 1:
-		return BoxAction::Note;
-	case 2:
-		return BoxAction::Alarm;
-	default:
-		return BoxAction::Edit;
-	}
 }
 
 int title_line_h() {

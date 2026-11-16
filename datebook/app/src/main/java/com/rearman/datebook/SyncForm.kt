@@ -44,9 +44,11 @@ fun MainActivity.showSync() {
         toast("Please wait. Setting up sync.")
         ok.isEnabled = false
         SyncEngine.setUp(this, server, token, pass.toCharArray()) { err ->
+            // PBKDF2 and the network take seconds: Back or a rotation may have closed the form.
+            if (isFinishing || isDestroyed) return@setUp
             ok.isEnabled = true
             if (err == null) {
-                d.dismiss()
+                if (d.isShowing) d.dismiss()
                 toast("Sync is on.")
                 changed()
             } else {
@@ -59,6 +61,8 @@ fun MainActivity.showSync() {
             d.dismiss()
             toast("Syncing.")
             SyncEngine.run(this) { err ->
+                // The sync runs on after the screen closes; its result has no screen to show on.
+                if (isFinishing || isDestroyed) return@run
                 if (err == null) {
                     toast("Sync done.")
                 } else {

@@ -105,8 +105,8 @@ private:
 	void delete_selected(view::Ctx& ctx);
 	// Saves an item changed from a cell, and reloads the details when they show it.
 	void save_from_cell(view::Ctx& ctx, model::Todo t);
-	// A click on a cell: the check box marks the item done or not done, and a single click on the priority, the due
-	// date or the category opens its menu.
+	// A click on a cell of the item pressed: the check box marks it done or not done, and a click on the priority, the
+	// due date or the category opens its menu. The second click of a double click does nothing.
 	void cell_click(view::Ctx& ctx, int row, int col, bool double_click);
 	void paste_text(view::Ctx& ctx, std::string_view clip);
 

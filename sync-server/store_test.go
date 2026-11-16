@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 )
 
@@ -312,5 +314,88 @@ func TestMetaAndTokensRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("LoadTokens = %+v, want %+v", got, want)
+	}
+}
+
+func TestAppendAfterFailedCutDropsBadBytes(t *testing.T) {
+	dir := t.TempDir()
+	s := mustOpen(t, dir)
+	if err := s.Append([]Version{{ID: "a", Rev: 1, Blob: "AAAA"}}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	// A closed log fails both the write and the cut that follows it.
+	if err := s.log.Close(); err != nil {
+		t.Fatalf("close log: %v", err)
+	}
+	if err := s.Append([]Version{{ID: "b", Rev: 2, Blob: "BBBB"}}); err == nil {
+		t.Fatal("Append on a closed log succeeded")
+	}
+	if !s.broken {
+		t.Fatal("store is not marked broken after a failed cut")
+	}
+	if _, ok := s.Get("b"); ok || s.Rev() != 1 {
+		t.Fatalf("failed Append changed the store: Get(b) = %v, Rev() = %d", ok, s.Rev())
+	}
+
+	// Leave half a record behind, as a write that ran out of space would, then give the
+	// store a working log again.
+	partial, err := encodeRecords(nil, []Version{{ID: "b", Rev: 2, Blob: "BBBB"}})
+	if err != nil {
+		t.Fatalf("encodeRecords: %v", err)
+	}
+	f, err := os.OpenFile(filepath.Join(dir, logName), os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatalf("open log: %v", err)
+	}
+	if _, err := f.Write(partial[:len(partial)/2]); err != nil {
+		t.Fatalf("write partial record: %v", err)
+	}
+	s.log = f
+	if err := s.Append([]Version{{ID: "c", Rev: 2, Blob: "CCCC"}}); err != nil {
+		t.Fatalf("Append after the log works again: %v", err)
+	}
+	if s.broken {
+		t.Fatal("store is still marked broken after a good Append")
+	}
+	mustClose(t, s)
+
+	s2 := mustOpen(t, dir)
+	defer mustClose(t, s2)
+	want := []Version{{ID: "a", Rev: 1, Blob: "AAAA"}, {ID: "c", Rev: 2, Blob: "CCCC"}}
+	if got := s2.Since(0); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Since(0) after reopen = %+v, want %+v", got, want)
+	}
+}
+
+func TestConcurrentTokenUpdatesKeepEveryToken(t *testing.T) {
+	dir := t.TempDir()
+	const n = 20
+	var wg sync.WaitGroup
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(name string) {
+			defer wg.Done()
+			errs <- UpdateTokens(dir, func(ts []Token) ([]Token, error) {
+				return append(ts, Token{Name: name, Hash: name}), nil
+			})
+		}(fmt.Sprintf("device%d", i))
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("UpdateTokens: %v", err)
+		}
+	}
+	ts, err := LoadTokens(dir)
+	if err != nil {
+		t.Fatalf("LoadTokens: %v", err)
+	}
+	if len(ts) != n {
+		t.Fatalf("LoadTokens gave %d tokens, want %d", len(ts), n)
+	}
+	if _, err := os.Stat(filepath.Join(dir, tokensName+".lock")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("lock file is still there: %v", err)
 	}
 }

@@ -19,8 +19,16 @@ object ICal {
     private val ruleParts = setOf("FREQ", "INTERVAL", "UNTIL", "COUNT", "BYDAY", "BYMONTHDAY", "BYMONTH", "WKST")
     private val durRe = Regex("([+-])?P(?:(\\d+)W)?(?:(\\d+)D)?(?:T(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?)?")
 
+    // The days that export writes: a date has four digits of year, 0001 to 9999.
+    private val exportFirst = LocalDate.of(1, 1, 1).toEpochDay()
+    private val exportLast = LocalDate.of(9999, 12, 31).toEpochDay()
+
     // ---- export ----
 
+    /**
+     * Writes [events] as one VCALENDAR. An event that never occurs, or that starts outside the years 1 to 9999,
+     * is left out; so is an exception outside them, and an end past them writes no UNTIL.
+     */
     fun export(events: List<Event>, now: Instant = Instant.now()): String {
         val out = StringBuilder()
         fun line(s: String) = fold(s, out)
@@ -29,10 +37,21 @@ object ICal {
         line("BEGIN:VCALENDAR")
         line("VERSION:2.0")
         line("PRODID:-//rearman//Date Book//EN")
-        for (e in events) {
-            val d = LocalDate.ofEpochDay(Recur.firstDay(e))
+        for ((index, e) in events.withIndex()) {
+            if (e.date !in exportFirst..exportLast) continue
+            val first = Recur.firstDay(e)
+            if (first > exportLast) continue
+            if (e.repeats && !Recur.occursOn(e.copy(exceptions = mutableSetOf()), first)) continue
+            val d = LocalDate.ofEpochDay(first)
+            // The sync uid is the same on every device. A record without one keeps its row id, and an unsaved
+            // record gets one from this export.
+            val uid = when {
+                e.uid.isNotEmpty() -> e.uid
+                e.id != 0L -> "${e.id}"
+                else -> "new-$stamp-$index"
+            }
             line("BEGIN:VEVENT")
-            line("UID:${e.id}@com.rearman.datebook")
+            line("UID:${escape(uid)}@com.rearman.datebook")
             line("DTSTAMP:$stamp")
             if (e.untimed) {
                 line("DTSTART;VALUE=DATE:${dayFmt.format(d)}")
@@ -46,6 +65,7 @@ object ICal {
             if (e.isPrivate) line("CLASS:PRIVATE")
             rule(e)?.let { line("RRULE:$it") }
             if (e.repeats) for (x in e.exceptions.sorted()) {
+                if (x !in exportFirst..exportLast) continue
                 val xd = LocalDate.ofEpochDay(x)
                 line(if (e.untimed) "EXDATE;VALUE=DATE:${dayFmt.format(xd)}" else "EXDATE:${at(xd, e.start)}")
             }
@@ -86,7 +106,7 @@ object ICal {
             else -> return null
         }
         if (e.every > 1) r.append(";INTERVAL=${e.every}")
-        if (e.repeatEnd >= 0) {
+        if (e.repeatEnd in 0..exportLast) {
             val u = LocalDate.ofEpochDay(e.repeatEnd)
             r.append(";UNTIL=").append(if (e.untimed) dayFmt.format(u) else timeFmt.format(u.atTime(23, 59, 59)))
         }
@@ -125,12 +145,16 @@ object ICal {
      */
     private class Item(val uid: String, val recurrenceDay: Long?, val events: List<Event>, val simplified: Boolean)
 
-    fun parse(text: String, zone: ZoneId = ZoneId.systemDefault()): Parsed {
+    /** Reads [text] as the UTF-8 bytes of a file. Pass the bytes of a file when there are any. */
+    fun parse(text: String, zone: ZoneId = ZoneId.systemDefault()): Parsed = parse(text.toByteArray(Charsets.UTF_8), zone)
+
+    /** Reads the events of a file. The lines are unfolded as bytes, then read as UTF-8. */
+    fun parse(bytes: ByteArray, zone: ZoneId = ZoneId.systemDefault()): Parsed {
         val items = mutableListOf<Item>()
         val stack = ArrayDeque<String>()
         var props = mutableListOf<Prop>()
         var trigger: Prop? = null
-        for (l in unfold(text)) {
+        for (l in unfold(bytes)) {
             val p = prop(l) ?: continue
             when (p.name) {
                 "BEGIN" -> {
@@ -160,16 +184,25 @@ object ICal {
         val ds = first("DTSTART") ?: return null
         val start = time(ds.params, ds.value, zone) ?: return null
         val untimed = isDate(ds.params, ds.value)
+        // The zone and the time that DTSTART names. A UTC or TZID start can fall on another day here.
+        val srcZone = sourceZone(ds.params, ds.value)
+        val written = wall(ds.params, ds.value) ?: return null
+        val day0 = start.toLocalDate().toEpochDay()
+        val src = if (srcZone == null) start.toLocalDate() else written.toLocalDate()
+        val delta = day0 - src.toEpochDay()
         val uid = first("UID")?.value?.trim().orEmpty()
         val rid = first("RECURRENCE-ID")?.let { time(it.params, it.value, zone) }?.toLocalDate()?.toEpochDay()
         if (first("STATUS")?.value?.trim().equals("CANCELLED", true)) return Item(uid, rid, emptyList(), false)
+        // A DURATION whose end falls past the dates of LocalDateTime counts as none.
         val end = first("DTEND")?.let { time(it.params, it.value, zone) }
-            ?: first("DURATION")?.let { d -> durRe.matchEntire(d.value.trim())?.let { start.plusMinutes(minutes(it)) } }
+            ?: first("DURATION")?.let { d ->
+                durRe.matchEntire(d.value.trim())?.let { m -> minutes(m)?.let { runCatching { start.plusMinutes(it) }.getOrNull() } }
+            }
             ?: if (untimed) start.plusDays(1) else start
         val e = Event(
             title = first("SUMMARY")?.let { unescape(it.value) }.orEmpty(),
             note = first("DESCRIPTION")?.let { unescape(it.value) }.orEmpty(),
-            date = start.toLocalDate().toEpochDay(), untimed = untimed,
+            date = day0, untimed = untimed,
             isPrivate = first("CLASS")?.value?.trim()?.uppercase() in setOf("PRIVATE", "CONFIDENTIAL")
         )
         var simplified = false
@@ -191,8 +224,21 @@ object ICal {
             e.alarmUnit = unit
         }
         val rule = first("RRULE")
-        if (rid == null && rule != null && !setRule(e, rule.value, zone)) simplified = true
-        val days = end.toLocalDate().toEpochDay() - e.date
+        val parts = rule?.let { ruleMap(it.value) }
+        if (rid == null && parts != null) {
+            if (!setRule(e, parts, zone, src, start.toLocalTime())) simplified = true
+            if (e.repeats && srcZone != null) {
+                // Shortcut: the first year of the series only. Upgrade path: each year to its end.
+                val from = written.atZone(srcZone).toInstant()
+                var to = from.plusSeconds(366L * 86400)
+                if (e.repeatEnd >= 0) {
+                    val last = LocalDate.ofEpochDay(e.repeatEnd + 1).atStartOfDay(zone).toInstant()
+                    if (last.isBefore(to)) to = last
+                }
+                if (!keepsOffset(srcZone, zone, from, to)) simplified = true
+            }
+        }
+        val days = end.toLocalDate().toEpochDay() - day0
         if (untimed && days > 1) {
             // A multi-day untimed event becomes a daily repeat over its days.
             if (rule == null && rid == null) { e.repeat = Repeat.DAY; e.repeatEnd = e.date + days - 1 } else simplified = true
@@ -202,18 +248,23 @@ object ICal {
         }
         if (first("RDATE") != null) simplified = true
         val events = mutableListOf(e)
+        val mask = if (e.weekDays == 0) 1 shl Recur.dow(LocalDate.ofEpochDay(e.date)) else e.weekDays
+        if (e.repeat == Repeat.WEEK && e.every > 1 && parts != null) {
+            // Date Book counts weeks from Sunday and the file from its WKST, in its own zone. Each day part
+            // is checked; a part moves the days by one more day.
+            val srcMask = Recur.rotateWeekDays(mask, -delta)
+            val wkst = weekStart(parts)
+            for (k in 0..minOf(span, 30L)) if (!sameWeeks(srcMask, wkst, delta + k)) simplified = true
+        }
         if (span > 0) {
             // A timed event that goes past midnight becomes one event for each day it covers.
             // Shortcut: at most 31 days. Upgrade path: an end date in Event.
-            val mask = if (e.weekDays == 0) 1 shl Recur.dow(start.toLocalDate()) else e.weekDays
             for (k in 1..minOf(span, 30L)) {
-                // Date Book counts weeks from Sunday, so a part that moves past Saturday is off by one week.
-                if (e.repeat == Repeat.WEEK && e.every > 1 && (0..6).any { (mask and (1 shl it)) != 0 && it + k > 6 }) simplified = true
                 events.add(
                     e.copy(
                         date = e.date + k, start = 0, end = if (k == span) lastEnd else 24 * 60 - 1, alarm = false,
                         repeatEnd = if (e.repeatEnd >= 0) e.repeatEnd + k else -1,
-                        weekDays = if (e.repeat == Repeat.WEEK) rotate(mask, k) else e.weekDays,
+                        weekDays = if (e.repeat == Repeat.WEEK) Recur.rotateWeekDays(mask, k) else e.weekDays,
                         exceptions = e.exceptions.mapTo(mutableSetOf()) { it + k }
                     )
                 )
@@ -223,20 +274,58 @@ object ICal {
         return Item(uid, rid, events, simplified)
     }
 
-    /** The weekday bits of [mask], moved [k] days later. */
-    private fun rotate(mask: Int, k: Long): Int {
-        val s = (k % 7).toInt()
-        return ((mask shl s) or (mask ushr (7 - s))) and 0x7F
+    /** The parts of an RRULE value, by upper-case name, with upper-case values. */
+    private fun ruleMap(value: String): Map<String, String> = value.trim().split(';').mapNotNull { part ->
+        val i = part.indexOf('=')
+        if (i > 0) part.substring(0, i).uppercase() to part.substring(i + 1).uppercase() else null
+    }.toMap()
+
+    /** The first day of a week of rule [r] (0 = Sunday): its WKST, else Monday, as RFC 5545 has it. */
+    private fun weekStart(r: Map<String, String>): Int = dayCodes.indexOf(r["WKST"]).takeIf { it >= 0 } ?: 1
+
+    /**
+     * True when Date Book's weeks, which start on Sunday, group the days of [mask] as weeks that start on day
+     * [weekStart] do, after the days move [shift] days later.
+     */
+    private fun sameWeeks(mask: Int, weekStart: Int, shift: Long): Boolean {
+        var week: Long? = null
+        for (d in 0..6) {
+            if ((mask and (1 shl d)) == 0) continue
+            val w = Math.floorDiv(weekStart + Math.floorMod(d - weekStart, 7) + shift, 7L)
+            if (week != null && week != w) return false
+            week = w
+        }
+        return true
     }
 
-    /** Sets the repeat of [e] from an RRULE value. False when Date Book cannot show the rule: [e] then stays a one-time event. */
-    private fun setRule(e: Event, value: String, zone: ZoneId): Boolean {
-        val r = value.trim().split(';').mapNotNull { part ->
-            val i = part.indexOf('=')
-            if (i > 0) part.substring(0, i).uppercase() to part.substring(i + 1).uppercase() else null
-        }.toMap()
+    /**
+     * True when zones [a] and [b] keep the offset between them that they have at [from] until [to]. Date Book
+     * keeps one wall time for a series, so a series from a zone whose offset to the device zone changes moves.
+     */
+    private fun keepsOffset(a: ZoneId, b: ZoneId, from: Instant, to: Instant): Boolean {
+        fun diff(t: Instant) = a.rules.getOffset(t).totalSeconds - b.rules.getOffset(t).totalSeconds
+        val d0 = diff(from)
+        var t = from
+        while (true) {
+            val next = listOfNotNull(a.rules.nextTransition(t)?.instant, b.rules.nextTransition(t)?.instant).minOrNull()
+                ?: return true
+            if (!next.isBefore(to)) return true
+            if (diff(next) != d0) return false
+            t = next
+        }
+    }
+
+    /**
+     * Sets the repeat of [e] from the RRULE parts [r]. The rule reads against [src], the DTSTART date as the file
+     * writes it; [e].date is the start date in the device zone, which a UTC or TZID start can move by a day, and
+     * [startTime] the start time there. True when Date Book shows the rule as the file means it; false when it
+     * shows it with a change, or cannot show it: [e] then stays a one-time event.
+     */
+    private fun setRule(e: Event, r: Map<String, String>, zone: ZoneId, src: LocalDate, startTime: LocalTime): Boolean {
         if (r.keys.any { it !in ruleParts }) return false
-        val s = LocalDate.ofEpochDay(e.date)
+        val s = src
+        val local = LocalDate.ofEpochDay(e.date)
+        val delta = e.date - s.toEpochDay()
         val freq = r["FREQ"]
         val every = r["INTERVAL"]?.toIntOrNull() ?: 1
         if (every < 1) return false
@@ -247,6 +336,7 @@ object ICal {
         if (monthDay != null && (freq != "MONTHLY" && freq != "YEARLY" || monthDay != "${s.dayOfMonth}")) return false
         val month = r["BYMONTH"]
         if (month != null && (freq != "YEARLY" || month != "${s.monthValue}")) return false
+        val atSrc = e.copy(date = s.toEpochDay())
         var weekDays = 0
         val repeat = when (freq) {
             "DAILY" -> when {
@@ -261,9 +351,9 @@ object ICal {
             }
             "MONTHLY" -> when {
                 days == null -> Repeat.MONTH_DATE
-                monthDay == null && days.size == 1 && days[0] == weekCode(e.copy(weekDays = 0)) -> Repeat.MONTH_DAY
+                monthDay == null && days.size == 1 && days[0] == weekCode(atSrc.copy(weekDays = 0)) -> Repeat.MONTH_DAY
                 // "-1SU" from a first date in both the 4th and the last week: the last week.
-                monthDay == null && days.size == 1 && days[0] == weekCode(e.copy(weekDays = Repeat.LAST_WEEK)) -> {
+                monthDay == null && days.size == 1 && days[0] == weekCode(atSrc.copy(weekDays = Repeat.LAST_WEEK)) -> {
                     weekDays = Repeat.LAST_WEEK; Repeat.MONTH_DAY
                 }
                 else -> return false
@@ -271,14 +361,47 @@ object ICal {
             "YEARLY" -> if (days == null) Repeat.YEAR else return false
             else -> return false
         }
+        var exact = true
         val t = e.copy(repeat = repeat, every = every, weekDays = weekDays, repeatEnd = -1)
-        r["UNTIL"]?.let { u -> t.repeatEnd = time(emptyMap(), u, zone)?.toLocalDate()?.toEpochDay() ?: return false }
-        r["COUNT"]?.let { c -> t.repeatEnd = countEnd(t, c.toIntOrNull()?.takeIf { it > 0 } ?: return false) }
+        if (delta != 0L) {
+            // The local date is a day off the file's: the week days move with it, and a month or year day
+            // holds only when both days are in every month.
+            val sameMonth = local.monthValue == s.monthValue
+            val last = maxOf(s.dayOfMonth, local.dayOfMonth)
+            when (repeat) {
+                Repeat.WEEK -> if (weekDays != 0) t.weekDays = Recur.rotateWeekDays(weekDays, delta)
+                Repeat.MONTH_DATE -> if (!sameMonth || last > 28) exact = false
+                Repeat.MONTH_DAY -> exact = false
+                Repeat.YEAR -> if (!sameMonth || (s.monthValue == 2 && last >= 29)) exact = false
+            }
+        }
+        // RFC 5545 counts DTSTART as an occurrence even off the BYDAY days. Date Book cannot show that start
+        // with the series, so the series starts on its first day on the rule.
+        val offStart = repeat == Repeat.WEEK && weekDays != 0 && (weekDays and (1 shl Recur.dow(s))) == 0
+        if (offStart) t.date = Recur.firstWeekDay(s.toEpochDay(), weekDays, every, weekStart(r)) + delta
+        var startOnly = false
+        r["UNTIL"]?.let { u ->
+            val until = time(emptyMap(), u, zone) ?: return false
+            // A DATE-TIME UNTIL is the last start that occurs, so a later start time ends the day before.
+            val late = !isDate(emptyMap(), u) && startTime > until.toLocalTime()
+            t.repeatEnd = until.toLocalDate().toEpochDay() - (if (late) 1 else 0)
+        }
+        val count = r["COUNT"]
+        if (count != null) {
+            val n = (count.toIntOrNull()?.takeIf { it > 0 } ?: return false) - (if (offStart) 1 else 0)
+            if (n == 0) startOnly = true else t.repeatEnd = countEnd(t, n)
+        }
+        if (offStart) {
+            // No occurrence on the rule: the start alone, a one-time event.
+            if (startOnly || (t.repeatEnd >= 0 && t.repeatEnd < t.date)) return true
+            exact = false
+        }
+        e.date = t.date
         e.repeat = t.repeat
         e.every = t.every
         e.weekDays = t.weekDays
         e.repeatEnd = t.repeatEnd
-        return true
+        return exact
     }
 
     /** The day of occurrence number [count] of [e]. Shortcut: a scan day by day, which stops after 100 years. */
@@ -296,37 +419,62 @@ object ICal {
     private fun isDate(params: Map<String, String>, v: String) =
         params["VALUE"].equals("DATE", true) || v.trim().length == 8
 
-    /** A DATE or DATE-TIME value as a local time in [zone], or null when it does not parse. */
-    private fun time(params: Map<String, String>, value: String, zone: ZoneId): LocalDateTime? = try {
+    /** A DATE or DATE-TIME value as the file writes it, with no zone change, or null when it does not parse. */
+    private fun wall(params: Map<String, String>, value: String): LocalDateTime? = try {
         val v = value.trim()
         when {
             isDate(params, v) -> LocalDate.parse(v.take(8), dayFmt).atStartOfDay()
             v.endsWith("Z") -> LocalDateTime.parse(v.dropLast(1), timeFmt)
-                .atOffset(ZoneOffset.UTC).atZoneSameInstant(zone).toLocalDateTime()
-            else -> {
-                val t = LocalDateTime.parse(v, timeFmt)
-                // Shortcut: a TZID that is not an IANA zone name (Outlook writes Windows names) reads as
-                // local time. Upgrade path: read the offsets from the VTIMEZONE of the file.
-                val tz = params["TZID"]?.let { runCatching { ZoneId.of(it) }.getOrNull() }
-                if (tz == null) t else t.atZone(tz).withZoneSameInstant(zone).toLocalDateTime()
-            }
+            else -> LocalDateTime.parse(v, timeFmt)
         }
     } catch (ex: Exception) {
         null
     }
 
-    /** Signed minutes of a DURATION match. */
-    private fun minutes(m: MatchResult): Long {
+    /**
+     * The zone of a DATE-TIME value: UTC for a "Z" time, else its TZID. Null for a DATE and a floating time.
+     * Shortcut: a TZID that is not an IANA zone name (Outlook writes Windows names) reads as local time.
+     * Upgrade path: read the offsets from the VTIMEZONE of the file.
+     */
+    private fun sourceZone(params: Map<String, String>, value: String): ZoneId? {
+        val v = value.trim()
+        return when {
+            isDate(params, v) -> null
+            v.endsWith("Z") -> ZoneOffset.UTC
+            else -> params["TZID"]?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+        }
+    }
+
+    /** A DATE or DATE-TIME value as a local time in [zone], or null when it does not parse. */
+    private fun time(params: Map<String, String>, value: String, zone: ZoneId): LocalDateTime? {
+        val t = wall(params, value) ?: return null
+        val src = sourceZone(params, value) ?: return t
+        return try {
+            t.atZone(src).withZoneSameInstant(zone).toLocalDateTime()
+        } catch (ex: Exception) {
+            null
+        }
+    }
+
+    /** Signed minutes of a DURATION match, or null when they do not fit in a Long. */
+    private fun minutes(m: MatchResult): Long? {
         val g = m.groupValues
         fun n(i: Int) = g[i].toLongOrNull() ?: 0
-        val v = n(2) * 10080 + n(3) * 1440 + n(4) * 60 + n(5) + n(6) / 60
+        val v = try {
+            Math.addExact(
+                Math.addExact(Math.multiplyExact(n(2), 10080L), Math.multiplyExact(n(3), 1440L)),
+                Math.addExact(Math.addExact(Math.multiplyExact(n(4), 60L), n(5)), n(6) / 60)
+            )
+        } catch (ex: ArithmeticException) {
+            return null
+        }
         return if (g[1] == "-") -v else v
     }
 
     /** A TRIGGER value as Date Book (advance, unit), in the unit of the file. */
     private fun advance(value: String): Pair<Int, Int> {
         val m = durRe.matchEntire(value.trim()) ?: return 0 to 0
-        val before = -minutes(m)
+        val before = -(minutes(m) ?: return 0 to 0)
         if (before <= 0) return 0 to 0
         val g = m.groupValues
         val per = longArrayOf(1, 60, 1440)
@@ -338,14 +486,35 @@ object ICal {
         return (before / per[unit]).toInt() to unit
     }
 
-    private fun unfold(text: String): List<String> {
-        val out = mutableListOf<String>()
-        for (raw in text.removePrefix("\uFEFF").split('\n')) {
-            val l = raw.removeSuffix("\r")
-            if ((l.startsWith(' ') || l.startsWith('\t')) && out.isNotEmpty()) out[out.lastIndex] += l.substring(1)
-            else if (l.isNotBlank()) out.add(l)
+    /**
+     * The lines of [bytes] as bytes, split at LF with the CR before it dropped, after a UTF-8 BOM. Folds are
+     * joined as bytes, since a fold can split a UTF-8 sequence.
+     */
+    internal fun lines(bytes: ByteArray): List<ByteArray> {
+        val out = mutableListOf<ByteArray>()
+        var from = if (bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()) 3 else 0
+        while (from <= bytes.size) {
+            var nl = from
+            while (nl < bytes.size && bytes[nl] != '\n'.code.toByte()) nl++
+            var stop = nl
+            if (stop > from && bytes[stop - 1] == '\r'.code.toByte()) stop--
+            out.add(bytes.copyOfRange(from, stop))
+            from = nl + 1
         }
         return out
+    }
+
+    /** True when line [l] starts with a space or tab, so it continues the line before it. */
+    internal fun continues(l: ByteArray) = l.isNotEmpty() && (l[0] == ' '.code.toByte() || l[0] == '\t'.code.toByte())
+
+    /** The content lines of [bytes] with each fold joined, read as UTF-8. A blank line is dropped. */
+    private fun unfold(bytes: ByteArray): List<String> {
+        val out = mutableListOf<java.io.ByteArrayOutputStream>()
+        for (l in lines(bytes)) {
+            if (continues(l) && out.isNotEmpty()) out.last().write(l, 1, l.size - 1)
+            else if (String(l, Charsets.UTF_8).isNotBlank()) out.add(java.io.ByteArrayOutputStream().apply { write(l) })
+        }
+        return out.map { it.toString(Charsets.UTF_8.name()) }
     }
 
     private fun prop(line: String): Prop? {

@@ -22,7 +22,6 @@
 #include <FL/Fl_Choice.H>
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Group.H>
-#include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_Output.H>
 #include <FL/Fl_PNG_Image.H>
 #include <FL/Fl_RGB_Image.H>
@@ -38,6 +37,7 @@
 #include <format>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -211,20 +211,8 @@ std::vector<model::Todo> visible(const view::Ctx& ctx, std::int64_t today) {
 
 // Shows a menu of `labels` at the pointer; the index of the pick.
 std::optional<std::size_t> popup(const std::vector<std::string>& labels) {
-	Fl_Menu_Button mb(0, 0, 0, 0);
-	mb.type(Fl_Menu_Button::POPUP3);
-	for (const auto& l : labels) {
-		mb.add(l.c_str());
-	}
-	draw::style_menu(&mb);
-	if (!mb.popup()) {
-		return std::nullopt;
-	}
-	const int v = mb.value();
-	if (v < 0) {
-		return std::nullopt;
-	}
-	return static_cast<std::size_t>(v);
+	const std::vector<std::string_view> views(labels.begin(), labels.end());
+	return draw::popup(views);
 }
 
 // Fits the fixed columns and gives the To Do text the rest of the width inside the edge and the scroll bar.
@@ -444,8 +432,17 @@ public:
 	std::vector<Col> columns;
 	// The lead row, shared with the view.
 	std::shared_ptr<int> lead;
+	// The item under the last left press, which its cell click acts on: the rows can move before the release.
+	std::optional<std::int64_t> pressed_id;
 
 	int handle(int ev) override {
+		if (ev == FL_PUSH && Fl::event_button() == FL_LEFT_MOUSE) {
+			const auto hit = cell_under_cursor();
+			pressed_id.reset();
+			if (hit && hit->first >= 0 && static_cast<std::size_t>(hit->first) < lines.size()) {
+				pressed_id = lines[static_cast<std::size_t>(hit->first)].todo.id;
+			}
+		}
 		// FLTK's own handler runs first; the record events then see the event, and their result joins FLTK's.
 		const int ret = table_handle(ev);
 		const bool taken = records::list_event(*this, ev, lead, sender_, kListMsgs);
@@ -848,11 +845,19 @@ void TodoView::cell_click(view::Ctx& ctx, int row, int col, bool double_click) {
 	    static_cast<std::size_t>(col) >= table_->columns.size()) {
 		return;
 	}
-	model::Todo t = shown_[static_cast<std::size_t>(row)];
-	const Col kind = table_->columns[static_cast<std::size_t>(col)];
-	if (double_click && kind != Col::Done) {
+	// The second click of a double click is ignored: the first one acted, and a completed item that hides moves the
+	// next one under the pointer.
+	if (double_click) {
 		return;
 	}
+	// The item pressed, found by id, since the list can change between the press and the release.
+	const auto it =
+	    std::find_if(shown_.begin(), shown_.end(), [this](const model::Todo& x) { return x.id == table_->pressed_id; });
+	if (it == shown_.end()) {
+		return;
+	}
+	model::Todo t = *it;
+	const Col kind = table_->columns[static_cast<std::size_t>(col)];
 	switch (kind) {
 	case Col::Done: {
 		const bool done = !t.done;

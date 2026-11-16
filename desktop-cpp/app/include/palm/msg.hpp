@@ -38,7 +38,7 @@ enum class View {
 // All four views, in the order of the Rust ALL.
 inline constexpr std::array<View, 4> ALL = {View::Date, View::Address, View::Todo, View::Memo};
 
-// The name in the settings ("view", "startView").
+// The name in the settings ("view").
 std::string_view key(View view);
 
 // The view of a settings name, or no value for an unknown name.

@@ -86,8 +86,9 @@ const nlohmann::json* field(const json::Obj& o, std::string_view key) {
 }
 
 // Writes `text` to `path` and flushes it to the disk, so that a power loss after the rename that follows cannot leave
-// an empty or short file. Returns the error, if any.
-std::optional<std::string> write_flushed(const fs::path& path, const std::string& text) {
+// an empty or short file. `owner_only` makes the file 0600 on Linux before its first byte. Returns the error, if any.
+std::optional<std::string> write_flushed(const fs::path& path, const std::string& text,
+                                         [[maybe_unused]] bool owner_only) {
 #ifdef _WIN32
 	HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 	if (h == INVALID_HANDLE_VALUE) {
@@ -113,9 +114,15 @@ std::optional<std::string> write_flushed(const fs::path& path, const std::string
 	}
 	CloseHandle(h);
 #else
-	const int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
+	const int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, owner_only ? 0600 : 0666);
 	if (fd < 0) {
 		return palm::platform::last_os_error_text();
+	}
+	// A temp file left by a crash keeps its old mode, so the mode is set again before the text goes in.
+	if (owner_only && fchmod(fd, 0600) != 0) {
+		const int err = errno;
+		close(fd);
+		return palm::platform::os_error_text(err);
 	}
 	const char* p = text.data();
 	std::size_t left = text.size();
@@ -162,9 +169,27 @@ void keep_backup(const fs::path& file) {
 	}
 }
 
-// Writes `text` to a flushed temp file beside `file`, keeps the old file as the backup, then moves the temp file over
-// `file`. Returns the error, if any.
-std::optional<std::string> write_atomic(const fs::path& file, const std::string& text) {
+// The temp file beside `file` that write_atomic and restore_backup write before the move.
+fs::path temp_path(const fs::path& file) {
+	fs::path tmp = file;
+	tmp += ".tmp";
+	return tmp;
+}
+
+// Flushes the folder of `file` after a rename, since the rename lives in the folder. NTFS logs the rename itself.
+void flush_folder([[maybe_unused]] const fs::path& file) {
+#ifndef _WIN32
+	const fs::path dir = file.parent_path();
+	if (const int dfd = open(dir.empty() ? "." : dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC); dfd >= 0) {
+		fsync(dfd);
+		close(dfd);
+	}
+#endif
+}
+
+} // namespace
+
+std::optional<std::string> write_atomic(const fs::path& file, const std::string& text, WriteOptions options) {
 	std::error_code ec;
 	const fs::path dir = file.parent_path();
 	if (!dir.empty()) {
@@ -173,27 +198,20 @@ std::optional<std::string> write_atomic(const fs::path& file, const std::string&
 			return palm::platform::os_error_text(ec);
 		}
 	}
-	fs::path tmp = file;
-	tmp += ".tmp";
-	if (auto err = write_flushed(tmp, text)) {
+	const fs::path tmp = temp_path(file);
+	if (auto err = write_flushed(tmp, text, options.owner_only)) {
 		return err;
 	}
-	keep_backup(file);
+	if (options.backup) {
+		keep_backup(file);
+	}
 	fs::rename(tmp, file, ec);
 	if (ec) {
 		return palm::platform::os_error_text(ec);
 	}
-#ifndef _WIN32
-	// The rename lives in the folder, so the folder is flushed too. NTFS logs the rename itself.
-	if (const int dfd = open(dir.empty() ? "." : dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC); dfd >= 0) {
-		fsync(dfd);
-		close(dfd);
-	}
-#endif
+	flush_folder(file);
 	return std::nullopt;
 }
-
-} // namespace
 
 fs::path backup_path(const fs::path& file) {
 	fs::path bak = file;
@@ -204,20 +222,54 @@ fs::path backup_path(const fs::path& file) {
 fs::path bad_path(const fs::path& file) {
 	fs::path bad = file;
 	bad += ".bad";
+	std::error_code ec;
+	// A linear scan of the numbers in use; a user who keeps thousands of bad files would want a smarter search.
+	for (int n = 1; fs::exists(bad, ec); ++n) {
+		bad = file;
+		bad += std::format(".bad.{}", n);
+	}
 	return bad;
 }
 
-std::expected<void, std::string> restore_backup(const fs::path& file) {
+std::expected<fs::path, std::string> restore_backup(const fs::path& file) {
+	// The backup goes to a flushed temp file first, so a failed read or a full disk leaves the data file in place.
+	std::ifstream in(backup_path(file), std::ios::binary);
+	if (!in) {
+		return std::unexpected(palm::platform::last_os_error_text());
+	}
+	const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+	if (in.bad()) {
+		return std::unexpected(palm::platform::last_os_error_text());
+	}
+	in.close();
+	const fs::path tmp = temp_path(file);
+	if (auto err = write_flushed(tmp, text, false)) {
+		return std::unexpected(*err);
+	}
+	// The bad file is kept by a hard link, or a copy where the file system has no links. Neither replaces a file
+	// that exists, so an older bad file stays.
+	const fs::path bad = bad_path(file);
 	std::error_code ec;
-	fs::rename(file, bad_path(file), ec);
-	if (ec) {
-		return std::unexpected(palm::platform::os_error_text(ec));
+	if (fs::exists(file, ec)) {
+		fs::create_hard_link(file, bad, ec);
+		if (ec) {
+			ec.clear();
+			fs::copy_file(file, bad, fs::copy_options::none, ec);
+		}
+		if (ec) {
+			const std::string why = palm::platform::os_error_text(ec);
+			fs::remove(tmp, ec);
+			return std::unexpected(why);
+		}
 	}
-	fs::copy_file(backup_path(file), file, fs::copy_options::overwrite_existing, ec);
+	fs::rename(tmp, file, ec);
 	if (ec) {
-		return std::unexpected(palm::platform::os_error_text(ec));
+		const std::string why = palm::platform::os_error_text(ec);
+		fs::remove(tmp, ec);
+		return std::unexpected(why);
 	}
-	return {};
+	flush_folder(file);
+	return bad;
 }
 
 std::string new_uid() {
@@ -570,6 +622,21 @@ void DesktopStore::set_short_cuts(codec::ShortCuts list) {
 	changed();
 }
 
+void DesktopStore::set_short_cuts_dirty(bool dirty) {
+	sc_dirty_ = dirty;
+	save();
+}
+
+void DesktopStore::set_up_short_cuts() {
+	// The Palm OS 3.5 default list, as ShortCuts.defaults in palm-ui.
+	const codec::ShortCuts defaults = {
+	    {"br", "Breakfast"}, {"di", "Dinner"},  {"ds", "{date}"}, {"dts", "{date} {time}"},
+	    {"lu", "Lunch"},     {"me", "Meeting"}, {"ts", "{time}"},
+	};
+	sc_rev_ = 0;
+	set_short_cuts_dirty(!short_cut_list_.empty() && short_cut_list_ != defaults);
+}
+
 // ---- the file ----
 
 std::expected<std::string, std::string> DesktopStore::to_json() const {
@@ -779,9 +846,41 @@ std::optional<std::string> DesktopStore::plain_of(std::size_t t, std::int64_t id
 // ---- helpers ----
 
 void DesktopStore::changed() {
+	if (batch_depth_ > 0) {
+		save_pending_ = true;
+		change_pending_ = true;
+		return;
+	}
 	persist();
 	if (on_change) {
 		on_change();
+	}
+}
+
+void DesktopStore::save() {
+	if (batch_depth_ > 0) {
+		save_pending_ = true;
+		return;
+	}
+	persist();
+}
+
+DesktopStore::Batch::Batch(DesktopStore& store) : store_(store), uncaught_(std::uncaught_exceptions()) {
+	++store_.batch_depth_;
+}
+
+DesktopStore::Batch::~Batch() noexcept(false) {
+	if (--store_.batch_depth_ > 0) {
+		return;
+	}
+	const bool save = std::exchange(store_.save_pending_, false);
+	const bool change = std::exchange(store_.change_pending_, false);
+	// persist catches its own errors into save_error, so the save also runs during an unwind.
+	if (save) {
+		store_.persist();
+	}
+	if (change && store_.on_change && std::uncaught_exceptions() == uncaught_) {
+		store_.on_change();
 	}
 }
 
@@ -1039,7 +1138,7 @@ void DesktopStore::mark_synced(std::string_view table, std::string_view uid, std
 			m.dirty = false;
 		}
 	}
-	persist();
+	save();
 }
 
 void DesktopStore::put_remote(runner::Record record, std::int64_t rev) {
@@ -1077,7 +1176,7 @@ void DesktopStore::put_remote(runner::Record record, std::int64_t rev) {
 		list.push_back(cat);
 		model::sort_categories(list);
 	}
-	persist();
+	save();
 }
 
 void DesktopStore::drop_remote(std::string_view table, std::string_view uid) {
@@ -1103,7 +1202,28 @@ void DesktopStore::drop_remote(std::string_view table, std::string_view uid) {
 	} else {
 		std::erase_if(memos, [id](const model::Memo& m) { return m.id == id; });
 	}
-	persist();
+	save();
+}
+
+void DesktopStore::put_tombstone(std::string_view table, std::string_view uid, std::int64_t rev) {
+	const std::size_t t = table_index(table);
+	if (id_of(t, uid)) {
+		return;
+	}
+	meta_[t].emplace(next_id(t), Meta{std::string(uid), rev, true, true});
+	save();
+}
+
+void DesktopStore::reset_sync() {
+	for (std::map<std::int64_t, Meta>& table : meta_) {
+		std::erase_if(table, [](const auto& entry) { return entry.second.deleted; });
+		for (auto& [id, m] : table) {
+			m.rev = 0;
+			m.dirty = true;
+		}
+	}
+	since_ = 0;
+	save();
 }
 
 void DesktopStore::save_copy(runner::Record record) {
@@ -1127,7 +1247,7 @@ void DesktopStore::save_copy(runner::Record record) {
 		const auto& c = std::get<model::Category>(record);
 		new_category(c.name, c.app);
 	}
-	persist();
+	save();
 }
 
 codec::ShortCuts DesktopStore::short_cuts() const {
@@ -1144,14 +1264,14 @@ std::int64_t DesktopStore::short_cuts_rev() const {
 
 void DesktopStore::set_short_cuts_rev(std::int64_t rev) {
 	sc_rev_ = rev;
-	persist();
+	save();
 }
 
 void DesktopStore::set_short_cuts_from_sync(codec::ShortCuts list, std::int64_t rev) {
 	short_cut_list_ = std::move(list);
 	sc_rev_ = rev;
 	sc_dirty_ = false;
-	persist();
+	save();
 }
 
 std::int64_t DesktopStore::sync_since() const {
@@ -1160,7 +1280,7 @@ std::int64_t DesktopStore::sync_since() const {
 
 void DesktopStore::set_sync_since(std::int64_t rev) {
 	since_ = rev;
-	persist();
+	save();
 }
 
 } // namespace palm::store

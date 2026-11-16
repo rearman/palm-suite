@@ -21,6 +21,47 @@ namespace {
 
 // The uid of the ShortCuts list on the server.
 constexpr std::string_view SHORTCUTS_ID = "shortcuts";
+// The name of the ShortCuts list in the sync result text.
+constexpr std::string_view SHORTCUTS_TITLE = "ShortCuts";
+// The name of a record with a blank title in the sync result text.
+constexpr std::string_view UNTITLED = "Untitled";
+
+// The sync table of a record kind, or "" for an unknown kind.
+std::string_view table_of(std::string_view kind) {
+	if (kind == "event") {
+		return "events";
+	}
+	if (kind == "todo") {
+		return "todos";
+	}
+	if (kind == "memo") {
+		return "memos";
+	}
+	if (kind == "address") {
+		return "addresses";
+	}
+	if (kind == "category") {
+		return "categories";
+	}
+	return {};
+}
+
+// The name of a record in the sync result text.
+std::string title_of(const Record& rec) {
+	std::string t;
+	if (const auto* e = std::get_if<model::Event>(&rec)) {
+		t = e->title;
+	} else if (const auto* x = std::get_if<model::Todo>(&rec)) {
+		t = x->title;
+	} else if (const auto* m = std::get_if<model::Memo>(&rec)) {
+		t = m->title();
+	} else if (const auto* a = std::get_if<model::Address>(&rec)) {
+		t = a->list_name(false);
+	} else {
+		t = std::get<model::Category>(rec).name;
+	}
+	return model::is_blank(t) ? std::string(UNTITLED) : t;
+}
 
 // The text of a record in the format of the codec. A category has no category uid.
 std::string encode(const SyncStore& store, const Record& rec) {
@@ -55,12 +96,13 @@ std::optional<std::string> pushed_of(const SyncPlan& plan, std::string_view uid)
 	return it->second;
 }
 
-// The record of a parsed blob, or nullopt when the parse failed.
-template <typename T> std::optional<Record> as_record(std::expected<T, std::string>&& parsed) {
+// The record of a parsed blob, or the parse error.
+template <typename T>
+std::expected<std::optional<Record>, std::string> as_record(std::expected<T, std::string>&& parsed) {
 	if (!parsed) {
-		return std::nullopt;
+		return std::unexpected(std::move(parsed.error()));
 	}
-	return Record(std::move(*parsed));
+	return std::optional<Record>(Record(std::move(*parsed)));
 }
 
 // Step C.2 check: true when the two records are of one kind and have the same content.
@@ -81,9 +123,10 @@ bool same_content(const Record& local, const Record& remote) {
 	return a != nullptr && b != nullptr && a->name == b->name && a->app == b->app;
 }
 
-// The server copy of a record, with the local ids of its categories.
-std::optional<Record> remote_record(const SyncStore& store, std::string_view kind, std::string_view text,
-                                    std::string_view uid) {
+// The server copy of a record, with the local ids of its categories; nullopt for a kind with no record type, or
+// the error of a blob that does not parse.
+std::expected<std::optional<Record>, std::string> remote_record(const SyncStore& store, std::string_view kind,
+                                                                std::string_view text, std::string_view uid) {
 	if (kind == "event") {
 		return as_record(codec::to_event(text, uid));
 	}
@@ -102,17 +145,18 @@ std::optional<Record> remote_record(const SyncStore& store, std::string_view kin
 	if (kind == "category") {
 		return as_record(codec::to_category(text, uid, 0));
 	}
-	return std::nullopt;
+	return std::optional<Record>();
 }
 
-// Step C.3 for the ShortCuts list. True when the list was applied.
-bool apply_short_cuts(SyncStore& store, const client::Change& c, std::string_view text) {
+// Step C.3 for the ShortCuts list. True when the list was applied. A list that does not read fails the round,
+// as SyncCodec.toShortcuts throws in Kotlin, so sync_since stays and a later run tries it again.
+std::expected<bool, std::string> apply_short_cuts(SyncStore& store, const client::Change& c, std::string_view text) {
 	const logic::LocalState local = store.short_cuts_dirty() ? logic::LocalState::Dirty : logic::LocalState::Clean;
 	switch (logic::decide(local, c.deleted, false, true)) {
 	case logic::Action::Apply: {
 		std::expected<codec::ShortCuts, std::string> list = codec::to_shortcuts(text);
 		if (!list) {
-			return false;
+			return std::unexpected(std::move(list.error()));
 		}
 		store.set_short_cuts_from_sync(std::move(*list), c.rev);
 		return true;
@@ -125,8 +169,9 @@ bool apply_short_cuts(SyncStore& store, const client::Change& c, std::string_vie
 	}
 }
 
-// Step C.3 for one record change. True when a record changed.
-bool apply_change(SyncStore& store, const client::Change& c, std::string_view text) {
+// Step C.3 for one record change. True when a record changed. A record that does not parse fails the round, as
+// SyncCodec.to* throws in Kotlin, so sync_since stays and a later run tries it again.
+std::expected<bool, std::string> apply_change(SyncStore& store, const client::Change& c, std::string_view text) {
 	const std::optional<SyncRow> row = store.sync_row(c.id);
 	logic::LocalState local = logic::LocalState::Clean;
 	if (!row) {
@@ -141,7 +186,14 @@ bool apply_change(SyncStore& store, const client::Change& c, std::string_view te
 		return false; // unknown kind: skip
 	}
 	const std::optional<Record> mine = row ? store.record(*row) : std::nullopt;
-	const std::optional<Record> remote = c.deleted ? std::nullopt : remote_record(store, kind, text, c.id);
+	std::optional<Record> remote;
+	if (!c.deleted) {
+		std::expected<std::optional<Record>, std::string> parsed = remote_record(store, kind, text, c.id);
+		if (!parsed) {
+			return std::unexpected(std::move(parsed.error()));
+		}
+		remote = std::move(*parsed);
+	}
 	const bool same = local == logic::LocalState::Dirty && !c.deleted && mine && remote && same_content(*mine, *remote);
 
 	const auto put = [&store, &remote, &c]() {
@@ -209,6 +261,10 @@ std::expected<SyncPlan, std::string> collect(const SyncStore& store, std::span<c
 		if (!blob) {
 			return std::unexpected(blob.error());
 		}
+		if (blob->size() > MAX_BLOB) {
+			plan.held.push_back(title_of(*rec));
+			continue;
+		}
 		plan.items.push_back(client::PushItem{
 		    .id = row.uid,
 		    .base_rev = row.rev,
@@ -223,13 +279,17 @@ std::expected<SyncPlan, std::string> collect(const SyncStore& store, std::span<c
 		if (!blob) {
 			return std::unexpected(blob.error());
 		}
-		plan.items.push_back(client::PushItem{
-		    .id = std::string(SHORTCUTS_ID),
-		    .base_rev = store.short_cuts_rev(),
-		    .deleted = false,
-		    .blob = std::move(*blob),
-		});
-		plan.pushed[std::string(SHORTCUTS_ID)] = plain;
+		if (blob->size() > MAX_BLOB) {
+			plan.held.emplace_back(SHORTCUTS_TITLE);
+		} else {
+			plan.items.push_back(client::PushItem{
+			    .id = std::string(SHORTCUTS_ID),
+			    .base_rev = store.short_cuts_rev(),
+			    .deleted = false,
+			    .blob = std::move(*blob),
+			});
+			plan.pushed[std::string(SHORTCUTS_ID)] = plain;
+		}
 	}
 	plan.since = store.sync_since();
 	return plan;
@@ -237,6 +297,14 @@ std::expected<SyncPlan, std::string> collect(const SyncStore& store, std::span<c
 
 std::expected<SyncOutcome, std::string> apply(SyncStore& store, std::span<const std::uint8_t> key, const SyncPlan& plan,
                                               const client::SyncResult& result) {
+	// The server went back: upload everything and pull from rev 0 in the next round.
+	if (result.rev < plan.since) {
+		store.reset_sync();
+		store.set_short_cuts_rev(0);
+		store.set_sync_since(0);
+		return SyncOutcome{.no_conflicts = false, .changed = false, .short_cuts_changed = false};
+	}
+
 	// The changes that are not the accepted pushes of this round.
 	std::vector<const client::Change*> changes;
 	for (const client::Change& c : result.changes) {
@@ -285,6 +353,15 @@ std::expected<SyncOutcome, std::string> apply(SyncStore& store, std::span<const 
 		}
 		const std::optional<SyncRow> row = store.sync_row(uid);
 		if (!row) {
+			// A new record deleted here while its push was in flight has no row left, but the server took it live.
+			// A dirty tombstone at its rev deletes it there next round.
+			const std::optional<std::string> pushed = pushed_of(plan, uid);
+			if (pushed) {
+				const std::string kind = codec::kind(*pushed);
+				if (const std::string_view table = table_of(kind); !table.empty()) {
+					store.put_tombstone(table, uid, rev);
+				}
+			}
 			continue;
 		}
 		const std::optional<std::string> pushed = pushed_of(plan, uid);
@@ -335,11 +412,21 @@ std::expected<SyncOutcome, std::string> apply(SyncStore& store, std::span<const 
 		const auto text_it = plains.find(c->id);
 		const std::string_view text = text_it != plains.end() ? std::string_view(text_it->second) : std::string_view();
 		if (c->id == SHORTCUTS_ID) {
-			if (apply_short_cuts(store, *c, text)) {
+			const std::expected<bool, std::string> applied = apply_short_cuts(store, *c, text);
+			if (!applied) {
+				return std::unexpected(applied.error());
+			}
+			if (*applied) {
 				short_cuts_changed = true;
 			}
-		} else if (apply_change(store, *c, text)) {
-			changed = true;
+		} else {
+			const std::expected<bool, std::string> applied = apply_change(store, *c, text);
+			if (!applied) {
+				return std::unexpected(applied.error());
+			}
+			if (*applied) {
+				changed = true;
+			}
 		}
 	}
 

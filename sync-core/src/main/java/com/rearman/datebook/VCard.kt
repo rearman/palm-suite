@@ -10,7 +10,8 @@ object VCard {
     /** One card: its address, and the name of its first category (null when it has none). */
     data class Parsed(val address: Address, val categoryName: String?)
 
-    private class Prop(val name: String, val params: Map<String, List<String>>, val value: String)
+    /** One content line. The value stays bytes until its CHARSET reads it. */
+    private class Prop(val name: String, val params: Map<String, List<String>>, val raw: ByteArray)
 
     /** A phone or e-mail field of a card, before it takes one of the five phone slots. */
     private class PhoneEntry(val label: Int, val number: String, val pref: Boolean)
@@ -22,15 +23,21 @@ object VCard {
      * The phones fill the five phone slots in file order. Phones past five and later ADR fields
      * go to the note.
      */
-    fun parse(text: String): List<Parsed> {
+    fun parse(text: String): List<Parsed> = parse(text.toByteArray(Charsets.UTF_8))
+
+    /**
+     * Reads the cards of a file's bytes. Folds join as bytes, and each value is read in its CHARSET, UTF-8
+     * by default. [parse] of a String reads its UTF-8 bytes.
+     */
+    fun parse(bytes: ByteArray): List<Parsed> {
         val out = mutableListOf<Parsed>()
         var card: MutableList<Prop>? = null
-        for (l in unfold(text)) {
+        for (l in unfold(bytes)) {
             val p = prop(l) ?: continue
             val open = card
             when {
-                p.name == "BEGIN" && p.value.trim().equals("VCARD", true) -> card = mutableListOf()
-                p.name == "END" && p.value.trim().equals("VCARD", true) -> {
+                p.name == "BEGIN" && value(p).trim().equals("VCARD", true) -> card = mutableListOf()
+                p.name == "END" && value(p).trim().equals("VCARD", true) -> {
                     if (open != null) build(open)?.let { out.add(it) }
                     card = null
                 }
@@ -161,28 +168,37 @@ object VCard {
 
     private fun isPref(p: Prop): Boolean = "PREF" in types(p) || p.params.containsKey("PREF")
 
-    /** The value of [p] with quoted-printable bytes decoded. Bytes decode as UTF-8 unless CHARSET names another charset. */
+    /**
+     * The text of [p]: its bytes, with quoted-printable decoded, read in its CHARSET, UTF-8 when it names
+     * none or an unknown one. A quoted-printable CRLF becomes LF.
+     */
     private fun value(p: Prop): String {
-        if (p.params["ENCODING"].orEmpty().none { it.equals("QUOTED-PRINTABLE", true) }) return p.value
         val cs = p.params["CHARSET"]?.firstOrNull()?.let { runCatching { Charset.forName(it) }.getOrNull() }
             ?: Charsets.UTF_8
-        return decodeQp(p.value, cs)
+        if (p.params["ENCODING"].orEmpty().none { it.equals("QUOTED-PRINTABLE", true) }) return String(p.raw, cs)
+        return String(decodeQp(p.raw), cs).replace("\r\n", "\n")
     }
 
+    /** The value of an ASCII hex digit, or -1. */
+    private fun hex(b: Byte): Int = Character.digit(b.toInt().toChar(), 16).takeIf { b >= 0 } ?: -1
+
     /** Decodes "=XX" to one byte. A "=" with no hex digits is a soft break that unfolding did not join. */
-    private fun decodeQp(s: String, cs: Charset): String {
+    private fun decodeQp(s: ByteArray): ByteArray {
         val bytes = java.io.ByteArrayOutputStream()
         var i = 0
-        while (i < s.length) {
+        while (i < s.size) {
             val c = s[i]
-            val hex = if (c == '=' && i + 2 < s.length) s.substring(i + 1, i + 3).toIntOrNull(16) else null
+            val eq = c == '='.code.toByte()
             when {
-                hex != null -> { bytes.write(hex); i += 3 }
-                c == '=' -> i++
-                else -> { bytes.write(c.toString().toByteArray(cs)); i++ }
+                eq && i + 2 < s.size && hex(s[i + 1]) >= 0 && hex(s[i + 2]) >= 0 -> {
+                    bytes.write(hex(s[i + 1]) * 16 + hex(s[i + 2]))
+                    i += 3
+                }
+                eq -> i++
+                else -> { bytes.write(c.toInt()); i++ }
             }
         }
-        return String(bytes.toByteArray(), cs)
+        return bytes.toByteArray()
     }
 
     /** The structured parts of [p] split at [sep], each unescaped. */
@@ -208,19 +224,19 @@ object VCard {
     }
 
     /**
-     * Joins the continuation lines of [text]. A line that starts with a space or tab continues the
-     * line before it. A quoted-printable line that ends in "=" continues on the next line.
+     * Joins the continuation lines of [bytes], as bytes. A line that starts with a space or tab continues
+     * the line before it. A quoted-printable line that ends in "=" continues on the next line.
      */
-    private fun unfold(text: String): List<String> {
-        val out = mutableListOf<String>()
+    private fun unfold(bytes: ByteArray): List<ByteArray> {
+        val out = mutableListOf<ByteArray>()
         var soft = false
-        for (raw in text.removePrefix("﻿").split('\n')) {
-            val l = raw.removeSuffix("\r")
-            if (out.isNotEmpty() && (soft || l.startsWith(' ') || l.startsWith('\t'))) {
-                val last = out.lastIndex
-                out[last] = if (soft) out[last].dropLast(1) + l else out[last] + l.substring(1)
-                soft = isSoft(out[last])
-            } else if (l.isNotBlank()) {
+        for (l in ICal.lines(bytes)) {
+            if (out.isNotEmpty() && (soft || ICal.continues(l))) {
+                val last = out.removeAt(out.lastIndex)
+                val joined = if (soft) last.copyOf(last.size - 1) + l else last + l.copyOfRange(1, l.size)
+                out.add(joined)
+                soft = isSoft(joined)
+            } else if (String(l, Charsets.UTF_8).isNotBlank()) {
                 out.add(l)
                 soft = isSoft(l)
             }
@@ -228,18 +244,18 @@ object VCard {
         return out
     }
 
-    private fun isSoft(line: String) =
-        line.endsWith("=") && line.substringBefore(':').contains("QUOTED-PRINTABLE", true)
+    private fun isSoft(line: ByteArray) = line.isNotEmpty() && line.last() == '='.code.toByte() &&
+        String(line, Charsets.ISO_8859_1).substringBefore(':').contains("QUOTED-PRINTABLE", true)
 
-    private fun prop(line: String): Prop? {
+    private fun prop(line: ByteArray): Prop? {
         var quoted = false
         var colon = -1
         for (i in line.indices) {
-            if (line[i] == '"') quoted = !quoted
-            else if (line[i] == ':' && !quoted) { colon = i; break }
+            if (line[i] == '"'.code.toByte()) quoted = !quoted
+            else if (line[i] == ':'.code.toByte() && !quoted) { colon = i; break }
         }
         if (colon < 0) return null
-        val head = line.substring(0, colon).split(';')
+        val head = String(line, 0, colon, Charsets.UTF_8).split(';')
         val params = mutableMapOf<String, MutableList<String>>()
         for (p in head.drop(1)) {
             val i = p.indexOf('=')
@@ -252,6 +268,6 @@ object VCard {
                 params.getOrPut(if (word in encodings) "ENCODING" else "TYPE") { mutableListOf() }.add(word)
             }
         }
-        return Prop(head[0].substringAfterLast('.').uppercase(), params, line.substring(colon + 1))
+        return Prop(head[0].substringAfterLast('.').uppercase(), params, line.copyOfRange(colon + 1, line.size))
     }
 }

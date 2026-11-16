@@ -8,13 +8,15 @@ class CategoryItem(val id: Int, val name: String)
 
 /**
  * The Palm OS Edit Categories form: a list of [items] with OK, New, Rename and Delete. New and Rename ask a name
- * in a second form; a name that is empty or already used (ignoring case) is refused with an alert and the form
- * stays open. Delete asks [deleteText] first.
+ * in a second form; an empty name does nothing and the form stays open. Delete asks [deleteText] first.
  *
  * [items] gives the list each time the form shows it. [add] takes a new name and returns its id, which becomes
  * the selection. [rename] takes an id and the new name. [delete] takes the id of the category to remove. [onClose]
- * runs when OK closes the list. [reserved] gives names that are taken but are not in [items], such as Unfiled.
- * A name that matches one (ignoring case) is refused like a duplicate.
+ * runs when OK closes the list. [reserved] gives categories that are not in [items], such as Unfiled.
+ *
+ * As on the Palm, a name already used by another category (ignoring case, in [items] or [reserved]) merges: Rename
+ * calls [merge] with the id of the renamed category and the id of the one that has the name, which keeps its name
+ * and becomes the selection, with no alert. New with a used name adds nothing and selects the category that has it.
  */
 fun Context.editCategories(
 	items: () -> List<CategoryItem>,
@@ -22,8 +24,9 @@ fun Context.editCategories(
 	rename: (Int, String) -> Unit,
 	deleteText: (CategoryItem) -> String,
 	delete: (Int) -> Unit,
+	merge: (Int, Int) -> Unit,       // (from, into): moves the records of from into into, then removes from
 	onClose: () -> Unit,
-	reserved: List<String> = listOf("Unfiled"),
+	reserved: List<CategoryItem> = listOf(CategoryItem(0, "Unfiled")),
 ) {
 	val d = PalmDialog(this, "Edit Categories", height = 156)
 	val list = vbox()
@@ -55,14 +58,12 @@ fun Context.editCategories(
 			val name = input.text.toString().trim()
 			if (name.isEmpty()) return@button
 			val self = cat?.id
-			val taken = items().any { it.id != self && it.name.equals(name, ignoreCase = true) } ||
-				reserved.any { it.equals(name, ignoreCase = true) }
-			if (taken) {
-				palmAlert("Edit Categories", "A category with that name already exists.", 69) { }
-				return@button
-			}
+			val same = (items() + reserved).firstOrNull { it.id != self && it.name.equals(name, ignoreCase = true) }
 			f2.dismiss()
-			if (cat == null) {
+			if (same != null) {
+				if (cat != null) merge(cat.id, same.id)
+				selId = same.id
+			} else if (cat == null) {
 				selId = add(name)
 			} else {
 				rename(cat.id, name)

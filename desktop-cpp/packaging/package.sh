@@ -32,10 +32,12 @@ MINGW* | MSYS*)
 		cp "$dll" "$stage/"
 	done
 	strip "$stage"/*.exe "$stage"/*.dll
-	# One File element for each staged file; the program has a fixed id.
+	# The component group Files: one component for each staged file, keyed by an HKCU value named after the
+	# file, so WiX derives the component's GUID from the file name. The program has a fixed id.
 	{
 		echo '<?xml version="1.0" encoding="utf-8"?>'
 		echo '<Include>'
+		echo '	<ComponentGroup Id="Files" Directory="INSTALLDIR">'
 		n=0
 		for f in "$stage"/*; do
 			name=$(basename "$f")
@@ -45,8 +47,13 @@ MINGW* | MSYS*)
 				n=$((n + 1))
 				id="Dll$n"
 			fi
-			echo "	<File Id=\"$id\" Name=\"$name\" Source=\"$(cygpath -w "$f")\" />"
+			echo "		<Component Id=\"$id\" Guid=\"*\" Win64=\"yes\">"
+			echo "			<File Id=\"$id\" Name=\"$name\" Source=\"$(cygpath -w "$f")\" />"
+			echo "			<RegistryValue Root=\"HKCU\" Key=\"Software\\rearman\\Palm Desktop\\Files\" Name=\"$name\"" \
+				"Type=\"integer\" Value=\"1\" KeyPath=\"yes\" />"
+			echo '		</Component>'
 		done
+		echo '	</ComponentGroup>'
 		echo '</Include>'
 	} > "$work/files.wxi"
 	candle.exe -nologo -arch x64 -ext WixUIExtension -dVersion="$version" \

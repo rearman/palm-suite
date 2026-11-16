@@ -280,6 +280,10 @@ text_edit::EditState MemoView::list_edit_state() const {
 	return records::list_state(!selected_rows().empty(), !shown_.empty());
 }
 
+void MemoView::follow_merges(const std::vector<category::Merge>& merges) {
+	filter_id_ = category::after_merges(filter_id_, merges);
+}
+
 void MemoView::refresh(view::Ctx& ctx) {
 	const auto old = current_;
 	const bool dirty = has_changes();
@@ -288,17 +292,35 @@ void MemoView::refresh(view::Ctx& ctx) {
 
 void MemoView::reflow(view::Ctx& ctx, std::optional<model::Memo> old, bool dirty) {
 	refresh_combos(ctx);
-	const auto hit = rebuild_list(ctx, old ? std::optional<std::int64_t>(old->id) : std::nullopt);
+	const auto want = old ? std::optional<std::int64_t>(old->id) : std::nullopt;
+	auto hit = rebuild_list(ctx, want);
 	const bool same = hit && old && hit->id == old->id;
-	if (same && !dirty) {
-		load_editor(hit);
-	} else if (same) {
-		current_ = hit;
-	} else if (hit && dirty) {
-		current_ = hit;
-	} else {
-		load_editor(hit);
+	if (same) {
+		if (dirty) {
+			// The editor keeps its edits, which now apply to the memo as the store holds it.
+			current_ = hit;
+		} else {
+			load_editor(hit);
+		}
+		return;
 	}
+	// The list leads with another memo. The editor's edits belong to `old`: they go to it before the editor moves on,
+	// and they are dropped when a sync deleted it.
+	if (dirty && old && keep_edits(ctx, old->id)) {
+		hit = rebuild_list(ctx, want);
+	}
+	load_editor(hit);
+}
+
+bool MemoView::keep_edits(view::Ctx& ctx, std::int64_t id) {
+	const auto it =
+	    std::find_if(ctx.store.memos.begin(), ctx.store.memos.end(), [id](const model::Memo& m) { return m.id == id; });
+	if (it == ctx.store.memos.end()) {
+		return false;
+	}
+	current_ = *it;
+	apply_edits(ctx);
+	return true;
 }
 
 std::vector<model::Memo> MemoView::visible(const view::Ctx& ctx) const {

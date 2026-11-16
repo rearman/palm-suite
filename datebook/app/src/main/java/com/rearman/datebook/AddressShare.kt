@@ -68,8 +68,8 @@ private fun MainActivity.saveVCard(list: List<Address>) {
 }
 
 /** Adds the addresses of a vCard file and tells what was added. */
-internal fun MainActivity.importVCardText(text: String) {
-    val parsed = VCard.parse(text)
+internal fun MainActivity.importVCard(bytes: ByteArray) {
+    val parsed = VCard.parse(bytes)
     if (parsed.isEmpty()) { toast("The file has no addresses."); return }
     val (added, skipped) = store.addAddresses(parsed)
     render()

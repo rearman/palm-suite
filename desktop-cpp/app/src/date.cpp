@@ -12,6 +12,7 @@
 #include "palm/date_shared.hpp"
 #include "palm/days.hpp"
 #include "palm/draw.hpp"
+#include "palm/event_dialog.hpp"
 #include "palm/model.hpp"
 #include "palm/msg.hpp"
 #include "palm/platform.hpp"
@@ -20,6 +21,7 @@
 #include "palm/text_edit.hpp"
 #include "palm/theme.hpp"
 #include "palm/todo.hpp"
+#include "palm/view.hpp"
 
 #include <FL/Enumerations.H>
 #include <FL/Fl.H>
@@ -27,7 +29,6 @@
 #include <FL/Fl_Button.H>
 #include <FL/Fl_Group.H>
 #include <FL/Fl_Input.H>
-#include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_PNG_Image.H>
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl_Table_Row.H>
@@ -302,7 +303,9 @@ std::vector<std::tuple<std::size_t, date_shared::Rect, bool>> layout_day(std::sp
 			timed.push_back(i);
 		}
 	}
-	// The column of each event: the first column that is free at its start.
+	// The column of each event: the first column that is free at its start. An event takes the time its box is drawn
+	// over, at least a half hour, so two events from 9:00 to 9:00 lie side by side.
+	const auto drawn_end = [](const model::Event& e) { return std::max(e.end, e.start + 30); };
 	std::vector<std::int32_t> col_end;
 	std::vector<std::size_t> col(timed.size(), 0);
 	for (std::size_t k = 0; k < timed.size(); ++k) {
@@ -315,7 +318,7 @@ std::vector<std::tuple<std::size_t, date_shared::Rect, bool>> layout_day(std::sp
 		} else {
 			c = static_cast<std::size_t>(it - col_end.begin());
 		}
-		col_end[c] = e.end;
+		col_end[c] = drawn_end(e);
 		col[k] = c;
 	}
 	const std::int32_t area_w = width - TIME_W - 2;
@@ -325,7 +328,7 @@ std::vector<std::tuple<std::size_t, date_shared::Rect, bool>> layout_day(std::sp
 		std::size_t n = col[k] + 1;
 		for (std::size_t j = 0; j < timed.size(); ++j) {
 			const auto& p = occs[timed[j]].event;
-			if (e.start < p.end && p.start < e.end) {
+			if (e.start < drawn_end(p) && p.start < drawn_end(e)) {
 				n = std::max(n, col[j] + 1);
 			}
 		}
@@ -355,23 +358,6 @@ std::optional<std::size_t> records_selected(records::RecordTable& t, std::size_t
 		return std::nullopt;
 	}
 	return rows.front();
-}
-
-std::optional<std::size_t> popup(std::span<const std::string_view> labels) {
-	Fl_Menu_Button mb(0, 0, 0, 0);
-	draw::style_menu(&mb);
-	mb.type(Fl_Menu_Button::POPUP3);
-	for (const auto label : labels) {
-		mb.add(std::string(label).c_str());
-	}
-	if (mb.popup() == nullptr) {
-		return std::nullopt;
-	}
-	const int v = mb.value();
-	if (v < 0) {
-		return std::nullopt;
-	}
-	return static_cast<std::size_t>(v);
 }
 
 bool pane_event(records::RecordTable& t, int ev, msg::Sender s) {
@@ -463,11 +449,6 @@ void draw_pane_todo(const PaneTodo& r, const PaneModel& p, bool selected,
 	}
 }
 
-std::int64_t calendar_start(std::int64_t day, std::uint32_t begins) {
-	const auto d = days::ymd(day);
-	return date_picker::week_start_of(days::epoch_day(d.year, d.month, 1), begins);
-}
-
 void draw_calendar(const Fl_Box& f, const PaneModel& p) {
 	const auto& fonts = theme::fonts();
 	const int cw = f.w() / 7;
@@ -480,7 +461,7 @@ void draw_calendar(const Fl_Box& f, const PaneModel& p) {
 		const std::string letter(model::DOW_LETTER[(static_cast<std::uint32_t>(c) + p.begins) % 7]);
 		fl_draw(letter.c_str(), f.x() + c * cw, f.y(), cw, ch, FL_ALIGN_CENTER);
 	}
-	const std::int64_t start = calendar_start(p.day, p.begins);
+	const std::int64_t start = date_picker::detail::calendar_start(p.day, p.begins);
 	const std::uint32_t month = days::ymd(p.day).month;
 	for (int i = 0; i < 42; ++i) {
 		const std::int64_t d = start + i;
@@ -890,6 +871,62 @@ void Place::apply(date_shared::Rect g) {
 	addr_list->resize(px, ly, PANE_W, std::max(0, list_h - 24));
 	look_label->resize(px, cy + ch - 20, 44, 20);
 	look->resize(px + 48, cy + ch - 20, PANE_W - 48, 20);
+}
+
+bool box_action(view::Ctx& ctx, const date_shared::Occ& occ) {
+	static constexpr std::array<std::string_view, 4> labels = {"&Delete", "&Note...", "&Alarm...", "&Edit..."};
+	// A divider after Delete and after Alarm, as in Palm Desktop 3.1.1.
+	static constexpr std::array<std::size_t, 2> dividers = {0, 2};
+	const std::optional<std::size_t> pick = draw::popup(labels, dividers);
+	if (!pick) {
+		return false;
+	}
+	switch (*pick) {
+	case 0:
+		return date_shared::delete_occurrence(ctx.store, ctx.settings, ctx.no_confirm, occ);
+	case 1:
+		date_shared::edit_note(ctx.store, occ);
+		break;
+	case 2:
+		date_shared::edit_alarm(ctx.store, occ);
+		break;
+	default:
+		event_dialog::edit(ctx, occ.event, occ.day, std::nullopt, "");
+		break;
+	}
+	return false;
+}
+
+void field_event(view::Ctx& ctx, msg::FieldEv f, const Fields& v) {
+	switch (f) {
+	case msg::FieldEv::Enter:
+		v.end_typing(true);
+		v.end_title(true);
+		break;
+	case msg::FieldEv::Escape:
+		v.end_typing(false);
+		v.end_title(false);
+		break;
+	case msg::FieldEv::Lost: {
+		// A focus loss saves, unless the focus went to a dialog of the field itself.
+		const Fl_Widget* focused = Fl::focus();
+		if (v.typing != nullptr && v.typing != focused) {
+			v.end_typing(true);
+		}
+		if (v.title != nullptr && v.title != focused) {
+			v.end_title(true);
+		}
+		break;
+	}
+	case msg::FieldEv::Double:
+		// A double click in the new event field opens Edit Event, as on the empty place the field covers.
+		if (v.dialog) {
+			const auto [day, min] = *v.dialog;
+			v.end_typing(false);
+			event_dialog::edit(ctx, std::nullopt, day, min, "");
+		}
+		break;
+	}
 }
 
 } // namespace detail

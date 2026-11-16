@@ -65,6 +65,18 @@ class SyncRunnerTest {
             rows.remove(uid)
         }
 
+        override fun putTombstone(table: String, uid: String, rev: Long) {
+            rows[uid] = Entry(table, uid, rev, true, true, null)
+        }
+
+        override fun resetSync() {
+            rows.values.removeAll { it.deleted }
+            rows.values.forEach {
+                it.rev = 0
+                it.dirty = true
+            }
+        }
+
         override fun saveCopy(record: Any) {
             val uid = "copy-" + (copies.size + 1)
             val (table, rec) = when (record) {
@@ -244,6 +256,62 @@ class SyncRunnerTest {
         assertEquals(listOf("a" to "1"), store.shortCuts)
         assertFalse(outcome.shortCutsChanged)
         assertFalse(outcome.changed)
+    }
+
+    @Test fun recordDeletedDuringItsFirstPushBecomesDirtyTombstone() {
+        val store = FakeStore()
+        store.add("memos", "m1", Memo(text = "Short-lived", uid = "m1"))
+        val plan = SyncRunner.collect(store, key)
+        store.rows.remove("m1") // a rev-0 row is deleted outright
+
+        SyncRunner.apply(store, key, plan, result(5, accepted = mapOf("m1" to 5L)))
+
+        val row = store.syncRow("m1")!!
+        assertEquals("memos", row.table)
+        assertEquals(5L, row.rev)
+        assertTrue(row.dirty)
+        assertTrue(row.deleted)
+        val next = SyncRunner.collect(store, key).items.single()
+        assertTrue(next.deleted)
+        assertEquals(5L, next.baseRev)
+    }
+
+    @Test fun oversizedRecordIsHeldBackAndTheRestIsPushed() {
+        val store = FakeStore()
+        // Random text does not deflate, so its blob is over the server's limit.
+        val rnd = java.util.Random(1)
+        val big = "Big\n" + String(CharArray(80_000) { ('!' + rnd.nextInt(90)) })
+        store.add("memos", "m1", Memo(text = big, uid = "m1"))
+        store.add("events", "e1", event("Dentist", "e1"))
+
+        val plan = SyncRunner.collect(store, key)
+
+        assertEquals(listOf("e1"), plan.items.map { it.id })
+        assertFalse(plan.pushed.containsKey("m1"))
+        assertEquals(listOf("Big"), plan.held)
+        assertTrue(store.rows["m1"]!!.dirty)
+    }
+
+    @Test fun serverRevisionBelowSinceResetsForFullResync() {
+        val store = FakeStore()
+        store.syncSince = 500
+        store.shortCutsRev = 480
+        store.add("events", "e1", event("Clean", "e1"), rev = 470, dirty = false)
+        store.add("events", "e2", event("Dirty", "e2"), rev = 490)
+        store.add("events", "e3", event("Gone", "e3"), rev = 495, deleted = true)
+        val plan = SyncRunner.collect(store, key)
+
+        val outcome = SyncRunner.apply(store, key, plan, result(451, accepted = mapOf("e2" to 451L)))
+
+        assertEquals(0L, store.syncSince)
+        assertEquals(0L, store.shortCutsRev)
+        assertNull(store.syncRow("e3"))
+        for (uid in listOf("e1", "e2")) {
+            assertEquals(0L, store.rows[uid]!!.rev)
+            assertTrue(store.rows[uid]!!.dirty)
+        }
+        assertFalse(outcome.noConflicts)
+        assertEquals(setOf("e1", "e2"), SyncRunner.collect(store, key).items.map { it.id }.toSet())
     }
 
     @Test fun blobSealedWithAnotherKeyThrowsAndChangesNothing() {

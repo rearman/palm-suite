@@ -1,6 +1,7 @@
 // The sync session state machine of session.hpp, as desktop-rs/core/src/session.rs.
 #include "palm/session.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <optional>
@@ -8,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace palm::session {
 namespace {
@@ -16,6 +18,20 @@ namespace {
 constexpr std::string_view FAILED = "Sync failed.";
 
 } // namespace
+
+std::string held_text(const std::vector<std::string>& held) {
+	if (held.empty()) {
+		return {};
+	}
+	std::string out = "Not synced (too large): ";
+	for (std::size_t i = 0; i < held.size(); ++i) {
+		if (i > 0) {
+			out += ", ";
+		}
+		out += held[i];
+	}
+	return out;
+}
 
 bool SyncSession::running() const {
 	return running_;
@@ -28,6 +44,7 @@ std::optional<Step> SyncSession::start(const runner::SyncStore& store, std::span
 	running_ = true;
 	rounds = 0;
 	changed = false;
+	held.clear();
 	return next_round(store, key);
 }
 
@@ -43,6 +60,7 @@ Step SyncSession::next_round(const runner::SyncStore& store, std::span<const std
 	if (!plan) {
 		return finish(plan.error());
 	}
+	held = plan->held;
 	return Send{std::move(*plan)};
 }
 
@@ -75,6 +93,7 @@ Step SyncSession::finish(std::optional<std::string> error) {
 	    .error = std::move(error),
 	    .changed = changed,
 	    .again = again,
+	    .held = std::move(held),
 	};
 }
 

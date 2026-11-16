@@ -200,6 +200,10 @@ class Store private constructor(ctx: Context) :
 
     fun event(id: Long): Event? = events.firstOrNull { it.id == id }
 
+    fun todo(id: Long): Todo? = todos.firstOrNull { it.id == id }
+
+    fun memo(id: Long): Memo? = memos.firstOrNull { it.id == id }
+
     /** Occurrences on one day: untimed first, then by start time. */
     fun dayEvents(day: Long): List<Occ> =
         events.filter { Recur.occursOn(it, day) }
@@ -459,20 +463,23 @@ class Store private constructor(ctx: Context) :
         onWrite?.invoke()
     }
 
-    /** Deletes a category. Its items move to Unfiled, as on the Palm. */
-    fun deleteCategory(cat: Category) {
+    /**
+     * Deletes a category. Its items move to [into], Unfiled (0) by default, as on the Palm; a rename to the name of
+     * another category passes that category's id, which merges the two. Each moved item is saved dirty, so it syncs.
+     */
+    fun deleteCategory(cat: Category, into: Int = 0) {
         remove("categories", cat.id.toLong())
         if (cat.app == 1) {
-            writableDatabase.execSQL("UPDATE memos SET cat=0, dirty=1 WHERE cat=${cat.id} AND deleted=0")
-            memos.filter { it.category == cat.id }.forEach { it.category = 0 }
+            writableDatabase.execSQL("UPDATE memos SET cat=$into, dirty=1 WHERE cat=${cat.id} AND deleted=0")
+            memos.filter { it.category == cat.id }.forEach { it.category = into }
             memoCategories.removeAll { it.id == cat.id }
         } else if (cat.app == 2) {
-            writableDatabase.execSQL("UPDATE addresses SET cat=0, dirty=1 WHERE cat=${cat.id} AND deleted=0")
-            addresses.filter { it.category == cat.id }.forEach { it.category = 0 }
+            writableDatabase.execSQL("UPDATE addresses SET cat=$into, dirty=1 WHERE cat=${cat.id} AND deleted=0")
+            addresses.filter { it.category == cat.id }.forEach { it.category = into }
             addressCategories.removeAll { it.id == cat.id }
         } else {
-            writableDatabase.execSQL("UPDATE todos SET cat=0, dirty=1 WHERE cat=${cat.id} AND deleted=0")
-            todos.filter { it.category == cat.id }.forEach { it.category = 0 }
+            writableDatabase.execSQL("UPDATE todos SET cat=$into, dirty=1 WHERE cat=${cat.id} AND deleted=0")
+            todos.filter { it.category == cat.id }.forEach { it.category = into }
             categories.removeAll { it.id == cat.id }
         }
         onWrite?.invoke()
@@ -693,6 +700,17 @@ class Store private constructor(ctx: Context) :
         } finally {
             db.endTransaction()
         }
+    }
+
+    /**
+     * Writes a dirty tombstone at [rev] for [uid], which has no row: a new record deleted here while
+     * its first push was in flight. A tombstone has no text and no place in the lists.
+     */
+    fun putTombstone(table: String, uid: String, rev: Long) {
+        if (idOf(table, uid) != null) return
+        writableDatabase.insert(table, null, ContentValues().apply {
+            put("uid", uid); put("rev", rev); put("dirty", 1); put("deleted", 1)
+        })
     }
 
     /** Makes every live row due for upload (rev 0, dirty) and removes the tombstones. */

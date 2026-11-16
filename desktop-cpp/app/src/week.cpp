@@ -15,6 +15,8 @@
 #include "palm/theme.hpp"
 #include "palm/view.hpp"
 
+#include "date_internal.hpp"
+
 #include <FL/Fl.H>
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Button.H>
@@ -543,8 +545,8 @@ void WeekView::grid_mouse(view::Ctx& ctx, msg::Mouse m) {
 				selected_ = hit->second;
 			}
 			sync();
-			if (hit) {
-				box_action(ctx, hit->second);
+			if (hit && date::detail::box_action(ctx, hit->second)) {
+				selected_.reset();
 			}
 			return;
 		}
@@ -616,7 +618,7 @@ Rect WeekView::update_drag(detail::Drag& d, std::int32_t lx, std::int32_t ly) co
 	const std::int32_t col = std::clamp((lx - date::TIME_W) / cw, 0, 6);
 	if (d.resize) {
 		const std::int32_t start = d.occ.event.start;
-		d.new_end = std::min(std::max(round30(m.min_of_y(ly)), start + 30), MIN_OF_DAY);
+		d.new_end = std::min(std::max(round30(m.min_of_y(ly)), start + 30), date_shared::LAST_MIN);
 		const std::int32_t top = m.line_y(start);
 		return Rect::new_rect(d.rect.x, top + 1, d.rect.w, std::max(m.line_y(d.new_end), top + HOUR_H / 2) - top - 2);
 	}
@@ -649,7 +651,7 @@ void WeekView::save_drag(view::Ctx& ctx, const detail::Drag& d) {
 		date_shared::change_occurrence(ctx.store, occ, date_shared::CHANGE_TEXT, [&d](model::Event& x) {
 			x.date = d.new_day;
 			x.start = d.new_start;
-			x.end = d.new_start + d.dur;
+			x.end = std::min(d.new_start + d.dur, date_shared::LAST_MIN);
 		});
 	}
 }
@@ -704,27 +706,6 @@ void WeekView::click(view::Ctx& ctx, std::int32_t lx, std::int32_t ly, bool doub
 	}
 }
 
-void WeekView::box_action(view::Ctx& ctx, const Occ& occ) {
-	const std::optional<date_shared::BoxAction> act = date_shared::event_menu();
-	if (!act) {
-		return;
-	}
-	switch (*act) {
-	case date_shared::BoxAction::Delete:
-		date_shared::delete_occurrence(ctx.store, ctx.settings, ctx.no_confirm, occ);
-		break;
-	case date_shared::BoxAction::Note:
-		date_shared::edit_note(ctx.store, occ);
-		break;
-	case date_shared::BoxAction::Alarm:
-		date_shared::edit_alarm(ctx.store, occ);
-		break;
-	case date_shared::BoxAction::Edit:
-		event_dialog::edit(ctx, occ.event, occ.day, std::nullopt, "");
-		break;
-	}
-}
-
 void WeekView::close_saving(view::Ctx& ctx) {
 	end_title_edit(ctx, true);
 	end_typing(ctx, true);
@@ -755,13 +736,7 @@ void WeekView::end_typing(view::Ctx& ctx, bool save) {
 	if (!save || title.empty()) {
 		return;
 	}
-	model::Event e;
-	e.title = title;
-	e.date = day;
-	e.untimed = !min;
-	e.start = min.value_or(8 * 60);
-	e.end = min ? *min + 60 : 9 * 60;
-	date_shared::apply_alarm_preset(e, ctx.settings);
+	model::Event e = date_shared::new_event(title, day, min, ctx.settings);
 	ctx.store.save_event(e);
 	selected_ = Occ{e, day};
 }
@@ -795,34 +770,18 @@ void WeekView::end_title_edit(view::Ctx& ctx, bool save) {
 }
 
 void WeekView::field_event(view::Ctx& ctx, msg::FieldEv f) {
-	switch (f) {
-	case msg::FieldEv::Enter:
-		close_saving(ctx);
-		break;
-	case msg::FieldEv::Escape:
-		end_title_edit(ctx, false);
-		end_typing(ctx, false);
-		break;
-	case msg::FieldEv::Lost: {
-		const Fl_Widget* focused = Fl::focus();
-		if (typing_ && static_cast<const Fl_Widget*>(typing_->field.input) != focused) {
-			end_typing(ctx, true);
-		}
-		if (title_edit_ && static_cast<const Fl_Widget*>(title_edit_->first.input) != focused) {
-			end_title_edit(ctx, true);
-		}
-		break;
+	date::detail::Fields v{
+	    .typing = typing_ ? static_cast<const Fl_Widget*>(typing_->field.input) : nullptr,
+	    .title = title_edit_ ? static_cast<const Fl_Widget*>(title_edit_->first.input) : nullptr,
+	    .end_typing = [this, &ctx](bool save) { end_typing(ctx, save); },
+	    .end_title = [this, &ctx](bool save) { end_title_edit(ctx, save); },
+	    .dialog = std::nullopt,
+	};
+	// A double click in the field opens the event dialog, as on an empty hour or untimed row.
+	if (typing_) {
+		v.dialog = std::pair{typing_->day, typing_->min};
 	}
-	case msg::FieldEv::Double:
-		// A double click in the field opens the event dialog, as on an empty hour.
-		if (typing_) {
-			const std::int64_t day = typing_->day;
-			const std::optional<std::int32_t> min = typing_->min;
-			end_typing(ctx, false);
-			event_dialog::edit(ctx, std::nullopt, day, min, "");
-		}
-		break;
-	}
+	date::detail::field_event(ctx, f, v);
 }
 
 } // namespace palm::week

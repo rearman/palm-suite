@@ -128,24 +128,21 @@ func tokenAdd(args []string) error {
 		return errors.New("token name must not be empty")
 	}
 
-	ts, err := LoadTokens(*dir)
-	if err != nil {
-		return err
-	}
-	for _, t := range ts {
-		if t.Name == name {
-			return fmt.Errorf("token %q already exists", name)
-		}
-	}
-
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return err
 	}
 	token := base64.RawURLEncoding.EncodeToString(raw)
 	sum := sha256.Sum256([]byte(token))
-	ts = append(ts, Token{Name: name, Hash: hex.EncodeToString(sum[:])})
-	if err := SaveTokens(*dir, ts); err != nil {
+	err := UpdateTokens(*dir, func(ts []Token) ([]Token, error) {
+		for _, t := range ts {
+			if t.Name == name {
+				return nil, fmt.Errorf("token %q already exists", name)
+			}
+		}
+		return append(ts, Token{Name: name, Hash: hex.EncodeToString(sum[:])}), nil
+	})
+	if err != nil {
 		return err
 	}
 	fmt.Printf("Token for %s (shown only this time): %s\n", name, token)
@@ -183,18 +180,16 @@ func tokenRevoke(args []string) error {
 	}
 	name := fs.Arg(0)
 
-	ts, err := LoadTokens(*dir)
-	if err != nil {
-		return err
-	}
-	kept := make([]Token, 0, len(ts))
-	for _, t := range ts {
-		if t.Name != name {
-			kept = append(kept, t)
+	return UpdateTokens(*dir, func(ts []Token) ([]Token, error) {
+		kept := make([]Token, 0, len(ts))
+		for _, t := range ts {
+			if t.Name != name {
+				kept = append(kept, t)
+			}
 		}
-	}
-	if len(kept) == len(ts) {
-		return fmt.Errorf("no token named %q", name)
-	}
-	return SaveTokens(*dir, kept)
+		if len(kept) == len(ts) {
+			return nil, fmt.Errorf("no token named %q", name)
+		}
+		return kept, nil
+	})
 }

@@ -6,22 +6,51 @@
 #include "palm/json.hpp"
 #include "palm/text.hpp"
 
-#include <array>
 #include <cstddef>
 #include <curl/curl.h>
 #include <format>
 #include <memory>
 #include <mutex>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
 namespace palm::client {
 namespace {
 
-// The connect timeout and the timeout of a whole call, in seconds, as the Rust agent.
+// The connect timeout and the stall limit, as the 15 s connect and 60 s read timeouts of the Kotlin client: a
+// call fails when it moves fewer than STALL_BYTES_PER_SECOND bytes a second for STALL_SECONDS seconds. A whole
+// call has no time limit, so a large answer on a slow link still arrives.
 constexpr long CONNECT_TIMEOUT_SECONDS = 15;
-constexpr long CALL_TIMEOUT_SECONDS = 75;
+constexpr long STALL_BYTES_PER_SECOND = 1;
+constexpr long STALL_SECONDS = 60;
+
+// Frees a libcurl URL handle on every path.
+struct UrlFree {
+	void operator()(CURLU* handle) const noexcept { curl_url_cleanup(handle); }
+};
+using Url = std::unique_ptr<CURLU, UrlFree>;
+
+// Frees a string that libcurl gave out.
+struct CurlFree {
+	void operator()(char* text) const noexcept { curl_free(text); }
+};
+
+// One part of a parsed URL, or none when the URL lacks it.
+std::optional<std::string> url_part(CURLU* url, CURLUPart part) {
+	char* raw = nullptr;
+	if (curl_url_get(url, part, &raw, 0) != CURLUE_OK || raw == nullptr) {
+		return std::nullopt;
+	}
+	const std::unique_ptr<char, CurlFree> owned(raw);
+	return std::string(owned.get());
+}
+
+// Whether a host is a loopback name: 127.0.0.1, ::1 (given as [::1]), or localhost, with no other text.
+bool loopback_host(std::string_view host) {
+	return host == "127.0.0.1" || host == "[::1]" || palm::text::eq_ignore_ascii_case(host, "localhost");
+}
 
 // Frees a libcurl easy handle on every path.
 struct EasyFree {
@@ -61,28 +90,13 @@ void add_header(Slist& list, const std::string& line) {
 	list.reset(next);
 }
 
-// The largest body kept, as the 10 MiB limit of ureq's read_to_string. A larger body is read to its end
-// and dropped.
-constexpr std::size_t BODY_LIMIT = 10 * 1024 * 1024;
-
-// The body of an answer, and whether it passed BODY_LIMIT.
-struct Body {
-	std::string text;
-	bool over = false;
-};
-
-// Receives the body of an answer. Past BODY_LIMIT it keeps taking the bytes, so the transfer runs to its
-// end, but appends none and sets `over`.
+// Receives the body of an answer. The server does not page the changes of POST /v1/sync, and it sets no limit
+// on an answer, so the body has no size limit here either, as the Kotlin client.
+// Shortcut: the whole body is held in memory, so a hostile server could fill it; a streaming JSON reader of
+// the changes would bound it.
 std::size_t append_body(char* data, std::size_t size, std::size_t count, void* out) {
 	const std::size_t n = size * count;
-	auto* body = static_cast<Body*>(out);
-	if (!body->over && body->text.size() + n > BODY_LIMIT) {
-		body->over = true;
-		body->text.clear();
-	}
-	if (!body->over) {
-		body->text.append(data, n);
-	}
+	static_cast<std::string*>(out)->append(data, n);
 	return n;
 }
 
@@ -189,20 +203,31 @@ std::expected<SyncMeta, std::string> parse_meta(std::string_view text) {
 }
 
 // A client for a server address that starts with https://. Plain http is allowed for a loopback
-// address only (127.0.0.1, [::1], localhost), where the test server runs.
+// address only (127.0.0.1, [::1], localhost) with a port, where the test server runs. libcurl parses the
+// address, so the host compared is the host it connects to, and an address with a user name or password
+// (e.g. http://localhost:1@evil.host, whose host is evil.host) is refused.
 std::expected<SyncClient, std::string> SyncClient::new_client(std::string_view base_url, std::string_view token) {
 	std::string_view text = palm::text::trim(base_url);
 	while (text.ends_with('/')) {
 		text.remove_suffix(1);
 	}
 	std::string base(text);
-	constexpr std::array<std::string_view, 3> LOOPBACK = {"http://127.0.0.1:", "http://[::1]:", "http://localhost:"};
-	bool loopback = false;
-	for (const auto prefix : LOOPBACK) {
-		loopback = loopback || base.starts_with(prefix);
+	const std::string must_https = "The server address must start with https://";
+	Url url(curl_url());
+	if (!url) {
+		throw std::bad_alloc{};
 	}
-	if (!base.starts_with("https://") && !loopback) {
-		return std::unexpected("The server address must start with https://");
+	if (curl_url_set(url.get(), CURLUPART_URL, base.c_str(), 0) != CURLUE_OK) {
+		return std::unexpected(must_https);
+	}
+	if (url_part(url.get(), CURLUPART_USER) || url_part(url.get(), CURLUPART_PASSWORD)) {
+		return std::unexpected("The server address must not hold a user name or password.");
+	}
+	const std::string scheme = url_part(url.get(), CURLUPART_SCHEME).value_or("");
+	const std::string host = url_part(url.get(), CURLUPART_HOST).value_or("");
+	const bool loopback = scheme == "http" && loopback_host(host) && url_part(url.get(), CURLUPART_PORT);
+	if (scheme != "https" && !loopback) {
+		return std::unexpected(must_https);
 	}
 	return SyncClient(std::move(base), std::string(token));
 }
@@ -225,11 +250,12 @@ SyncClient::call(std::string_view method, std::string_view path, std::optional<s
 	CURL* h = easy.get();
 	Slist headers;
 	add_header(headers, "Authorization: Bearer " + token);
-	Body received;
+	std::string received;
 	curl_easy_setopt(h, CURLOPT_URL, url.c_str());
 	curl_easy_setopt(h, CURLOPT_NOSIGNAL, 1L);
 	curl_easy_setopt(h, CURLOPT_CONNECTTIMEOUT, CONNECT_TIMEOUT_SECONDS);
-	curl_easy_setopt(h, CURLOPT_TIMEOUT, CALL_TIMEOUT_SECONDS);
+	curl_easy_setopt(h, CURLOPT_LOW_SPEED_LIMIT, STALL_BYTES_PER_SECOND);
+	curl_easy_setopt(h, CURLOPT_LOW_SPEED_TIME, STALL_SECONDS);
 	// No redirects: ureq drops the Authorization header on a redirect, so a followed one could only fail,
 	// and following it to another scheme or host would put the token at risk. A 3xx reports as "HTTP 3xx".
 	curl_easy_setopt(h, CURLOPT_FOLLOWLOCATION, 0L);
@@ -265,12 +291,12 @@ SyncClient::call(std::string_view method, std::string_view path, std::optional<s
 		}
 		return std::pair{static_cast<std::uint16_t>(code), std::string{}};
 	}
-	// An over-limit body, or one that is not UTF-8 (ureq's read_to_string fails on it), keeps the status and gives
-	// an empty text, as the Rust code's unwrap_or_default.
-	if (received.over || !text::is_utf8(received.text)) {
+	// A body that is not UTF-8 (ureq's read_to_string fails on it) keeps the status and gives an empty text, as
+	// the Rust code's unwrap_or_default.
+	if (!text::is_utf8(received)) {
 		return std::pair{static_cast<std::uint16_t>(code), std::string{}};
 	}
-	return std::pair{static_cast<std::uint16_t>(code), std::move(received.text)};
+	return std::pair{static_cast<std::uint16_t>(code), std::move(received)};
 }
 
 // The error of a status other than the expected one: the server's "error" text, or "HTTP <status>".

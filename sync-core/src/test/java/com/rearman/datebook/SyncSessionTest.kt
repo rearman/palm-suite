@@ -27,6 +27,8 @@ class SyncSessionTest {
         override fun putRemote(a: Address, rev: Long) {}
         override fun putRemote(c: Category, rev: Long) {}
         override fun dropRemote(table: String, uid: String) {}
+        override fun putTombstone(table: String, uid: String, rev: Long) {}
+        override fun resetSync() {}
         override fun saveCopy(record: Any) {}
         override val shortCuts: List<Pair<String, String>> = emptyList()
         override var shortCutsDirty = false
@@ -46,7 +48,7 @@ class SyncSessionTest {
         key = key,
         send = send,
         afterRound = { afterRoundCount++ },
-        finish = { error, changed -> finished.add(error to changed) },
+        finish = { error, changed, _ -> finished.add(error to changed) },
         again = { againCount++ },
     )
 

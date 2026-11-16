@@ -45,6 +45,8 @@ struct RecordState {
 	bool select_all = true;
 	// Edit Event... and Delete Event.
 	bool event = true;
+
+	bool operator==(const RecordState&) const = default;
 };
 
 // The main window. It sends the window events to the main loop, and it owns the commands and the images of its
@@ -87,12 +89,10 @@ public:
 	void set_status(std::string_view text);
 	void set_position(std::string_view text);
 
-	// Grays the Edit items and toolbar buttons that do not apply to the focus owner.
-	void set_edit_state(const text_edit::EditState& s);
-
-	// Grays Delete and Select All when no record is selected, and Edit Event... and Delete Event when no event is
-	// selected, as Palm Desktop 3.1.1 does.
-	void set_record_state(bool delete_record, bool select_all, bool event);
+	// Grays the Edit items and toolbar buttons that do not apply to the focus owner (`s`), and Delete and Select All
+	// when no record is selected and Edit Event... and Delete Event when no event is selected (`r`), as Palm Desktop
+	// 3.1.1 does. The menu is touched only when a state changed.
+	void set_edit_state(const text_edit::EditState& s, const RecordState& r);
 
 	// The toolbar shows the private-record mark while private records are hidden.
 	void set_private_hidden(bool hidden);

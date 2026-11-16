@@ -110,10 +110,22 @@ class TodoDetails(private val act: MainActivity, private val t: Todo) : PalmDial
         }, labelEnd = LABEL_END).topPx(1)
         row("Private:", act.checkBox("", work.isPrivate) { b -> work.isPrivate = b }, labelEnd = LABEL_END).topPx(0)
 
-        button("OK", 25) { dismiss(); act.saveTodo(work) }
+        button("OK", 25) { dismiss(); if (save() == null) act.render() }
         button("Cancel", 35) { dismiss() }
         button("Delete...", 40) { dismiss(); act.deleteTodo(t) }
-        button("Note", 28) { dismiss(); act.saveTodo(work); act.openTodoNote(work) }
+        button("Note", 28) { dismiss(); save()?.let { act.openTodoNote(it) } ?: act.render() }
+    }
+
+    /**
+     * Saves the fields of this form into the store copy of the item: a sync while the form is up can
+     * replace it, and its title and note stay as the sync left them. A gone item stays gone (null).
+     */
+    private fun save(): Todo? = act.storeTodo(t.id)?.also { cur ->
+        cur.priority = work.priority
+        cur.category = work.category
+        cur.due = work.due
+        cur.isPrivate = work.isPrivate
+        act.saveTodo(cur)
     }
 
     private fun dueText(d: Long) = if (d < 0) "No Date" else Fmt.dowDate(d)
@@ -294,21 +306,29 @@ fun MainActivity.showShowOptions() {
 /**
  * Edit Categories dialog for one app.
  *
- * [app] 0 edits the To Do categories, 1 the Memo Pad categories.
+ * [app] 0 edits the To Do categories, 1 the Memo Pad categories, 2 the Address Book categories.
  */
 fun MainActivity.showEditCategories(app: Int = 0) {
+    // Deletes a category of this app (its sync tombstone goes out): its items move to [into], each saved dirty,
+    // and a list that showed it shows [shown].
+    fun drop(id: Int, into: Int, shown: Int) {
+        store.categoriesFor(app).firstOrNull { it.id == id }?.let { cat ->
+            store.deleteCategory(cat, into)
+            if (prefs.todoCategory == cat.id) prefs.todoCategory = shown
+            if (app == 1 && prefs.memoCategory == cat.id) prefs.memoCategory = shown
+            if (app == 2 && prefs.addressCategory == cat.id) prefs.addressCategory = shown
+        }
+    }
     editCategories(
         items = { store.categoriesFor(app).map { CategoryItem(it.id, it.name) } },
         add = { name -> store.addCategory(name, app).id },
         rename = { id, name -> store.categoriesFor(app).firstOrNull { it.id == id }?.let { store.renameCategory(it, name) } },
         deleteText = { "Delete \"${it.name}\"? Its items move to Unfiled." },
-        delete = { id ->
-            store.categoriesFor(app).firstOrNull { it.id == id }?.let { cat ->
-                store.deleteCategory(cat)
-                if (prefs.todoCategory == cat.id) prefs.todoCategory = -1
-                if (app == 2 && prefs.addressCategory == cat.id) prefs.addressCategory = -1
-            }
-        },
+        // Delete moves the items to Unfiled, and a list that showed the category shows All.
+        delete = { id -> drop(id, 0, -1) },
+        // A rename to the name of another category merges the two, as on the Palm: the items move to the kept one,
+        // and a list that showed the renamed one shows the kept one.
+        merge = { from, into -> drop(from, into, into) },
         onClose = { render() },
     )
 }
