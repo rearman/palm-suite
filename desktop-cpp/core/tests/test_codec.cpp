@@ -69,38 +69,10 @@ TEST_CASE("codec_vectors") {
 	const auto sc_back = codec::to_shortcuts(vectors::s(sc.at("text")));
 	REQUIRE(sc_back.has_value());
 	CHECK(*sc_back == list);
-	for (const vectors::Value& x : vectors::arr(v.at("v1"))) {
-		const std::string text = vectors::s(x.at("text"));
-		const std::string kind_name = vectors::s(x.at("kind"));
-		INFO(text);
-		if (kind_name == "event") {
-			const auto got = codec::to_event(text, "v1");
-			REQUIRE(got.has_value());
-			CHECK(vectors::ev_to(*got) == x.at("record"));
-		} else if (kind_name == "todo") {
-			const auto got = codec::to_todo(text, "v1", cat_id);
-			REQUIRE(got.has_value());
-			CHECK(vectors::todo_to(*got) == x.at("record"));
-		} else if (kind_name == "memo") {
-			const auto got = codec::to_memo(text, "v1", cat_id);
-			REQUIRE(got.has_value());
-			CHECK(vectors::memo_to(*got) == x.at("record"));
-		} else if (kind_name == "address") {
-			const auto got = codec::to_address(text, "v1", cat_id);
-			REQUIRE(got.has_value());
-			CHECK(vectors::addr_to(*got) == x.at("record"));
-		} else if (kind_name == "category") {
-			const auto got = codec::to_category(text, "v1", 4);
-			REQUIRE(got.has_value());
-			CHECK(vectors::cat_to(*got) == x.at("record"));
-		} else {
-			const auto got = codec::to_shortcuts(text);
-			REQUIRE(got.has_value());
-			CHECK(*got == vectors::pairs(x.at("list")));
-			continue;
-		}
-		CHECK(codec::kind(text) == kind_name);
-	}
+	const vectors::Value& clamped = v.at("clamped");
+	const auto clamped_got = codec::to_address(vectors::s(clamped.at("text")), "a2", cat_id);
+	REQUIRE(clamped_got.has_value());
+	CHECK(vectors::addr_to(*clamped_got) == clamped.at("record"));
 	for (const vectors::Value& x : vectors::arr(v.at("kinds"))) {
 		const std::string text = vectors::s(x.at("text"));
 		INFO(x.dump());

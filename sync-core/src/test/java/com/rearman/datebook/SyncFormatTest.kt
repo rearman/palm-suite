@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Format 2 (short keys, defaults left out) and the plaintext compression. VectorsTest pins format 1. */
+/** Format 2 (short keys, defaults left out) and the plaintext compression. */
 class SyncFormatTest {
     private val cat = { uid: String -> if (uid == "cat-1") 3 else if (uid == "cat-7") 7 else 0 }
 

@@ -190,7 +190,7 @@
    "text": "{\"k\":\"zz\"}"
   },
   {
-   "kind": "memo",
+   "kind": "",
    "text": "{\"kind\":\"memo\"}"
   },
   {
@@ -280,117 +280,46 @@
    "text": "{\"k\":\"c\",\"n\":\"Ideas\",\"ap\":1}"
   }
  ],
- "v1": [
-  {
-   "kind": "event",
-   "record": {
-    "date": 19000,
-    "note": "",
-    "private": true,
-    "start": 600,
-    "title": "Old",
-    "exceptions": [19007],
-    "alarmAdvance": 5,
-    "alarmUnit": 0,
-    "repeatEnd": -1,
-    "uid": "v1",
-    "weekDays": 0,
-    "repeat": 0,
-    "alarm": false,
-    "end": 660,
-    "id": 0,
-    "untimed": false,
-    "every": 1
-   },
-   "text": "{\"kind\":\"event\",\"title\":\"Old\",\"date\":19000,\"start\":600,\"end\":660,\"exceptions\":[19007],\"private\":true}"
+ "clamped": {
+  "record": {
+   "zip": "",
+   "lastName": "Doe",
+   "country": "",
+   "note": "",
+   "private": false,
+   "address": "",
+   "city": "",
+   "showPhone": 4,
+   "custom": [
+    "",
+    "",
+    "",
+    ""
+   ],
+   "phones": [
+    "1",
+    "2",
+    "",
+    "",
+    ""
+   ],
+   "title": "",
+   "firstName": "",
+   "phoneLabels": [
+    7,
+    7,
+    2,
+    3,
+    4
+   ],
+   "uid": "a2",
+   "company": "",
+   "id": 0,
+   "state": "",
+   "category": 7
   },
-  {
-   "kind": "todo",
-   "record": {
-    "note": "",
-    "uid": "v1",
-    "private": false,
-    "due": 19001,
-    "id": 0,
-    "title": "Old todo",
-    "priority": 3,
-    "category": 7,
-    "done": true
-   },
-   "text": "{\"kind\":\"todo\",\"title\":\"Old todo\",\"priority\":3,\"due\":19001,\"done\":true,\"category\":\"cat-7\"}"
-  },
-  {
-   "kind": "memo",
-   "record": {
-    "uid": "v1",
-    "private": false,
-    "pos": 2,
-    "id": 0,
-    "text": "Old memo",
-    "category": 3
-   },
-   "text": "{\"kind\":\"memo\",\"text\":\"Old memo\",\"category\":\"cat-1\",\"pos\":2}"
-  },
-  {
-   "kind": "address",
-   "record": {
-    "zip": "",
-    "lastName": "Doe",
-    "country": "",
-    "note": "",
-    "private": false,
-    "address": "",
-    "city": "",
-    "showPhone": 4,
-    "custom": [
-     "",
-     "",
-     "",
-     ""
-    ],
-    "phones": [
-     "1",
-     "2",
-     "",
-     "",
-     ""
-    ],
-    "title": "",
-    "firstName": "",
-    "phoneLabels": [
-     7,
-     7,
-     2,
-     3,
-     4
-    ],
-    "uid": "v1",
-    "company": "",
-    "id": 0,
-    "state": "",
-    "category": 7
-   },
-   "text": "{\"kind\":\"address\",\"lastName\":\"Doe\",\"phones\":[\"1\",\"2\"],\"phoneLabels\":[7,9],\"showPhone\":9,\"category\":\"cat-7\"}"
-  },
-  {
-   "kind": "category",
-   "record": {
-    "app": 1,
-    "uid": "v1",
-    "name": "Business",
-    "id": 4
-   },
-   "text": "{\"kind\":\"category\",\"name\":\"Business\",\"app\":1}"
-  },
-  {
-   "kind": "shortcuts",
-   "text": "{\"kind\":\"shortcuts\",\"list\":[{\"name\":\"br\",\"text\":\"Breakfast\"}]}",
-   "list": [[
-    "br",
-    "Breakfast"
-   ]]
-  }
- ],
+  "text": "{\"k\":\"a\",\"ln\":\"Doe\",\"ph\":[\"1\",\"2\"],\"pl\":[7,9],\"sp\":9,\"c\":\"cat-7\"}"
+ },
  "events": [
   {
    "uid": "u1",

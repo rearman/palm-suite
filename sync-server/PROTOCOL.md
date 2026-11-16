@@ -116,8 +116,8 @@ The device encrypts every record. The server stores only ciphertext.
 
 ## 6. Record plaintext
 
-The plaintext of a blob is UTF-8 JSON, in one of two formats. Readers accept
-both formats. Writers write format 2 only.
+The plaintext of a blob is UTF-8 JSON in format 2. A reader skips a record
+with no `k` as a record of unknown kind.
 
 ### Compression
 
@@ -222,24 +222,11 @@ from its default. The JSON has no spaces.
 
 Each item in `l` is an object: `{"n":"name","t":"text"}`.
 
-### Format 1
-
-Format 1 uses long key names and the field `kind`. Readers accept it. Writers
-do not write it. Each kind has these keys:
-
-- Event: `{"kind":"event","title","note","date","untimed","start","end","alarm","alarmAdvance","alarmUnit","repeat","every","repeatEnd","weekDays","exceptions":[sorted longs],"private"}`
-- To Do: `{"kind":"todo","title","note","priority","due","done","category":uid or "","private"}`
-- Memo: `{"kind":"memo","text","category":uid or "","private","pos"}`
-- Address: `{"kind":"address","lastName","firstName","title","company","phoneLabels":[5 ints],"phones":[5 strings],"address","city","state","zip","country","custom":[4 strings],"note","showPhone","category":uid or "","private"}`
-- Category: `{"kind":"category","name","app"}`
-- ShortCuts: `{"kind":"shortcuts","list":[{"name","text"}]}`
-
 Rules:
 
-- A record refers to its category by the category uid in `category` (format 1)
-  or `c` (format 2). An empty string means no category.
-- The value of `app` (format 1) or `ap` (format 2) is 0 for To Do or 1 for
-  Memo Pad.
+- A record refers to its category by the category uid in `c`. An empty string
+  means no category.
+- The value of `ap` is 0 for To Do or 1 for Memo Pad.
 - The ShortCuts record has the id `shortcuts`. The device that syncs the record last wins.
 - A client compares two records by their content, without the `uid`. If the content is the same, the two versions are the same.
 

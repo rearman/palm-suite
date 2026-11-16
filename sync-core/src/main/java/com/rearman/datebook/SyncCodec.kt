@@ -6,9 +6,8 @@ import org.json.JSONObject
 /**
  * Plaintext of a sync blob, as JSON (sync-server/PROTOCOL.md section 6).
  *
- * Writers write format 2: short keys, the kind in "k" ("e", "t", "m", "a", "c", "s"),
- * and no field that holds its default. Readers accept format 2 and format 1, which
- * uses the long keys and the kind in "kind" ("event", "todo", ...).
+ * Format 2: short keys, the kind in "k" ("e", "t", "m", "a", "c", "s"), and no field
+ * that holds its default. A blob with no "k" has an unknown kind.
  */
 object SyncCodec {
     private val longKind = mapOf(
@@ -100,118 +99,105 @@ object SyncCodec {
     /** The "kind" of a blob, or "" when the text is not JSON or has no kind. */
     fun kind(text: String): String =
         try {
-            val o = JSONObject(text)
-            if (o.isV2()) longKind[o.optString("k")].orEmpty() else o.optString("kind")
+            longKind[JSONObject(text).optString("k")].orEmpty()
         } catch (e: Exception) {
             ""
         }
 
     fun toEvent(text: String, uid: String): Event {
         val o = JSONObject(text)
-        val v2 = o.isV2()
         val exceptions = mutableSetOf<Long>()
-        val arr = o.optJSONArray(key(v2, "x", "exceptions"))
+        val arr = o.optJSONArray("x")
         if (arr != null) for (i in 0 until arr.length()) exceptions.add(arr.optLong(i))
         return Event(
-            title = o.optString(key(v2, "t", "title")),
-            note = o.optString(key(v2, "n", "note")),
-            date = o.optLong(key(v2, "d", "date"), 0),
-            untimed = o.optBoolean(key(v2, "u", "untimed")),
-            start = o.optInt(key(v2, "s", "start"), 480),
-            end = o.optInt(key(v2, "e", "end"), 540),
-            alarm = o.optBoolean(key(v2, "a", "alarm")),
-            alarmAdvance = o.optInt(key(v2, "aa", "alarmAdvance"), 5),
-            alarmUnit = o.optInt(key(v2, "au", "alarmUnit")),
-            repeat = o.optInt(key(v2, "r", "repeat")),
-            every = o.optInt(key(v2, "ev", "every"), 1),
-            repeatEnd = o.optLong(key(v2, "re", "repeatEnd"), -1),
-            weekDays = o.optInt(key(v2, "w", "weekDays")),
+            title = o.optString("t"),
+            note = o.optString("n"),
+            date = o.optLong("d", 0),
+            untimed = o.optBoolean("u"),
+            start = o.optInt("s", 480),
+            end = o.optInt("e", 540),
+            alarm = o.optBoolean("a"),
+            alarmAdvance = o.optInt("aa", 5),
+            alarmUnit = o.optInt("au"),
+            repeat = o.optInt("r"),
+            every = o.optInt("ev", 1),
+            repeatEnd = o.optLong("re", -1),
+            weekDays = o.optInt("w"),
             exceptions = exceptions,
-            isPrivate = o.optBoolean(key(v2, "p", "private")),
+            isPrivate = o.optBoolean("p"),
             uid = uid
         )
     }
 
     fun toTodo(text: String, uid: String, categoryId: (String) -> Int): Todo {
         val o = JSONObject(text)
-        val v2 = o.isV2()
         return Todo(
-            title = o.optString(key(v2, "t", "title")),
-            note = o.optString(key(v2, "n", "note")),
-            priority = o.optInt(key(v2, "pr", "priority"), 1),
-            due = o.optLong(key(v2, "du", "due"), -1),
-            done = o.optBoolean(key(v2, "dn", "done")),
-            category = categoryId(o.optString(key(v2, "c", "category"))),
-            isPrivate = o.optBoolean(key(v2, "p", "private")),
+            title = o.optString("t"),
+            note = o.optString("n"),
+            priority = o.optInt("pr", 1),
+            due = o.optLong("du", -1),
+            done = o.optBoolean("dn"),
+            category = categoryId(o.optString("c")),
+            isPrivate = o.optBoolean("p"),
             uid = uid
         )
     }
 
     fun toMemo(text: String, uid: String, categoryId: (String) -> Int): Memo {
         val o = JSONObject(text)
-        val v2 = o.isV2()
         return Memo(
-            text = o.optString(key(v2, "t", "text")),
-            category = categoryId(o.optString(key(v2, "c", "category"))),
-            isPrivate = o.optBoolean(key(v2, "p", "private")),
-            pos = o.optInt(key(v2, "o", "pos")),
+            text = o.optString("t"),
+            category = categoryId(o.optString("c")),
+            isPrivate = o.optBoolean("p"),
+            pos = o.optInt("o"),
             uid = uid
         )
     }
 
     fun toAddress(text: String, uid: String, categoryId: (String) -> Int): Address {
         val o = JSONObject(text)
-        val v2 = o.isV2()
-        val labels = o.optJSONArray(key(v2, "pl", "phoneLabels"))
-        val phones = o.optJSONArray(key(v2, "ph", "phones"))
-        val custom = o.optJSONArray(key(v2, "cu", "custom"))
+        val labels = o.optJSONArray("pl")
+        val phones = o.optJSONArray("ph")
+        val custom = o.optJSONArray("cu")
         return Address(
-            lastName = o.optString(key(v2, "ln", "lastName")),
-            firstName = o.optString(key(v2, "fn", "firstName")),
-            title = o.optString(key(v2, "ti", "title")),
-            company = o.optString(key(v2, "co", "company")),
+            lastName = o.optString("ln"),
+            firstName = o.optString("fn"),
+            title = o.optString("ti"),
+            company = o.optString("co"),
             phoneLabels = List(5) { (labels?.optInt(it, it) ?: it).coerceIn(0, 7) },
             phones = List(5) { phones?.optString(it, "") ?: "" },
-            address = o.optString(key(v2, "ad", "address")),
-            city = o.optString(key(v2, "ci", "city")),
-            state = o.optString(key(v2, "st", "state")),
-            zip = o.optString(key(v2, "z", "zip")),
-            country = o.optString(key(v2, "cn", "country")),
+            address = o.optString("ad"),
+            city = o.optString("ci"),
+            state = o.optString("st"),
+            zip = o.optString("z"),
+            country = o.optString("cn"),
             custom = List(4) { custom?.optString(it, "") ?: "" },
-            note = o.optString(key(v2, "n", "note")),
-            showPhone = o.optInt(key(v2, "sp", "showPhone")).coerceIn(0, 4),
-            category = categoryId(o.optString(key(v2, "c", "category"))),
-            isPrivate = o.optBoolean(key(v2, "p", "private")),
+            note = o.optString("n"),
+            showPhone = o.optInt("sp").coerceIn(0, 4),
+            category = categoryId(o.optString("c")),
+            isPrivate = o.optBoolean("p"),
             uid = uid
         )
     }
 
     fun toCategory(text: String, uid: String, id: Int): Category {
         val o = JSONObject(text)
-        val v2 = o.isV2()
         return Category(
             id = id,
-            name = o.optString(key(v2, "n", "name")),
-            app = o.optInt(key(v2, "ap", "app")),
+            name = o.optString("n"),
+            app = o.optInt("ap"),
             uid = uid
         )
     }
 
     fun toShortcuts(text: String): List<Pair<String, String>> {
         val o = JSONObject(text)
-        val v2 = o.isV2()
-        val arr = o.optJSONArray(key(v2, "l", "list")) ?: return emptyList()
+        val arr = o.optJSONArray("l") ?: return emptyList()
         return (0 until arr.length()).map { i ->
             val s = arr.getJSONObject(i)
-            s.optString(key(v2, "n", "name")) to s.optString(key(v2, "t", "text"))
+            s.optString("n") to s.optString("t")
         }
     }
-
-    /** True when the object is format 2 (it has the short kind key "k"). */
-    private fun JSONObject.isV2(): Boolean = has("k")
-
-    /** The format 2 key [f2] when [v2], else the format 1 key [f1]. */
-    private fun key(v2: Boolean, f2: String, f1: String): String = if (v2) f2 else f1
 
     /** Writes a string field. An empty string is the default, so it is left out. */
     private fun putStr(o: JSONObject, key: String, value: String) {

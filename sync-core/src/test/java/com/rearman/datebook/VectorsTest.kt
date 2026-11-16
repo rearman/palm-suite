@@ -174,24 +174,12 @@ class VectorsTest {
             .put("list", JSONArray(sc.map { JSONArray(listOf(it.first, it.second)) }))
             .put("text", SyncCodec.shortcuts(sc))
 
-        // Format 1: the long keys of the first sync format, as an old phone still sends them.
-        val v1 = JSONArray()
-        val v1Event = "{\"kind\":\"event\",\"title\":\"Old\",\"date\":19000,\"start\":600,\"end\":660,\"exceptions\":[19007],\"private\":true}"
-        v1.put(JSONObject().put("kind", "event").put("text", v1Event).put("record", ev(SyncCodec.toEvent(v1Event, "v1"))))
-        val v1Todo = "{\"kind\":\"todo\",\"title\":\"Old todo\",\"priority\":3,\"due\":19001,\"done\":true,\"category\":\"cat-7\"}"
-        v1.put(JSONObject().put("kind", "todo").put("text", v1Todo).put("record", todo(SyncCodec.toTodo(v1Todo, "v1", ::catId))))
-        val v1Memo = "{\"kind\":\"memo\",\"text\":\"Old memo\",\"category\":\"cat-1\",\"pos\":2}"
-        v1.put(JSONObject().put("kind", "memo").put("text", v1Memo).put("record", memo(SyncCodec.toMemo(v1Memo, "v1", ::catId))))
-        val v1Addr = "{\"kind\":\"address\",\"lastName\":\"Doe\",\"phones\":[\"1\",\"2\"],\"phoneLabels\":[7,9],\"showPhone\":9,\"category\":\"cat-7\"}"
-        v1.put(JSONObject().put("kind", "address").put("text", v1Addr).put("record", addr(SyncCodec.toAddress(v1Addr, "v1", ::catId))))
-        val v1Cat = "{\"kind\":\"category\",\"name\":\"Business\",\"app\":1}"
-        v1.put(JSONObject().put("kind", "category").put("text", v1Cat).put("record", cat(SyncCodec.toCategory(v1Cat, "v1", 4))))
-        val v1Sc = "{\"kind\":\"shortcuts\",\"list\":[{\"name\":\"br\",\"text\":\"Breakfast\"}]}"
-        v1.put(
-            JSONObject().put("kind", "shortcuts").put("text", v1Sc)
-                .put("list", JSONArray(SyncCodec.toShortcuts(v1Sc).map { JSONArray(listOf(it.first, it.second)) }))
-        )
+        // An address with a phone label and a shown phone out of range: the reader clamps them.
+        val clampText = "{\"k\":\"a\",\"ln\":\"Doe\",\"ph\":[\"1\",\"2\"],\"pl\":[7,9],\"sp\":9,\"c\":\"cat-7\"}"
+        val clamped = JSONObject().put("text", clampText)
+            .put("record", addr(SyncCodec.toAddress(clampText, "a2", ::catId)))
 
+        // A blob in the long keys of the first format has no "k", so its kind is unknown.
         val kinds = JSONArray()
         for (t in listOf("{\"k\":\"e\"}", "{\"k\":\"s\",\"l\":[]}", "{\"k\":\"zz\"}", "{\"kind\":\"memo\"}", "{}", "not json", "")) {
             kinds.put(JSONObject().put("text", t).put("kind", SyncCodec.kind(t)))
@@ -200,7 +188,7 @@ class VectorsTest {
         check(
             "codec", JSONObject().put("categoryUids", JSONObject(catUids.mapKeys { it.key.toString() }))
                 .put("events", events).put("todos", todos).put("memos", memos).put("addresses", addresses)
-                .put("categories", categories).put("shortcuts", shortcuts).put("v1", v1).put("kinds", kinds)
+                .put("categories", categories).put("shortcuts", shortcuts).put("clamped", clamped).put("kinds", kinds)
         )
     }
 

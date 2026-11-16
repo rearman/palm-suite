@@ -1,7 +1,7 @@
 // The sync codec: the plaintext of a sync blob, as JSON (sync-server/PROTOCOL.md section 6), as SyncCodec.kt.
-// Writers write format 2: short keys, the kind in "k" ("e", "t", "m", "a", "c", "s"), and no field that holds
-// its default. Readers accept format 2 and format 1, which uses the long keys and the kind in "kind". The key
-// order differs from org.json's, which no reader depends on. As desktop-rs/core/src/codec.rs.
+// Format 2: short keys, the kind in "k" ("e", "t", "m", "a", "c", "s"), and no field that holds its default. A
+// blob with no "k" has an unknown kind. The key order differs from org.json's, which no reader depends on. As
+// desktop-rs/core/src/codec.rs.
 #pragma once
 
 #include "palm/model.hpp"
@@ -38,7 +38,7 @@ std::string category(const model::Category& c);
 // The format 2 text of a ShortCuts list.
 std::string shortcuts(std::span<const ShortCuts::value_type> list);
 
-// The event of a blob, in format 2 or format 1. The id is 0; the caller stores it.
+// The event of a blob. The id is 0; the caller stores it.
 std::expected<model::Event, std::string> to_event(std::string_view text, std::string_view uid);
 
 // The To Do item of a blob. `category_id` maps the category uid to its local id.

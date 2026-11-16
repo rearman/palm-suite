@@ -80,16 +80,6 @@ std::string_view long_kind(std::string_view k) {
 	return "";
 }
 
-// True when the object is format 2 (it has the short kind key "k").
-bool is_v2(const json::Obj& o) {
-	return o.contains("k");
-}
-
-// The format 2 key when `v2`, else the format 1 key.
-std::string_view key(bool v2, std::string_view f2, std::string_view f1) {
-	return v2 ? f2 : f1;
-}
-
 // The elements of an array that a key may hold; none when the key is missing or not an array.
 std::span<const json::Obj> elements(const nlohmann::json::array_t* a) {
 	if (a == nullptr) {
@@ -207,37 +197,36 @@ std::string shortcuts(std::span<const ShortCuts::value_type> list) {
 	return dump_text(o);
 }
 
-// The event of a blob, in format 2 or format 1. The id is 0; the caller stores it.
+// The event of a blob. The id is 0; the caller stores it.
 std::expected<model::Event, std::string> to_event(std::string_view text, std::string_view uid) {
 	auto parsed = json::parse_obj(text);
 	if (!parsed) {
 		return std::unexpected(parsed.error());
 	}
 	const json::Obj& o = *parsed;
-	const bool v2 = is_v2(o);
 	std::set<std::int64_t> exceptions;
-	if (const auto* a = json::opt_array(o, key(v2, "x", "exceptions"))) {
+	if (const auto* a = json::opt_array(o, "x")) {
 		for (std::size_t i = 0; i < a->size(); ++i) {
 			exceptions.insert(json::at_i64(*a, i));
 		}
 	}
 	return model::Event{
 	    .id = 0,
-	    .title = json::opt_str(o, key(v2, "t", "title")),
-	    .note = json::opt_str(o, key(v2, "n", "note")),
-	    .date = json::opt_i64(o, key(v2, "d", "date"), 0),
-	    .untimed = json::opt_bool(o, key(v2, "u", "untimed")),
-	    .start = json::opt_i32(o, key(v2, "s", "start"), 480),
-	    .end = json::opt_i32(o, key(v2, "e", "end"), 540),
-	    .alarm = json::opt_bool(o, key(v2, "a", "alarm")),
-	    .alarm_advance = json::opt_i32(o, key(v2, "aa", "alarmAdvance"), 5),
-	    .alarm_unit = json::opt_i32(o, key(v2, "au", "alarmUnit"), 0),
-	    .repeat = json::opt_i32(o, key(v2, "r", "repeat"), 0),
-	    .every = json::opt_i32(o, key(v2, "ev", "every"), 1),
-	    .repeat_end = json::opt_i64(o, key(v2, "re", "repeatEnd"), -1),
-	    .week_days = json::opt_i32(o, key(v2, "w", "weekDays"), 0),
+	    .title = json::opt_str(o, "t"),
+	    .note = json::opt_str(o, "n"),
+	    .date = json::opt_i64(o, "d", 0),
+	    .untimed = json::opt_bool(o, "u"),
+	    .start = json::opt_i32(o, "s", 480),
+	    .end = json::opt_i32(o, "e", 540),
+	    .alarm = json::opt_bool(o, "a"),
+	    .alarm_advance = json::opt_i32(o, "aa", 5),
+	    .alarm_unit = json::opt_i32(o, "au", 0),
+	    .repeat = json::opt_i32(o, "r", 0),
+	    .every = json::opt_i32(o, "ev", 1),
+	    .repeat_end = json::opt_i64(o, "re", -1),
+	    .week_days = json::opt_i32(o, "w", 0),
 	    .exceptions = std::move(exceptions),
-	    .is_private = json::opt_bool(o, key(v2, "p", "private")),
+	    .is_private = json::opt_bool(o, "p"),
 	    .uid = std::string(uid),
 	};
 }
@@ -250,16 +239,15 @@ std::expected<model::Todo, std::string> to_todo(std::string_view text, std::stri
 		return std::unexpected(parsed.error());
 	}
 	const json::Obj& o = *parsed;
-	const bool v2 = is_v2(o);
 	return model::Todo{
 	    .id = 0,
-	    .title = json::opt_str(o, key(v2, "t", "title")),
-	    .note = json::opt_str(o, key(v2, "n", "note")),
-	    .priority = json::opt_i32(o, key(v2, "pr", "priority"), 1),
-	    .due = json::opt_i64(o, key(v2, "du", "due"), -1),
-	    .done = json::opt_bool(o, key(v2, "dn", "done")),
-	    .category = category_id(json::opt_str(o, key(v2, "c", "category"))),
-	    .is_private = json::opt_bool(o, key(v2, "p", "private")),
+	    .title = json::opt_str(o, "t"),
+	    .note = json::opt_str(o, "n"),
+	    .priority = json::opt_i32(o, "pr", 1),
+	    .due = json::opt_i64(o, "du", -1),
+	    .done = json::opt_bool(o, "dn"),
+	    .category = category_id(json::opt_str(o, "c")),
+	    .is_private = json::opt_bool(o, "p"),
 	    .uid = std::string(uid),
 	};
 }
@@ -272,13 +260,12 @@ std::expected<model::Memo, std::string> to_memo(std::string_view text, std::stri
 		return std::unexpected(parsed.error());
 	}
 	const json::Obj& o = *parsed;
-	const bool v2 = is_v2(o);
 	return model::Memo{
 	    .id = 0,
-	    .text = json::opt_str(o, key(v2, "t", "text")),
-	    .category = category_id(json::opt_str(o, key(v2, "c", "category"))),
-	    .is_private = json::opt_bool(o, key(v2, "p", "private")),
-	    .pos = json::opt_i32(o, key(v2, "o", "pos"), 0),
+	    .text = json::opt_str(o, "t"),
+	    .category = category_id(json::opt_str(o, "c")),
+	    .is_private = json::opt_bool(o, "p"),
+	    .pos = json::opt_i32(o, "o", 0),
 	    .uid = std::string(uid),
 	};
 }
@@ -291,10 +278,9 @@ std::expected<model::Address, std::string> to_address(std::string_view text, std
 		return std::unexpected(parsed.error());
 	}
 	const json::Obj& o = *parsed;
-	const bool v2 = is_v2(o);
-	const auto labels = elements(json::opt_array(o, key(v2, "pl", "phoneLabels")));
-	const auto phones = elements(json::opt_array(o, key(v2, "ph", "phones")));
-	const auto custom = elements(json::opt_array(o, key(v2, "cu", "custom")));
+	const auto labels = elements(json::opt_array(o, "pl"));
+	const auto phones = elements(json::opt_array(o, "ph"));
+	const auto custom = elements(json::opt_array(o, "cu"));
 	std::vector<std::int32_t> phone_labels;
 	for (std::size_t i = 0; i < 5; ++i) {
 		const auto index = static_cast<std::int32_t>(i);
@@ -310,22 +296,22 @@ std::expected<model::Address, std::string> to_address(std::string_view text, std
 	}
 	return model::Address{
 	    .id = 0,
-	    .last_name = json::opt_str(o, key(v2, "ln", "lastName")),
-	    .first_name = json::opt_str(o, key(v2, "fn", "firstName")),
-	    .title = json::opt_str(o, key(v2, "ti", "title")),
-	    .company = json::opt_str(o, key(v2, "co", "company")),
+	    .last_name = json::opt_str(o, "ln"),
+	    .first_name = json::opt_str(o, "fn"),
+	    .title = json::opt_str(o, "ti"),
+	    .company = json::opt_str(o, "co"),
 	    .phone_labels = std::move(phone_labels),
 	    .phones = std::move(phone_numbers),
-	    .address = json::opt_str(o, key(v2, "ad", "address")),
-	    .city = json::opt_str(o, key(v2, "ci", "city")),
-	    .state = json::opt_str(o, key(v2, "st", "state")),
-	    .zip = json::opt_str(o, key(v2, "z", "zip")),
-	    .country = json::opt_str(o, key(v2, "cn", "country")),
+	    .address = json::opt_str(o, "ad"),
+	    .city = json::opt_str(o, "ci"),
+	    .state = json::opt_str(o, "st"),
+	    .zip = json::opt_str(o, "z"),
+	    .country = json::opt_str(o, "cn"),
 	    .custom = std::move(custom_fields),
-	    .note = json::opt_str(o, key(v2, "n", "note")),
-	    .show_phone = std::clamp(json::opt_i32(o, key(v2, "sp", "showPhone"), 0), 0, 4),
-	    .category = category_id(json::opt_str(o, key(v2, "c", "category"))),
-	    .is_private = json::opt_bool(o, key(v2, "p", "private")),
+	    .note = json::opt_str(o, "n"),
+	    .show_phone = std::clamp(json::opt_i32(o, "sp", 0), 0, 4),
+	    .category = category_id(json::opt_str(o, "c")),
+	    .is_private = json::opt_bool(o, "p"),
 	    .uid = std::string(uid),
 	};
 }
@@ -337,11 +323,10 @@ std::expected<model::Category, std::string> to_category(std::string_view text, s
 		return std::unexpected(parsed.error());
 	}
 	const json::Obj& o = *parsed;
-	const bool v2 = is_v2(o);
 	return model::Category{
 	    .id = id,
-	    .name = json::opt_str(o, key(v2, "n", "name")),
-	    .app = json::opt_i32(o, key(v2, "ap", "app"), 0),
+	    .name = json::opt_str(o, "n"),
+	    .app = json::opt_i32(o, "ap", 0),
 	    .uid = std::string(uid),
 	};
 }
@@ -353,8 +338,7 @@ std::expected<ShortCuts, std::string> to_shortcuts(std::string_view text) {
 		return std::unexpected(parsed.error());
 	}
 	const json::Obj& o = *parsed;
-	const bool v2 = is_v2(o);
-	const auto* arr = json::opt_array(o, key(v2, "l", "list"));
+	const auto* arr = json::opt_array(o, "l");
 	if (arr == nullptr) {
 		return ShortCuts{};
 	}
@@ -363,7 +347,7 @@ std::expected<ShortCuts, std::string> to_shortcuts(std::string_view text) {
 		if (!s.is_object()) {
 			return std::unexpected(std::string("JSONArray item is not a JSONObject."));
 		}
-		out.emplace_back(json::opt_str(s, key(v2, "n", "name")), json::opt_str(s, key(v2, "t", "text")));
+		out.emplace_back(json::opt_str(s, "n"), json::opt_str(s, "t"));
 	}
 	return out;
 }
@@ -374,11 +358,7 @@ std::string kind(std::string_view text) {
 	if (!parsed) {
 		return {};
 	}
-	const json::Obj& o = *parsed;
-	if (is_v2(o)) {
-		return std::string(long_kind(json::opt_str(o, "k")));
-	}
-	return json::opt_str(o, "kind");
+	return std::string(long_kind(json::opt_str(*parsed, "k")));
 }
 
 } // namespace palm::codec
