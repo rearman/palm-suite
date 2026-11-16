@@ -1,7 +1,7 @@
 // The Palm Desktop record store, as desktop-rs/app/src/store.rs (DesktopStore.kt). It keeps the records in memory
-// and saves them to one JSON file (desktop-data.json, the same format as the Swing app) after each write. A synced
-// record that was deleted stays as a tombstone in the sync state until sync removes it; tombstones are not in the
-// record lists.
+// and saves them to one JSON file (desktop-data.json, the same format as the Swing app) after each write. The previous
+// file stays as desktop-data.json.bak. A synced record that was deleted stays as a tombstone in the sync state until
+// sync removes it; tombstones are not in the record lists.
 #pragma once
 
 #include "palm/codec.hpp"
@@ -46,6 +46,15 @@ private:
 	int fd_ = -1;
 #endif
 };
+
+// The backup of a data file: the file as it was before the last save (desktop-data.json.bak).
+std::filesystem::path backup_path(const std::filesystem::path& file);
+
+// Where restore_backup keeps a data file that does not read (desktop-data.json.bad).
+std::filesystem::path bad_path(const std::filesystem::path& file);
+
+// Puts the backup in place of a data file that does not read. The file that does not read moves to bad_path.
+std::expected<void, std::string> restore_backup(const std::filesystem::path& file);
 
 // A new random uid in the form of Java's UUID.randomUUID().
 std::string new_uid();
@@ -105,8 +114,8 @@ public:
 
 	// ---- the file ----
 
-	// Writes the whole store: a temp file, then a move over the old file. A failure keeps the old file and goes to
-	// save_error.
+	// Writes the whole store: a temp file flushed to the disk, the old file kept as the backup, then a move over the
+	// old file. A failure keeps the old file and goes to save_error.
 	void persist();
 
 	// ---- public state, as the Rust fields ----

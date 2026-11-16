@@ -214,7 +214,10 @@ The desktop keeps the Address Book records for sync.
 - Gentoo: see [Gentoo](#gentoo).
 - The app keeps its records in `desktop-data.json` in your config folder
   (`%APPDATA%\palm-suite` on Windows, `~/.config/palm-suite` on Linux). It
-  works offline.
+  works offline. Each save keeps the file as it was before in
+  `desktop-data.json.bak`; if `desktop-data.json` ever fails to read, the app
+  offers to restore that copy and keeps the damaged file as
+  `desktop-data.json.bad`.
 - To set up sync, choose Sync > Options..., enter the server, the device
   token and the sync passphrase, and click Set Up. The app saves the token
   and the sync key in a file that only your user account can read.

@@ -85,10 +85,89 @@ const nlohmann::json* field(const json::Obj& o, std::string_view key) {
 	return it == o.end() ? nullptr : &*it;
 }
 
-// Writes `text` to a temp file beside `file`, then moves it over `file`. Returns the error, if any.
+// Writes `text` to `path` and flushes it to the disk, so that a power loss after the rename that follows cannot leave
+// an empty or short file. Returns the error, if any.
+std::optional<std::string> write_flushed(const fs::path& path, const std::string& text) {
+#ifdef _WIN32
+	HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (h == INVALID_HANDLE_VALUE) {
+		return palm::platform::last_os_error_text();
+	}
+	const char* p = text.data();
+	std::size_t left = text.size();
+	while (left > 0) {
+		DWORD wrote = 0;
+		const auto chunk = static_cast<DWORD>(std::min<std::size_t>(left, 1U << 30));
+		if (!WriteFile(h, p, chunk, &wrote, nullptr)) {
+			const DWORD err = GetLastError();
+			CloseHandle(h);
+			return palm::platform::os_error_text(static_cast<int>(err));
+		}
+		p += wrote;
+		left -= wrote;
+	}
+	if (!FlushFileBuffers(h)) {
+		const DWORD err = GetLastError();
+		CloseHandle(h);
+		return palm::platform::os_error_text(static_cast<int>(err));
+	}
+	CloseHandle(h);
+#else
+	const int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
+	if (fd < 0) {
+		return palm::platform::last_os_error_text();
+	}
+	const char* p = text.data();
+	std::size_t left = text.size();
+	while (left > 0) {
+		const ssize_t wrote = write(fd, p, left);
+		if (wrote < 0) {
+			if (errno == EINTR) {
+				continue;
+			}
+			const int err = errno;
+			close(fd);
+			return palm::platform::os_error_text(err);
+		}
+		p += wrote;
+		left -= static_cast<std::size_t>(wrote);
+	}
+	if (fsync(fd) != 0) {
+		const int err = errno;
+		close(fd);
+		return palm::platform::os_error_text(err);
+	}
+	if (close(fd) != 0) {
+		return palm::platform::last_os_error_text();
+	}
+#endif
+	return std::nullopt;
+}
+
+// Keeps the current `file` as its backup: a hard link, or a copy where the file system has no links. A failed backup
+// does not stop the save, which keeps the old file safe by itself; the backup only guards against a file that later
+// fails to read.
+void keep_backup(const fs::path& file) {
+	std::error_code ec;
+	if (!fs::exists(file, ec)) {
+		return;
+	}
+	const fs::path bak = backup_path(file);
+	fs::remove(bak, ec);
+	ec.clear();
+	fs::create_hard_link(file, bak, ec);
+	if (ec) {
+		ec.clear();
+		fs::copy_file(file, bak, fs::copy_options::overwrite_existing, ec);
+	}
+}
+
+// Writes `text` to a flushed temp file beside `file`, keeps the old file as the backup, then moves the temp file over
+// `file`. Returns the error, if any.
 std::optional<std::string> write_atomic(const fs::path& file, const std::string& text) {
 	std::error_code ec;
-	if (const fs::path dir = file.parent_path(); !dir.empty()) {
+	const fs::path dir = file.parent_path();
+	if (!dir.empty()) {
 		fs::create_directories(dir, ec);
 		if (ec) {
 			return palm::platform::os_error_text(ec);
@@ -96,25 +175,50 @@ std::optional<std::string> write_atomic(const fs::path& file, const std::string&
 	}
 	fs::path tmp = file;
 	tmp += ".tmp";
-	{
-		std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-		if (!out) {
-			return palm::platform::last_os_error_text();
-		}
-		out.write(text.data(), static_cast<std::streamsize>(text.size()));
-		out.close();
-		if (!out) {
-			return palm::platform::last_os_error_text();
-		}
+	if (auto err = write_flushed(tmp, text)) {
+		return err;
 	}
+	keep_backup(file);
 	fs::rename(tmp, file, ec);
 	if (ec) {
 		return palm::platform::os_error_text(ec);
 	}
+#ifndef _WIN32
+	// The rename lives in the folder, so the folder is flushed too. NTFS logs the rename itself.
+	if (const int dfd = open(dir.empty() ? "." : dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC); dfd >= 0) {
+		fsync(dfd);
+		close(dfd);
+	}
+#endif
 	return std::nullopt;
 }
 
 } // namespace
+
+fs::path backup_path(const fs::path& file) {
+	fs::path bak = file;
+	bak += ".bak";
+	return bak;
+}
+
+fs::path bad_path(const fs::path& file) {
+	fs::path bad = file;
+	bad += ".bad";
+	return bad;
+}
+
+std::expected<void, std::string> restore_backup(const fs::path& file) {
+	std::error_code ec;
+	fs::rename(file, bad_path(file), ec);
+	if (ec) {
+		return std::unexpected(palm::platform::os_error_text(ec));
+	}
+	fs::copy_file(backup_path(file), file, fs::copy_options::overwrite_existing, ec);
+	if (ec) {
+		return std::unexpected(palm::platform::os_error_text(ec));
+	}
+	return {};
+}
 
 std::string new_uid() {
 	std::vector<std::uint8_t> b = crypto::random_bytes(16);

@@ -780,8 +780,27 @@ int main(int argc, char** argv) {
 	const std::filesystem::path path = dir / palm::store::FILE_NAME;
 	auto opened = palm::store::DesktopStore::open(path);
 	if (!opened) {
-		fail(
-		    std::format("Palm Desktop could not read {}: {}\nThe file stays as it is.", path.string(), opened.error()));
+		const std::string why = std::format("Palm Desktop could not read {}: {}", path.string(), opened.error());
+		// The backup is offered only when it reads, so the restore cannot swap one bad file for another.
+		const std::filesystem::path bak = palm::store::backup_path(path);
+		std::error_code ec;
+		if (std::filesystem::exists(bak, ec) && palm::store::DesktopStore::open(bak).has_value()) {
+			const auto pressed = palm::dialogs::ask_icon(
+			    "Palm Desktop", palm::dialogs::Icon::Warning,
+			    std::format("{}\n\nRestore the copy from before the last save? The file that does not read is kept "
+			                "as {}.",
+			                why, palm::store::bad_path(path).filename().string()),
+			    {"Restore", "Quit"}, 0);
+			if (pressed == 0) {
+				if (auto restored = palm::store::restore_backup(path); !restored) {
+					fail(std::format("Palm Desktop could not restore {}: {}", bak.string(), restored.error()));
+				}
+				opened = palm::store::DesktopStore::open(path);
+			}
+		}
+		if (!opened) {
+			fail(why + "\nThe file stays as it is.");
+		}
 	}
 	palm::store::DesktopStore desk = std::move(*opened);
 	desk.on_change = [sender] { sender.send(palm::msg::Changed{}); };

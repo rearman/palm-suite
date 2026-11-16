@@ -394,6 +394,43 @@ TEST_CASE("format_1_file_loads_and_uploads_again") {
 	CHECK(!fs::exists(tmp));
 }
 
+TEST_CASE("a_save_keeps_the_file_before_it_as_the_backup") {
+	const fs::path path = file();
+	auto s = DesktopStore::open(path).value();
+	model::Memo first{};
+	first.text = "First";
+	s.save_memo(first);
+	CHECK(!fs::exists(st::backup_path(path)));
+	const std::string before = read_text(path);
+	model::Memo second{};
+	second.text = "Second";
+	s.save_memo(second);
+	CHECK(s.save_error == std::nullopt);
+	CHECK(read_text(st::backup_path(path)) == before);
+	CHECK(DesktopStore::open(path).value().memos.size() == 2);
+	CHECK(DesktopStore::open(st::backup_path(path)).value().memos.size() == 1);
+}
+
+TEST_CASE("restore_backup_keeps_the_bad_file_and_puts_the_backup_in_its_place") {
+	const fs::path path = file();
+	auto s = DesktopStore::open(path).value();
+	model::Memo first{};
+	first.text = "First";
+	s.save_memo(first);
+	model::Memo second{};
+	second.text = "Second";
+	s.save_memo(second);
+	write_text(path, "{\"rows\": 5}");
+	REQUIRE(!DesktopStore::open(path).has_value());
+	REQUIRE(st::restore_backup(path).has_value());
+	CHECK(read_text(st::bad_path(path)) == "{\"rows\": 5}");
+	const auto r = DesktopStore::open(path).value();
+	REQUIRE(r.memos.size() == 1);
+	CHECK(r.memos[0].text == "First");
+	// The backup stays, so a second failure can restore it again.
+	CHECK(fs::exists(st::backup_path(path)));
+}
+
 TEST_CASE("a_memo_with_bad_utf8_saves_as_replacement_characters") {
 	const fs::path path = file();
 	auto s = DesktopStore::open(path).value();
