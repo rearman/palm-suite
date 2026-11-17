@@ -33,7 +33,9 @@ MINGW* | MSYS*)
 	done
 	strip "$stage"/*.exe "$stage"/*.dll
 	# The component group Files: one component for each staged file, keyed by an HKCU value named after the
-	# file, so WiX derives the component's GUID from the file name. The program has a fixed id.
+	# file. WiX 3 derives no GUID for a component that holds a file under a registry key path, so the GUID is
+	# a name-based one (version 3) from the MD5 of the file name: the same file keeps its GUID across builds.
+	# The program has a fixed id.
 	{
 		echo '<?xml version="1.0" encoding="utf-8"?>'
 		echo '<Include>'
@@ -47,7 +49,9 @@ MINGW* | MSYS*)
 				n=$((n + 1))
 				id="Dll$n"
 			fi
-			echo "		<Component Id=\"$id\" Guid=\"*\" Win64=\"yes\">"
+			h=$(printf 'palm-desktop/%s' "$name" | md5sum | cut -c1-32)
+			guid="${h:0:8}-${h:8:4}-3${h:13:3}-$(printf '%x' $(((0x${h:16:1} & 3) | 8)))${h:17:3}-${h:20:12}"
+			echo "		<Component Id=\"$id\" Guid=\"$guid\" Win64=\"yes\">"
 			echo "			<File Id=\"$id\" Name=\"$name\" Source=\"$(cygpath -w "$f")\" />"
 			echo "			<RegistryValue Root=\"HKCU\" Key=\"Software\\rearman\\Palm Desktop\\Files\" Name=\"$name\"" \
 				"Type=\"integer\" Value=\"1\" KeyPath=\"yes\" />"

@@ -273,7 +273,7 @@ object Recur {
         val days = mask and 0x7F
         if (days == 0) return date
         // A search that would run past the last day finds none, as the day-by-day scan before it did.
-        if (date + 7L * (maxOf(1, every) + 1) < date) return date
+        if (date + 7L * (maxOf(1, every).toLong() + 1) < date) return date
         fun has(i: Int) = (days and (1 shl ((weekStart + i) % 7))) != 0
         val into = Math.floorMod(dow(LocalDate.ofEpochDay(date)) - weekStart, 7)
         val weekBegin = date - into

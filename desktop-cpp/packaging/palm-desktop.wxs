@@ -51,7 +51,7 @@
 
 		<!--
 			A per-user component keeps its key path in HKCU, and removes the folders it made in the profile. Each
-			file has a component of its own (files.wxi), whose GUID WiX derives from its registry key path, so a
+			file has a component of its own (files.wxi), whose GUID package.sh derives from the file name, so a
 			DLL that comes or goes between builds changes no other component.
 		-->
 		<?include files.wxi ?>
