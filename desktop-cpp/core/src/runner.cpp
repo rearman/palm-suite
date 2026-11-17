@@ -298,6 +298,10 @@ std::expected<SyncPlan, std::string> collect(const SyncStore& store, std::span<c
 std::expected<SyncOutcome, std::string> apply(SyncStore& store, std::span<const std::uint8_t> key, const SyncPlan& plan,
                                               const client::SyncResult& result) {
 	// The server went back: upload everything and pull from rev 0 in the next round.
+	// Limit: the reset drops every tombstone, so a record deleted here that the restored server still holds comes
+	// back live. A delete cannot be kept through the reset, since revisions from before and after a restore do not
+	// compare, and a kept delete could erase an edit made after it. The upgrade path is a server epoch id in each
+	// answer that a restore changes, as SyncRunner.apply in Kotlin notes.
 	if (result.rev < plan.since) {
 		store.reset_sync();
 		store.set_short_cuts_rev(0);

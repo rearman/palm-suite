@@ -122,6 +122,10 @@ object SyncRunner {
      * the next round pulls from rev 0. That round sorts the copies out by the keep-both rule.
      * Limit: a server that went back and then passed [SyncPlan.since] again before this device
      * synced is not caught; that needs a server id in the answer that changes on a restore.
+     * Limit: the reset drops every tombstone, so a record deleted here that the restored server
+     * still holds comes back live. A delete cannot be kept through the reset, since revisions from
+     * before and after a restore do not compare, and a kept delete could erase an edit made after
+     * it. The same server id is the upgrade path.
      */
     fun apply(store: SyncStore, key: ByteArray, plan: SyncPlan, result: SyncResult): SyncOutcome {
         if (result.rev < plan.since) {
