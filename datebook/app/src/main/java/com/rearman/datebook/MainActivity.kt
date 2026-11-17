@@ -594,7 +594,7 @@ open class MainActivity : Activity() {
                 edited()?.let { (cur, w) ->
                     // A moved weekly series turns its week days with the date, and its repeat end moves
                     // with it, unless the form set them.
-                    if (w.repeat == Repeat.WEEK && work.weekDays == origView.weekDays) {
+                    if (w.repeat == Repeat.WEEK && work.repeat == origView.repeat && work.weekDays == origView.weekDays) {
                         w.weekDays = Recur.rotateWeekDays(w.weekDays, w.date - occDay)
                     }
                     if (w.repeatEnd >= 0 && work.repeatEnd == origView.repeatEnd) w.repeatEnd += w.date - occDay
@@ -612,7 +612,7 @@ open class MainActivity : Activity() {
                     // set them.
                     val m = if (w.repeat == Repeat.NONE) w.deepCopy()
                     else moveSeries(w.deepCopy().apply { date = cur.date }, w.date - occDay).apply {
-                        if (work.weekDays != origView.weekDays) weekDays = w.weekDays
+                        if (work.repeat != origView.repeat || work.weekDays != origView.weekDays) weekDays = w.weekDays
                         if (work.exceptions != origView.exceptions) exceptions = w.exceptions.toMutableSet()
                         if (work.repeatEnd != origView.repeatEnd) repeatEnd = w.repeatEnd
                     }

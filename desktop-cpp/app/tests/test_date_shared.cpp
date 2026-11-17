@@ -102,6 +102,11 @@ TEST_CASE("moving_a_weekly_series_with_all_turns_its_days_and_exceptions") {
 	// So does a repeat end that the form changed along with the date: it is not shifted again.
 	work.repeat_end = mon + 35;
 	CHECK(date_shared::move_all(occ, work).repeat_end == mon + 35);
+	// A series that the form ended with Repeat None stays on the form's date, as on the phone.
+	model::Event once = e;
+	once.date = mon + 16;
+	once.repeat = model::repeat::NONE;
+	CHECK(date_shared::move_all(occ, once).date == mon + 16);
 }
 
 TEST_CASE("a_new_event_in_the_last_hour_ends_at_11_59_pm") {

@@ -433,6 +433,10 @@ bool save_occurrence(store::DesktopStore& store, const Occ& occ, model::Event wo
 
 model::Event move_all(const Occ& occ, model::Event work) {
 	// The series of `work` from the start of the stored one, moved as the phone's saveEventEdit moves it.
+	// A series that the form ended with Repeat None stays on the form's date.
+	if (work.repeat == model::repeat::NONE) {
+		return work;
+	}
 	const std::int64_t shift = days::wrapping_sub(work.date, occ.day);
 	model::Event from = work;
 	from.date = occ.event.date;
