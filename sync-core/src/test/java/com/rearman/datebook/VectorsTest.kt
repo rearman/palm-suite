@@ -265,7 +265,10 @@ class VectorsTest {
         Event(id = 11, title = "Rent", date = day(2026, 1, 31), untimed = true, repeat = Repeat.MONTH_DATE, every = 3, repeatEnd = day(2027, 1, 31), exceptions = mutableSetOf(day(2026, 7, 31))),
         Event(id = 12, title = "Standup", date = day(2026, 3, 2), start = 9 * 60, end = 9 * 60 + 15, repeat = Repeat.DAY, every = 1, alarm = true, alarmAdvance = 1, alarmUnit = 1),
         Event(id = 13, title = "Backwards", date = day(2026, 3, 3), start = 10 * 60, end = 9 * 60),
-        Event(id = 14, title = "", date = day(2026, 3, 4), untimed = true)
+        Event(id = 14, title = "", date = day(2026, 3, 4), untimed = true),
+        // The UID comes from the sync uid, and an unsaved event gets one of its own.
+        Event(id = 15, title = "Synced", date = day(2026, 3, 5), untimed = true, uid = "9f2c-sync-uid"),
+        Event(id = 0, title = "Unsaved", date = day(2026, 3, 6), untimed = true)
     )
 
     private fun cal(vararg lines: String) = (listOf("BEGIN:VCALENDAR", "VERSION:2.0") + lines + "END:VCALENDAR").joinToString("\r\n")
@@ -317,6 +320,17 @@ class VectorsTest {
                 "BEGIN:VEVENT", "DTSTART;TZID=\"W. Europe Standard Time\":20261110T180000", "SUMMARY:Windows zone name", "END:VEVENT",
                 "BEGIN:VEVENT", "DTSTART:20261110", "SUMMARY:Bare date", "END:VEVENT",
                 "BEGIN:VEVENT", "DTSTART:20261110T230000Z", "RRULE:FREQ=DAILY;UNTIL=20261115T045959Z", "SUMMARY:UTC until", "END:VEVENT"
+            ),
+            // The rules of review items M7 to M10: a zoned start turns its week days and month day, WKST, a
+            // date-time UNTIL before the start time, and a start off the rule.
+            "zoned rules" to cal(
+                "BEGIN:VEVENT", "DTSTART:20261103T030000Z", "RRULE:FREQ=WEEKLY;BYDAY=TU", "SUMMARY:UTC weekly", "END:VEVENT",
+                "BEGIN:VEVENT", "DTSTART:20261101T030000Z", "RRULE:FREQ=MONTHLY", "SUMMARY:UTC monthly", "END:VEVENT",
+                "BEGIN:VEVENT", "DTSTART;TZID=Europe/Berlin:20261110T020000", "RRULE:FREQ=WEEKLY;BYDAY=TU", "SUMMARY:Berlin weekly", "END:VEVENT",
+                "BEGIN:VEVENT", "DTSTART:20260105T090000", "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,SU;WKST=MO", "SUMMARY:Week from Monday", "END:VEVENT",
+                "BEGIN:VEVENT", "DTSTART:20260105T090000", "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,SU;WKST=SU", "SUMMARY:Week from Sunday", "END:VEVENT",
+                "BEGIN:VEVENT", "DTSTART:20261110T090000", "RRULE:FREQ=DAILY;UNTIL=20261115T080000", "SUMMARY:Until before start", "END:VEVENT",
+                "BEGIN:VEVENT", "DTSTART:20261021T090000", "RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3", "SUMMARY:Off-rule start", "END:VEVENT"
             ),
             "overnight" to cal(
                 "BEGIN:VEVENT", "DTSTART:20261106T220000", "DTEND:20261108T060000", "SUMMARY:Retreat",
