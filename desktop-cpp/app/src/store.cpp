@@ -629,13 +629,8 @@ void DesktopStore::set_short_cuts_dirty(bool dirty) {
 }
 
 void DesktopStore::set_up_short_cuts() {
-	// The Palm OS 3.5 default list, as ShortCuts.defaults in palm-ui.
-	const codec::ShortCuts defaults = {
-	    {"br", "Breakfast"}, {"di", "Dinner"},  {"ds", "{date}"}, {"dts", "{date} {time}"},
-	    {"lu", "Lunch"},     {"me", "Meeting"}, {"ts", "{time}"},
-	};
 	sc_rev_ = 0;
-	set_short_cuts_dirty(!short_cut_list_.empty() && short_cut_list_ != defaults);
+	set_short_cuts_dirty(!short_cut_list_.empty() && short_cut_list_ != codec::default_shortcuts());
 }
 
 // ---- the file ----

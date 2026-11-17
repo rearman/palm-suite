@@ -20,6 +20,9 @@ namespace palm::codec {
 // A list of (name, text) ShortCuts.
 using ShortCuts = std::vector<std::pair<std::string, std::string>>;
 
+// The Palm OS 3.5 default ShortCuts list, the one copy of the desktop; the phone's is ShortCuts.defaults in palm-ui.
+const ShortCuts& default_shortcuts();
+
 // The format 2 text of an event.
 std::string event(const model::Event& e);
 

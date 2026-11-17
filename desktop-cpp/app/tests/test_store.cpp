@@ -184,11 +184,7 @@ TEST_CASE("set_up_short_cuts_uploads_only_a_custom_list") {
 	s.set_up_short_cuts();
 	CHECK(s.short_cuts_rev() == 0);
 	CHECK_FALSE(s.short_cuts_dirty());
-	const codec::ShortCuts defaults = {
-	    {"br", "Breakfast"}, {"di", "Dinner"},  {"ds", "{date}"}, {"dts", "{date} {time}"},
-	    {"lu", "Lunch"},     {"me", "Meeting"}, {"ts", "{time}"},
-	};
-	s.set_short_cuts_from_sync(defaults, 41);
+	s.set_short_cuts_from_sync(codec::default_shortcuts(), 41);
 	s.set_up_short_cuts();
 	CHECK_FALSE(s.short_cuts_dirty());
 	s.set_short_cuts_from_sync({{"ad", "Address"}}, 42);

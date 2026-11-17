@@ -184,6 +184,14 @@ std::string category(const model::Category& c) {
 }
 
 // The format 2 text of a ShortCuts list.
+const ShortCuts& default_shortcuts() {
+	static const ShortCuts defaults = {
+	    {"br", "Breakfast"}, {"di", "Dinner"},  {"ds", "{date}"}, {"dts", "{date} {time}"},
+	    {"lu", "Lunch"},     {"me", "Meeting"}, {"ts", "{time}"},
+	};
+	return defaults;
+}
+
 std::string shortcuts(std::span<const ShortCuts::value_type> list) {
 	json::Obj items = json::Obj::array();
 	for (const auto& [name, t] : list) {
