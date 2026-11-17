@@ -414,15 +414,16 @@ void MemoView::load_editor(std::optional<model::Memo> m) {
 			w->deactivate();
 		}
 	}
+	base_ = m;
 	current_ = std::move(m);
 }
 
 bool MemoView::has_changes() const {
-	if (!current_) {
+	if (!current_ || !base_) {
 		return false;
 	}
-	return text_edit::buffer_text(*buf_) != current_->text || category_->id() != current_->category ||
-	       (private_box_->value() != 0) != current_->is_private;
+	return text_edit::buffer_text(*buf_) != base_->text || category_->id() != base_->category ||
+	       (private_box_->value() != 0) != base_->is_private;
 }
 
 void MemoView::save_if_changed(view::Ctx& ctx) {
@@ -431,20 +432,43 @@ void MemoView::save_if_changed(view::Ctx& ctx) {
 	}
 }
 
+model::Memo merge_edits(const model::Memo& base, const model::Memo& edited, model::Memo stored) {
+	if (edited.text != base.text) {
+		stored.text = edited.text;
+	}
+	if (edited.category != base.category) {
+		stored.category = edited.category;
+	}
+	if (edited.is_private != base.is_private) {
+		stored.is_private = edited.is_private;
+	}
+	return stored;
+}
+
 void MemoView::apply_edits(view::Ctx& ctx) {
-	if (!current_) {
+	if (!current_ || !base_) {
 		return;
 	}
-	model::Memo m = *current_;
-	m.text = text_edit::buffer_text(*buf_);
-	m.category = category_->id();
-	m.is_private = private_box_->value() != 0;
+	// A sync's change to the category or Private while the editor was open stays.
+	model::Memo edited = *base_;
+	edited.text = text_edit::buffer_text(*buf_);
+	edited.category = category_->id();
+	edited.is_private = private_box_->value() != 0;
+	model::Memo m = merge_edits(*base_, edited, *current_);
 	if (model::is_blank(m.text)) {
 		ctx.store.delete_memo(m.id);
 	} else {
 		ctx.store.save_memo(m);
 	}
+	// The fields left alone show what the store now holds.
+	if (m.text != edited.text) {
+		buf_->text(m.text.c_str());
+		editor_->insert_position(0);
+	}
+	category_->select(m.category);
+	private_box_->value(m.is_private ? 1 : 0);
 	current_ = m;
+	base_ = m;
 }
 
 model::Memo MemoView::new_memo(const std::string& text) const {

@@ -28,6 +28,10 @@ namespace palm::memo {
 // The Memo List: a record list of one column with a row for each memo. Defined in memo.cpp.
 class MemoTable;
 
+// `stored` with each field of `edited` that differs from `base`, the memo as the editor loaded it: the text, the
+// category, and Private, as the phone's storeMemo takes them.
+model::Memo merge_edits(const model::Memo& base, const model::Memo& edited, model::Memo stored);
+
 class MemoView {
 public:
 	// The split that holds the view; the view group makes it its resizable widget.
@@ -95,6 +99,9 @@ private:
 	std::vector<model::Memo> shown_;
 	// The memo in the editor. Edits go to it on Apply or on a change of selection.
 	std::optional<model::Memo> current_;
+	// The memo as the editor loaded it. A field counts as edited where the editor differs from it, and only edited
+	// fields go to `current_`, so a sync's change to another field stays.
+	std::optional<model::Memo> base_;
 
 	std::vector<std::size_t> selected_rows() const;
 	std::vector<model::Memo> selected() const;
@@ -116,7 +123,8 @@ private:
 	void load_editor(std::optional<model::Memo> m);
 	bool has_changes() const;
 	void save_if_changed(view::Ctx& ctx);
-	// Writes the editor to the current memo. A memo with blank text is deleted, as on the Palm.
+	// Writes the edited fields of the editor to the current memo, and shows the saved memo in the fields left alone. A
+	// memo with blank text is deleted, as on the Palm.
 	void apply_edits(view::Ctx& ctx);
 	// A new memo with `text`, in the category the filter shows.
 	model::Memo new_memo(const std::string& text) const;
