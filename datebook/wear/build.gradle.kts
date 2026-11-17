@@ -15,8 +15,8 @@ android {
         // Wear OS 7 (API 37), the watch of the user.
         minSdk = 37
         targetSdk = 37
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
     }
 
     // The key of datebook/app, by path: the Data Layer pairs only apps with the same key.
